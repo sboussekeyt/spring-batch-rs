@@ -1,0 +1,29 @@
+[package]
+name = "spring-batch-rs"
+version = "0.1.0"
+edition = "2021"
+authors = ["Simon Boussekeyt <sboussekeyt@gmail.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/sboussekeyt/spring-batch-rs"
+documentation = "https://docs.rs/spring-batch-rs"
+keywords = ["batch", "csv", "data"]
+readme = "README.md"
+description = "A batch tool"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lib]
+name = "spring_batch_rs"
+path = "src/lib.rs"
+
+[dependencies]
+log = "0.4.17"
+csv = "1.2.1"
+serde = { version = "1.0.158", features = ["derive"] }
+thiserror = "1.0.40"
+
+[features]
+csv = []
+logger = []
