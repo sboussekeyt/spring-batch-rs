@@ -1,0 +1,30 @@
+[
+    {
+        "first_name": "Océane",
+        "last_name": "Dupond",
+        "title": "Mr.",
+        "email": "leopold_enim@orange.fr",
+        "birth_date": "1963-05-16"
+    },
+    {
+        "first_name": "Amandine",
+        "last_name": "Évrat",
+        "title": "Mrs.",
+        "email": "amandine_iure@outlook.fr",
+        "birth_date": "1933-07-12"
+    },
+    {
+        "first_name": "Ugo",
+        "last_name": "Niels",
+        "title": "Sir.",
+        "email": "xavier_voluptatem@sfr.fr",
+        "birth_date": "1980-04-05"
+    },
+    {
+        "first_name": "Léo",
+        "last_name": "Zola",
+        "title": "Dr.",
+        "email": "ugo_praesentium@orange.fr",
+        "birth_date": "1914-08-13"
+    }
+]
