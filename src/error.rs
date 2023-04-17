@@ -12,10 +12,7 @@ pub enum BatchError {
     Redaction(String),
 
     #[error("invalid header (expected {expected:?}, found {found:?})")]
-    InvalidHeader {
-        expected: String,
-        found: String,
-    },
+    InvalidHeader { expected: String, found: String },
 
     #[error("ItemReader from: {0}")]
     ItemReader(String),

@@ -41,19 +41,20 @@ impl<'a, R, W> Step<'a, R, W> {
 
         debug!("Start processing chunk");
         for item in chunk_items {
-            let item_processed = self.processor.process(&item);
+            let item_processed = self.processor.process(item);
             outputs.push(item_processed);
         }
         debug!("End processing chunk");
 
         debug!("Start writting chunk");
         for item in outputs {
-            self.writer.write(&item);
+            self.writer.write(item);
         }
         debug!("End writting chunk");
     }
 }
 
+#[derive(Default)]
 pub struct StepBuilder<'a, R, W> {
     reader: Option<&'a dyn ItemReader<R>>,
     processor: Option<&'a dyn ItemProcessor<R, W>>,

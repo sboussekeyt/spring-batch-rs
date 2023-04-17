@@ -4,6 +4,7 @@ use log::info;
 
 use crate::core::item::ItemWriter;
 
+#[derive(Default)]
 pub struct LoggerWriter {}
 
 impl<T> ItemWriter<T> for LoggerWriter

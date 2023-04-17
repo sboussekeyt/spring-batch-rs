@@ -11,7 +11,7 @@ pub struct CsvItemReader<R> {
 impl<R: io::Read, D: DeserializeOwned> ItemReader<D> for CsvItemReader<R> {
     fn read(&self) -> Option<Result<D, BatchError>> {
         if let Some(result) = self.records.borrow_mut().next() {
-            return match result {
+            match result {
                 Ok(string_record) => {
                     let result: Result<D, _> = string_record.deserialize(None);
 
@@ -21,13 +21,14 @@ impl<R: io::Read, D: DeserializeOwned> ItemReader<D> for CsvItemReader<R> {
                     }
                 }
                 Err(error) => Some(Err(BatchError::ItemReader(error.to_string()))),
-            };
+            }
         } else {
-            return None;
+            None
         }
     }
 }
 
+#[derive(Default)]
 pub struct CsvItemReaderBuilder {
     delimiter: u8,
     terminator: Terminator,
@@ -123,8 +124,36 @@ impl CsvItemReaderBuilder {
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error;
+
+    use csv::StringRecord;
+
+    use crate::CsvItemReaderBuilder;
+
     #[test]
-    fn this_test_will_pass() {
-        assert_eq!(1 + 2, 3);
+    fn this_test_will_pass() -> Result<(), Box<dyn Error>> {
+        let data = "city,country,pop
+        Boston,United States,4628910
+        Concord,United States,42695";
+
+        let mut reader = CsvItemReaderBuilder::new()
+            .has_headers(true)
+            .delimiter(b',')
+            .from_reader(data.as_bytes());
+
+        let records = reader
+            .records
+            .get_mut()
+            .collect::<Result<Vec<StringRecord>, csv::Error>>()?;
+
+        assert_eq!(
+            records,
+            vec![
+                vec!["Boston", "United States", "4628910"],
+                vec!["Concord", "United States", "42695"],
+            ]
+        );
+
+        Ok(())
     }
 }
