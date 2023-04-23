@@ -1,7 +1,7 @@
 use crate::error::BatchError;
 
 pub trait ItemReader<R> {
-    fn read(&self) -> Option<Result<R, BatchError>>;
+    fn read(&mut self) -> Option<Result<R, BatchError>>;
 }
 
 pub trait ItemProcessor<R, W> {
@@ -9,7 +9,7 @@ pub trait ItemProcessor<R, W> {
 }
 
 pub trait ItemWriter<W> {
-    fn write(&self, item: &W);
+    fn write(&mut self, item: &W);
 }
 
 pub struct DefaultProcessor {}

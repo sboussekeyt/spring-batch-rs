@@ -54,15 +54,17 @@
 //! 1948,Porsche,356,Luxury sports car
 //! 1967,Ford,Mustang fastback 1967,American car";
 //!
-//! let reader = CsvItemReaderBuilder::new().delimiter(b',').from_reader(csv.as_bytes());
+//! let mut reader = CsvItemReaderBuilder::new().delimiter(b',').from_reader(csv.as_bytes());
 //!
-//! let writer = LoggerWriter::new();
+//! let mut writer = LoggerWriter::new();
 //!
-//! let step: Step<Record, Record> = StepBuilder::new()
-//!     .reader(&reader)
-//!     .writer(&writer)
+//! let mut step: Step<Record, Record> = StepBuilder::new()
+//!     .reader(&mut reader)
+//!     .writer(&mut writer)
 //!     .chunk(4)
 //!     .build();
+//!
+//! step.execute();
 //! ```
 //! ## License
 //!

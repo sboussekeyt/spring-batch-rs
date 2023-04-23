@@ -1,16 +1,16 @@
 use csv::{ReaderBuilder, StringRecordsIntoIter, Terminator, Trim};
 use serde::de::DeserializeOwned;
-use std::{cell::RefCell, fs::File, io, path::Path};
+use std::{fs::File, io, path::Path};
 
 use crate::{core::item::ItemReader, error::BatchError};
 
 pub struct CsvItemReader<R> {
-    records: RefCell<StringRecordsIntoIter<R>>,
+    records: Box<StringRecordsIntoIter<R>>,
 }
 
 impl<R: io::Read, D: DeserializeOwned> ItemReader<D> for CsvItemReader<R> {
-    fn read(&self) -> Option<Result<D, BatchError>> {
-        if let Some(result) = self.records.borrow_mut().next() {
+    fn read(&mut self) -> Option<Result<D, BatchError>> {
+        if let Some(result) = self.records.as_mut().next() {
             match result {
                 Ok(string_record) => {
                     let result: Result<D, _> = string_record.deserialize(None);
@@ -68,7 +68,7 @@ pub struct CsvItemReaderBuilder {
 impl CsvItemReaderBuilder {
     pub fn new() -> CsvItemReaderBuilder {
         CsvItemReaderBuilder {
-            delimiter: b';',
+            delimiter: b',',
             terminator: Terminator::CRLF,
             has_headers: false,
         }
@@ -101,7 +101,7 @@ impl CsvItemReaderBuilder {
         let records = rdr.into_records();
 
         CsvItemReader {
-            records: RefCell::new(records),
+            records: Box::new(records),
         }
     }
 
@@ -117,7 +117,7 @@ impl CsvItemReaderBuilder {
         let records = rdr.unwrap().into_records();
 
         CsvItemReader {
-            records: RefCell::new(records),
+            records: Box::new(records),
         }
     }
 }
@@ -143,7 +143,7 @@ mod tests {
 
         let records = reader
             .records
-            .get_mut()
+            .as_mut()
             .collect::<Result<Vec<StringRecord>, csv::Error>>()?;
 
         assert_eq!(

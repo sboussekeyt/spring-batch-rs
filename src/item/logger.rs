@@ -11,7 +11,7 @@ impl<T> ItemWriter<T> for LoggerWriter
 where
     T: Display,
 {
-    fn write(&self, item: &T) {
+    fn write(&mut self, item: &T) {
         info!("Record:{}", item);
     }
 }

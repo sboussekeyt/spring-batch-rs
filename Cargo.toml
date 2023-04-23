@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "examples"]
+
 [package]
 name = "spring-batch-rs"
 version = "0.1.0"
@@ -20,10 +23,18 @@ path = "src/lib.rs"
 
 [dependencies]
 log = "0.4.17"
-csv = "1.2.1"
-serde = { version = "1.0.158", features = ["derive"] }
+serde = { version = "1.0.160", features = ["derive"] }
 thiserror = "1.0.40"
+csv = { version = "1.2.1", optional = true }
+fake = {version = "2.5", optional = true }
+rand = {version = "0.8", optional = true }
+time = {version = "0.3.20", optional = true }
+
+[dev-dependencies]
+env_logger = "0.10.0"
+pretty_assertions = "1"
 
 [features]
-csv = []
+csv = ["dep:csv"]
 logger = []
+fake = ["dep:fake", "dep:rand", "dep:time"]

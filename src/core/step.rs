@@ -6,14 +6,14 @@ use super::{
 };
 
 pub struct Step<'a, R, W> {
-    reader: &'a dyn ItemReader<R>,
+    reader: &'a mut dyn ItemReader<R>,
     processor: &'a dyn ItemProcessor<R, W>,
-    writer: &'a dyn ItemWriter<W>,
+    writer: &'a mut dyn ItemWriter<W>,
     chunk_size: usize,
 }
 
 impl<'a, R, W> Step<'a, R, W> {
-    pub fn execute(&self) {
+    pub fn execute(&mut self) {
         let mut chunk = Chunk::new(self.chunk_size);
 
         loop {
@@ -36,7 +36,7 @@ impl<'a, R, W> Step<'a, R, W> {
         }
     }
 
-    fn execute_chunk(&self, chunk_items: &Vec<R>) {
+    fn execute_chunk(&mut self, chunk_items: &Vec<R>) {
         let mut outputs = Vec::with_capacity(chunk_items.len());
 
         debug!("Start processing chunk");
@@ -56,9 +56,9 @@ impl<'a, R, W> Step<'a, R, W> {
 
 #[derive(Default)]
 pub struct StepBuilder<'a, R, W> {
-    reader: Option<&'a dyn ItemReader<R>>,
+    reader: Option<&'a mut dyn ItemReader<R>>,
     processor: Option<&'a dyn ItemProcessor<R, W>>,
-    writer: Option<&'a dyn ItemWriter<W>>,
+    writer: Option<&'a mut dyn ItemWriter<W>>,
     chunk_size: usize,
 }
 
@@ -72,17 +72,17 @@ impl<'a, R, W> StepBuilder<'a, R, W> {
         }
     }
 
-    pub fn reader(mut self, reader: &'a impl ItemReader<R>) -> StepBuilder<'a, R, W> {
+    pub fn reader(mut self, reader: &'a mut impl ItemReader<R>) -> StepBuilder<'a, R, W> {
         self.reader = Some(reader);
         self
     }
 
-    pub fn processor(mut self, processor: &'a impl ItemProcessor<R, W>) -> StepBuilder<'a, R, W> {
+    pub fn processor(mut self, processor: &'a mut impl ItemProcessor<R, W>) -> StepBuilder<'a, R, W> {
         self.processor = Some(processor);
         self
     }
 
-    pub fn writer(mut self, writer: &'a impl ItemWriter<W>) -> StepBuilder<'a, R, W> {
+    pub fn writer(mut self, writer: &'a mut impl ItemWriter<W>) -> StepBuilder<'a, R, W> {
         self.writer = Some(writer);
         self
     }
