@@ -1,6 +1,3 @@
-[workspace]
-members = [".", "examples"]
-
 [package]
 name = "spring-batch-rs"
 version = "0.1.0"
@@ -26,9 +23,9 @@ log = "0.4.17"
 serde = { version = "1.0.160", features = ["derive"] }
 thiserror = "1.0.40"
 csv = { version = "1.2.1", optional = true }
-fake = {version = "2.5", optional = true }
+fake = {version = "2.5", features = ["time"], optional = true }
 rand = {version = "0.8", optional = true }
-time = {version = "0.3.20", optional = true }
+time = {version = "0.3.20", features = ["serde-human-readable"], optional = true }
 
 [dev-dependencies]
 env_logger = "0.10.0"
@@ -38,3 +35,11 @@ pretty_assertions = "1"
 csv = ["dep:csv"]
 logger = []
 fake = ["dep:fake", "dep:rand", "dep:time"]
+
+[[example]]
+name = "csv_reader_with_headers"
+required-features = ["csv", "logger"]
+
+[[example]]
+name = "fake_person_generator"
+required-features = ["csv", "fake"]

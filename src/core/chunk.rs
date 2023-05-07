@@ -5,6 +5,7 @@ use crate::error::BatchError;
 #[derive(Debug)]
 pub enum ChunkStatus {
     CONTINUABLE,
+    ERROR,
     FINISHED,
     COMPLETE,
 }
@@ -29,9 +30,11 @@ impl<R> Chunk<R> {
             match result {
                 Ok(item) => {
                     self.items.push(item);
+                    self.status = ChunkStatus::CONTINUABLE;
                 }
                 Err(err) => {
-                    error!("Error occured: {}", err)
+                    self.status = ChunkStatus::ERROR;
+                    error!("Error occured: {}", err);
                 }
             };
         } else {

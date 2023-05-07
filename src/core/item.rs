@@ -1,3 +1,5 @@
+use std::io;
+
 use crate::error::BatchError;
 
 pub trait ItemReader<R> {
@@ -9,7 +11,8 @@ pub trait ItemProcessor<R, W> {
 }
 
 pub trait ItemWriter<W> {
-    fn write(&mut self, item: &W);
+    fn write(&mut self, item: &W) -> Result<(), BatchError>;
+    fn flush(&mut self) -> io::Result<()>;
 }
 
 pub struct DefaultProcessor {}

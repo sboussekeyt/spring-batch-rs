@@ -1,11 +1,10 @@
-use std::fmt;
+use std::{fmt, io};
 
 use serde::{Deserialize, Serialize};
 
 use spring_batch_rs::{
-    core::step::{Step, StepBuilder},
+    core::step::{Step, StepBuilder, StepResult},
     item::csv::csv_reader::CsvItemReaderBuilder,
-    error::BatchError,
     item::logger::LoggerWriter,
 };
 
@@ -29,7 +28,7 @@ impl fmt::Display for Record {
     }
 }
 
-fn main() -> Result<(), BatchError> {
+fn main() -> std::io::Result<()> {
     env_logger::init();
 
     info!("Start batch processing");
@@ -37,7 +36,7 @@ fn main() -> Result<(), BatchError> {
     let mut reader = CsvItemReaderBuilder::new()
         .has_headers(true)
         .delimiter(b',')
-        .from_path("/Users/20014378/Projects/Perso/rusty/batch/test.csv");
+        .from_reader(io::stdin());
 
     let mut writer = LoggerWriter::new();
 
@@ -47,8 +46,10 @@ fn main() -> Result<(), BatchError> {
         .chunk(4)
         .build();
 
-    step.execute();
+    let result: StepResult = step.execute();
 
-    info!("End batch processing");
+    info!("Time elapsed is: {:?}", result.duration);
+
+    info!("Finishing generation");
     Ok(())
 }

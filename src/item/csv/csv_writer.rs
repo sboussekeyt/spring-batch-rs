@@ -1,22 +1,20 @@
 use std::{fs::File, io, path::Path, result};
 
-use csv::{IntoInnerError, Writer, WriterBuilder};
+use csv::{Writer, WriterBuilder};
 
-use crate::core::item::ItemWriter;
+use crate::{core::item::ItemWriter, BatchError};
 
 pub struct CsvItemWriter<T: io::Write> {
     wrapper: Box<Writer<T>>,
 }
 
 impl<T: io::Write, R: serde::Serialize> ItemWriter<R> for CsvItemWriter<T> {
-    fn write(&mut self, item: &R) {
-        self.wrapper.as_mut().serialize(item);
-    }
-}
-
-impl<T: io::Write> CsvItemWriter<T> {
-    pub fn into_inner(self) -> result::Result<T, IntoInnerError<Writer<T>>> {
-        self.wrapper.into_inner()
+    fn write(&mut self, item: &R) -> Result<(), BatchError> {
+        let result = self.wrapper.as_mut().serialize(item);
+        match result {
+            Ok(()) => Ok(()),
+            Err(error) => Err(BatchError::ItemWriter(error.to_string())),
+        }
     }
 
     /// Flush the contents of the internal buffer to the underlying writer.
@@ -25,9 +23,19 @@ impl<T: io::Write> CsvItemWriter<T> {
     /// is returned.
     ///
     /// Note that this also flushes the underlying writer.
-    pub fn flush(&mut self) -> io::Result<()> {
+    fn flush(&mut self) -> io::Result<()> {
         self.wrapper.as_mut().flush()?;
         Ok(())
+    }
+}
+
+impl<T: io::Write> CsvItemWriter<T> {
+    pub fn into_inner(self) -> result::Result<T, BatchError> {
+        let result = self.wrapper.into_inner();
+        match result {
+            Ok(record) => Ok(record),
+            Err(error) => Err(BatchError::ItemWriter(error.to_string())),
+        }
     }
 }
 
@@ -40,7 +48,7 @@ pub struct CsvItemWriterBuilder {
 impl CsvItemWriterBuilder {
     pub fn new() -> CsvItemWriterBuilder {
         CsvItemWriterBuilder {
-            delimiter: b';',
+            delimiter: b',',
             has_headers: false,
         }
     }
@@ -92,13 +100,13 @@ impl CsvItemWriterBuilder {
     ///     let mut wtr = CsvItemWriterBuilder::new()
     ///         .has_headers(true)
     ///         .from_writer(vec![]);
-    /// 
+    ///
     ///     wtr.write(&Row {
     ///         city: "Boston",
     ///         country: "United States",
     ///         population: 4628910,
     ///     });
-    /// 
+    ///
     ///     wtr.write(&Row {
     ///         city: "Concord",
     ///         country: "United States",
@@ -145,16 +153,20 @@ mod tests {
         let mut wtr = CsvItemWriterBuilder::new()
             .has_headers(true)
             .from_writer(vec![]);
+
         wtr.write(&Row {
             city: "Boston",
             country: "United States",
             population: 4628910,
-        });
+        })?;
+
         wtr.write(&Row {
             city: "Concord",
             country: "United States",
             population: 42695,
-        });
+        })?;
+
+        //wtr.flush();
 
         let data = String::from_utf8(wtr.into_inner()?)?;
         assert_eq!(
@@ -177,13 +189,13 @@ Concord,United States,42695
             city: "Boston",
             country: "United States",
             population: 4628910,
-        });
+        })?;
         wtr.write(&Row {
             city: "Concord",
             country: "United States",
             population: 42695,
-        });
-        wtr.flush();
+        })?;
+        //wtr.flush();
 
         Ok(())
     }
