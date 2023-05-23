@@ -13,6 +13,9 @@ pub trait ItemProcessor<R, W> {
 pub trait ItemWriter<W> {
     fn write(&mut self, item: &W) -> Result<(), BatchError>;
     fn flush(&mut self) -> io::Result<()>;
+    fn open(&mut self) {}
+    fn update(&mut self, _is_first_item: bool) {}
+    fn close(&mut self) {}
 }
 
 pub struct DefaultProcessor {}

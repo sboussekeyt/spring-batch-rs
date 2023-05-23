@@ -7,7 +7,7 @@ pub enum ChunkStatus {
     CONTINUABLE,
     ERROR,
     FINISHED,
-    COMPLETE,
+    FULL,
 }
 
 pub struct Chunk<R> {
@@ -37,12 +37,12 @@ impl<R> Chunk<R> {
                     error!("Error occured: {}", err);
                 }
             };
+
+            if self.items.len() == self.chunk_size {
+                self.status = ChunkStatus::FULL;
+            }
         } else {
             self.status = ChunkStatus::FINISHED;
-        }
-
-        if self.items.len() == self.chunk_size {
-            self.status = ChunkStatus::COMPLETE;
         }
     }
 

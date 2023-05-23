@@ -30,6 +30,8 @@ impl<'a, R, W> Step<'a, R, W> {
 
         let mut chunk = Chunk::new(self.chunk_size);
 
+        self.writer.open();
+
         loop {
             match chunk.get_status() {
                 ChunkStatus::CONTINUABLE => {
@@ -40,18 +42,20 @@ impl<'a, R, W> Step<'a, R, W> {
                 ChunkStatus::ERROR => {
                     self.read_skip_count += 1;
                 }
-                ChunkStatus::COMPLETE => {
-                    self.execute_chunk(chunk.get_items());
+                ChunkStatus::FULL => {
+                    self.execute_chunk(&chunk);
                     chunk.clear();
-                    debug!("Chunk complete, start new one")
+                    debug!("Chunk full, start a new one")
                 }
                 ChunkStatus::FINISHED => {
-                    self.execute_chunk(chunk.get_items());
+                    self.execute_chunk(&chunk);
                     debug!("End of step");
                     break;
                 }
             }
         }
+
+        self.writer.close();
 
         StepResult {
             start,
@@ -60,7 +64,8 @@ impl<'a, R, W> Step<'a, R, W> {
         }
     }
 
-    fn execute_chunk(&mut self, chunk_items: &Vec<R>) {
+    fn execute_chunk(&mut self, chunk: &Chunk<R>) {
+        let chunk_items = chunk.get_items();
         let mut outputs = Vec::with_capacity(chunk_items.len());
 
         debug!("Start processing chunk");
@@ -72,6 +77,7 @@ impl<'a, R, W> Step<'a, R, W> {
 
         debug!("Start writting chunk");
         for item in outputs {
+            self.writer.update(self.write_count == 0);
             self.write(item);
         }
         //self.writer.flush();

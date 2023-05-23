@@ -6,3 +6,6 @@ pub mod csv;
 
 #[cfg(feature = "fake")]
 pub mod fake;
+
+#[cfg(feature = "json")]
+pub mod json;

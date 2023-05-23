@@ -9,7 +9,9 @@
    [![crate](https://img.shields.io/crates/v/spring-batch-rs.svg)](https://crates.io/crates/spring-batch-rs)
    [![docs](https://docs.rs/spring-batch-rs/badge.svg)](https://docs.rs/spring-batch-rs)
    [![build status](https://github.com/sboussekeyt/spring-batch-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/sboussekeyt/spring-batch-rs/actions/workflows/rust.yml)
- </div>
+   [![Discord chat](https://img.shields.io/discord/1097536141617528966.svg?logo=discord&style=flat-square)](https://discord.gg/9FNhawNsG6)
+
+  </div>
 
  # Spring-Batch for Rust
 
@@ -106,4 +108,4 @@ pub use item::logger::*;
 
 #[cfg(feature = "csv")]
 #[doc(inline)]
-pub use item::csv::csv_reader::*;
+pub use item::csv::{csv_reader::*, csv_writer::*};
