@@ -2,6 +2,8 @@ use std::time::{Duration, Instant};
 
 use log::debug;
 
+use crate::BatchError;
+
 use super::{
     chunk::{Chunk, ChunkStatus},
     item::{DefaultProcessor, ItemProcessor, ItemReader, ItemWriter},
@@ -30,7 +32,7 @@ impl<'a, R, W> Step<'a, R, W> {
 
         let mut chunk = Chunk::new(self.chunk_size);
 
-        self.writer.open();
+        Self::manage_error(self.writer.open());
 
         loop {
             match chunk.get_status() {
@@ -55,7 +57,7 @@ impl<'a, R, W> Step<'a, R, W> {
             }
         }
 
-        self.writer.close();
+        Self::manage_error(self.writer.close());
 
         StepResult {
             start,
@@ -77,21 +79,30 @@ impl<'a, R, W> Step<'a, R, W> {
 
         debug!("Start writting chunk");
         for item in outputs {
-            self.writer.update(self.write_count == 0);
+            Self::manage_error(self.writer.update(self.write_count == 0));
             self.write(item);
         }
-        //self.writer.flush();
+        Self::manage_error(self.writer.flush());
         debug!("End writting chunk");
     }
 
     fn write(&mut self, item: &W) {
         let result = self.writer.write(item);
         match result {
-            Ok(_item) => {
+            Ok(()) => {
                 self.write_count += 1;
             }
             Err(_err) => {
                 self.write_skip_count += 1;
+            }
+        };
+    }
+
+    fn manage_error(result: Result<(), BatchError>) {
+        match result {
+            Ok(()) => {}
+            Err(error) => {
+                panic!("{}", error.to_string());
             }
         };
     }

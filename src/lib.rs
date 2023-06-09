@@ -17,8 +17,8 @@
 
  ## Features
  + CSV reader and writer
+ + JSON reader and writer
  + XML reader and writer (roadmap)
- + JSON reader and writer (roadmap)
  + SQL reader and writer (roadmap)
  + MongoDB reader and writer (roadmap)
 
@@ -70,8 +70,15 @@
  ```ignore
 $ git clone git://github.com/sboussekeyt/spring-batch-rs
 $ cd spring-batch-rs
-$ cargo run --example with_headers --all-features < examples/data/cars_with_headers.csv
+$ cargo run --example csv_reader_with_headers --all-features < examples/data/cars_with_headers.csv
 ```
+  ### Read Json file
+ ```ignore
+$ git clone git://github.com/sboussekeyt/spring-batch-rs
+$ cd spring-batch-rs
+$ cargo run --example json_reader --all-features < examples/data/persons.json
+```
+
  ## License
 
  Licensed under either of

@@ -49,3 +49,7 @@ required-features = ["csv", "fake"]
 [[example]]
 name = "json_generate_fake_person"
 required-features = ["json", "fake"]
+
+[[example]]
+name = "json_reader"
+required-features = ["json", "fake"]

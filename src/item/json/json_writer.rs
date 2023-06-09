@@ -12,7 +12,7 @@ pub struct JsonItemWriter<'a, T: io::Write> {
 }
 
 impl<'a, T: io::Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<'a, T> {
-    fn write(&mut self, item: &R) -> Result<(), crate::BatchError> {
+    fn write(&mut self, item: &R) -> Result<(), BatchError> {
 
         let result = if self.pretty_formatter {
             let formatter = serde_json::ser::PrettyFormatter::with_indent(self.indent);
@@ -29,22 +29,31 @@ impl<'a, T: io::Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<'a,
         }
     }
 
-    fn flush(&mut self) -> io::Result<()> {
-        self.writer.flush()?;
-        Ok(())
+    fn flush(&mut self) -> Result<(), BatchError> {
+        let result = self.writer.flush();
+
+        match result {
+            Ok(()) => Ok(()),
+            Err(error) => Err(BatchError::ItemWriter(error.to_string())),
+        }
     }
 
-    fn open(&mut self) {
+    fn open(&mut self) -> Result<(), BatchError> {
         let mut separator = b"[".to_vec();
 
         if self.pretty_formatter {
             separator.push(b'\n');
         }
 
-        self.writer.write_all(&separator);
+        let result = self.writer.write_all(&separator);
+
+        match result {
+            Ok(()) => Ok(()),
+            Err(error) => Err(BatchError::ItemWriter(error.to_string())),
+        }
     }
 
-    fn update(&mut self, is_first_item: bool) {
+    fn update(&mut self, is_first_item: bool) -> Result<(), BatchError> {
         let mut separator = b",".to_vec();
 
         if self.pretty_formatter {
@@ -52,18 +61,29 @@ impl<'a, T: io::Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<'a,
         }
 
         if !is_first_item {
-            self.writer.write_all(&separator);
+            let result = self.writer.write_all(&separator);
+
+            return match result {
+                Ok(()) => Ok(()),
+                Err(error) => Err(BatchError::ItemWriter(error.to_string())),
+            };
         }
+        Ok(())
     }
 
-    fn close(&mut self) {
+    fn close(&mut self) -> Result<(), BatchError> {
         let mut separator = b"]".to_vec();
 
         if self.pretty_formatter {
             separator = b"\n]".to_vec();
         }
 
-        self.writer.write_all(&separator);
+        let result = self.writer.write_all(&separator);
+
+        match result {
+            Ok(()) => Ok(()),
+            Err(error) => Err(BatchError::ItemWriter(error.to_string())),
+        }
     }
 }
 

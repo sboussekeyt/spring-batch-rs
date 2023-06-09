@@ -23,9 +23,13 @@ impl<T: io::Write, R: serde::Serialize> ItemWriter<R> for CsvItemWriter<T> {
     /// is returned.
     ///
     /// Note that this also flushes the underlying writer.
-    fn flush(&mut self) -> io::Result<()> {
-        self.wrapper.as_mut().flush()?;
-        Ok(())
+    fn flush(&mut self) -> Result<(), BatchError> {
+        let result = self.wrapper.as_mut().flush();
+        
+        match result {
+            Ok(()) => Ok(()),
+            Err(error) => Err(BatchError::ItemWriter(error.to_string())),
+        }
     }
 }
 

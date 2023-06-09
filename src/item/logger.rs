@@ -1,4 +1,4 @@
-use std::{fmt::Display, io};
+use std::fmt::Display;
 
 use log::info;
 
@@ -16,7 +16,7 @@ where
         Ok(())
     }
 
-    fn flush(&mut self) -> io::Result<()> {
+    fn flush(&mut self) -> Result<(), BatchError> {
         Ok(())
     }
 }
