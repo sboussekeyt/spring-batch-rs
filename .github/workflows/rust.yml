@@ -50,12 +50,49 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+
+    - name: Install grcov
+      run: |
+        rustup component add llvm-tools-preview
+        cargo install grcov
+      
     - name: Run tests
-      run: cargo test --doc --verbose --all-features
+      run: cargo test --all --all-features
+      env:
+        RUSTFLAGS: "-Cinstrument-coverage"
+
+    - name: Create coverage report
+      run: |
+        grcov . \
+            --binary-path ./target/debug/deps/ \
+            --source-dir . \
+            --excl-start 'mod test* \{' \
+            --ignore '*test*' \
+            --ignore "*test.rs" \
+            --ignore "*main.rs" \
+            --ignore "*steps.rs" \
+            --ignore "*tests.rs" \
+            --ignore "*github.com*" \
+            --ignore "*libcore*" \
+            --ignore "*rustc*" \
+            --ignore "*liballoc*" \
+            --ignore "*cargo*" \
+            -t coveralls+ \
+            --token ? \
+            -o ./cov_normal.json
+
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      with:
+        files: cov_normal.json
+        verbose: true
+        fail_ci_if_error: true
 
   build:
     name: Build
