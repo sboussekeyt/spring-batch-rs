@@ -10,7 +10,7 @@ use spring_batch_rs::{
 
 use log::info;
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 struct Record {
     year: u16,
     make: String,

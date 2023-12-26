@@ -1,14 +1,21 @@
-use std::{cell::RefCell, fs::File, io, path::Path, result};
+use std::{
+    cell::RefCell,
+    fs::File,
+    io::{self, Write},
+    path::Path,
+    result,
+};
 
 use csv::{Writer, WriterBuilder};
+use serde::Serialize;
 
 use crate::{core::item::ItemWriter, BatchError};
 
-pub struct CsvItemWriter<T: io::Write> {
+pub struct CsvItemWriter<T: Write> {
     wrapper: RefCell<Writer<T>>,
 }
 
-impl<T: io::Write, R: serde::Serialize> ItemWriter<R> for CsvItemWriter<T> {
+impl<T: Write, R: Serialize> ItemWriter<R> for CsvItemWriter<T> {
     fn write(&self, item: &R) -> Result<(), BatchError> {
         let result = self.wrapper.borrow_mut().serialize(item);
         match result {
@@ -32,7 +39,7 @@ impl<T: io::Write, R: serde::Serialize> ItemWriter<R> for CsvItemWriter<T> {
     }
 }
 
-impl<T: io::Write> CsvItemWriter<T> {
+impl<T: Write> CsvItemWriter<T> {
     pub fn into_inner(self) -> result::Result<T, BatchError> {
         let result = self.wrapper.into_inner().into_inner();
         match result {
@@ -100,7 +107,7 @@ impl CsvItemWriterBuilder {
     ///
     /// # fn main() { example().unwrap(); }
     /// fn example() -> Result<(), Box<dyn Error>> {
-    ///     let mut wtr = CsvItemWriterBuilder::new()
+    ///     let wtr = CsvItemWriterBuilder::new()
     ///         .has_headers(true)
     ///         .from_writer(vec![]);
     ///

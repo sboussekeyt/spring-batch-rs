@@ -85,7 +85,7 @@ impl<'a, R, W> Step<'a, R, W> {
         debug!("Start writting chunk");
         for item in outputs {
             Self::manage_error(self.writer.update(self.write_count.get() == 0));
-            self.write(item);
+            self.write(&item);
         }
         Self::manage_error(self.writer.flush());
 

@@ -5,7 +5,7 @@ pub trait ItemReader<R> {
 }
 
 pub trait ItemProcessor<R, W> {
-    fn process<'a>(&self, item: &'a R) -> &'a W;
+    fn process<'a>(&'a self, item: &'a R) -> W;
 }
 
 pub trait ItemWriter<W> {
@@ -24,8 +24,8 @@ pub trait ItemWriter<W> {
 
 pub struct DefaultProcessor {}
 
-impl<R> ItemProcessor<R, R> for DefaultProcessor {
-    fn process<'a>(&self, item: &'a R) -> &'a R {
-        item
+impl<R: Clone> ItemProcessor<R, R> for DefaultProcessor {
+    fn process<'a>(&'a self, item: &'a R) -> R {
+        item.clone()
     }
 }

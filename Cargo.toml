@@ -52,8 +52,13 @@ full = [
 
 csv = ["dep:csv"]
 json = ["dep:serde_json"]
+time = ["dep:time"]
 logger = []
 fake = ["dep:fake", "dep:rand", "dep:time"]
+
+[[example]]
+name = "transform_data_from_json_to_csv"
+required-features = ["csv", "json", "time"]
 
 [[example]]
 name = "csv_reader_with_headers"

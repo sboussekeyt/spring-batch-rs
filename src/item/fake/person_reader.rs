@@ -13,7 +13,7 @@ use time::{Date, Month};
 
 use crate::{core::item::ItemReader, error::BatchError};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Person {
     first_name: String,
     last_name: String,

@@ -15,6 +15,8 @@
 
  # Spring-Batch for Rust
 
+ Spring Batch for Rust, offers a robust and flexible framework for the development of batch processing applications, addressing the challenges of handling large-scale data processing tasks efficiently and reliably. It provides developers a comprehensive toolkit for building enterprise-grade batch applications.
+
  ## Features
  + CSV reader and writer
  + JSON reader and writer
@@ -44,7 +46,7 @@ Then, on your main.rs:
  # error::BatchError,
  # item::logger::LoggerWriter,
  # };
- #[derive(Deserialize, Serialize, Debug)]
+ #[derive(Deserialize, Serialize, Debug, Clone)]
  struct Record {
      year: u16,
      make: String,

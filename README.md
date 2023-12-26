@@ -44,11 +44,11 @@ Then, on your main.rs:
     1948,Porsche,356,Luxury sports car
     1967,Ford,Mustang fastback 1967,American car";
 
-    let mut reader = CsvItemReaderBuilder::new().delimiter(b',').from_reader(csv.as_bytes());
+    let reader = CsvItemReaderBuilder::new().delimiter(b',').from_reader(csv.as_bytes());
 
-    let mut writer = LoggerWriter::new();
+    let writer = LoggerWriter::new();
 
-    let mut step: Step<Record, Record> = StepBuilder::new()
+    let step: Step<Record, Record> = StepBuilder::new()
         .reader(&mut reader)
         .writer(&mut writer)
         .chunk(4)
