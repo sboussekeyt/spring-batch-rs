@@ -3,7 +3,13 @@ use std::{env::temp_dir, fs::File, path::Path, time::Instant};
 use ::serde::{ser::Error, Deserialize, Serialize};
 use serde::Serializer;
 
-use spring_batch_rs::{core::{item::ItemProcessor, step::{StepBuilder, Step, StepResult}}, JsonItemReaderBuilder, CsvItemWriterBuilder};
+use spring_batch_rs::{
+    core::{
+        item::ItemProcessor,
+        step::{Step, StepBuilder, StepResult},
+    },
+    CsvItemWriterBuilder, JsonItemReaderBuilder,
+};
 use time::{format_description, Date, Month};
 
 fn date_serializer<S>(date: &Date, serializer: S) -> Result<S::Ok, S::Error>
@@ -80,5 +86,4 @@ fn transform_from_json_file_to_csv_file_without_error() {
     assert!(result.start.le(&Instant::now()));
     assert!(result.end.le(&Instant::now()));
     assert!(result.start.le(&result.end));
-  
 }

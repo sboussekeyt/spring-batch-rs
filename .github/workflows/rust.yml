@@ -61,7 +61,7 @@ jobs:
         cargo install grcov
       
     - name: Run tests
-      run: cargo test --doc --verbose --all-features
+      run: cargo test --all-features
       env:
         RUSTFLAGS: "-Cinstrument-coverage"
 
