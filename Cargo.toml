@@ -8,7 +8,7 @@ repository = "https://github.com/sboussekeyt/spring-batch-rs"
 documentation = "https://docs.rs/spring-batch-rs"
 keywords = ["batch", "csv", "data", "json"]
 readme = "README.md"
-description = "A batch tool"
+description = "A toolkit for building enterprise-grade batch applications"
 
 [package.metadata.docs.rs]
 all-features = true

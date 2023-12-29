@@ -12,7 +12,7 @@
    [![Discord chat](https://img.shields.io/discord/1097536141617528966.svg?logo=discord&style=flat-square)](https://discord.gg/9FNhawNsG6)
    [![CodeCov](https://codecov.io/gh/sboussekeyt/spring-batch-rs/branch/main/graph/badge.svg)](https://codecov.io/gh/sboussekeyt/spring-batch-rs)
    ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
-   
+
   </div>
 
  # Spring-Batch for Rust
