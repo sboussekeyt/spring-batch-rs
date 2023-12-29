@@ -37,10 +37,12 @@ serde_json = {version = "1.0.108", optional = true }
 [dev-dependencies]
 env_logger = "0.10.1"
 pretty_assertions = "1.4.0"
+spring-batch-rs = { path = ".", features = ["tests-cfg"] }
 
 [features]
 # Include nothing by default
 default = []
+tests-cfg = ["full"]
 
 # enable everything
 full = [
