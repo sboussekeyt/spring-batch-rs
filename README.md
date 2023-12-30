@@ -1,6 +1,6 @@
  <div align="center">
    <h1>Spring-Batch for Rust</h1>
-   <h3>🐞 A Batch tool (inspired by Spring-Batch) for Rust</h3>
+   <h3>🐞 A toolkit for building enterprise-grade batch applications</h3>
 
    [![crate](https://img.shields.io/crates/v/spring-batch-rs.svg)](https://crates.io/crates/spring-batch-rs)
    [![docs](https://docs.rs/spring-batch-rs/badge.svg)](https://docs.rs/spring-batch-rs)

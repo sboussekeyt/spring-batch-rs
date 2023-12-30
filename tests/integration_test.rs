@@ -6,7 +6,7 @@ use serde::Serializer;
 use spring_batch_rs::{
     core::{
         item::ItemProcessor,
-        step::{Step, StepBuilder, StepResult},
+        step::{Step, StepBuilder, StepResult, StepStatus},
     },
     CsvItemWriterBuilder, JsonItemReaderBuilder,
 };
@@ -77,7 +77,7 @@ fn transform_from_json_file_to_csv_file_without_error() {
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
-        .chunk(2)
+        .chunk(3)
         .build();
 
     let result: StepResult = step.execute();
@@ -86,4 +86,9 @@ fn transform_from_json_file_to_csv_file_without_error() {
     assert!(result.start.le(&Instant::now()));
     assert!(result.end.le(&Instant::now()));
     assert!(result.start.le(&result.end));
+    assert!(result.status == StepStatus::SUCCESS);
+    assert!(result.read_count == 4);
+    assert!(result.write_count == 4);
+    assert!(result.read_skip_count == 0);
+    assert!(result.write_skip_count == 0);
 }

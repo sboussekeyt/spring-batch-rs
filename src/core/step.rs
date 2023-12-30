@@ -12,10 +12,21 @@ use super::{
     item::{DefaultProcessor, ItemProcessor, ItemReader, ItemWriter},
 };
 
+#[derive(PartialEq)]
+pub enum StepStatus {
+    ERROR,
+    SUCCESS,
+}
+
 pub struct StepResult {
     pub start: Instant,
     pub end: Instant,
     pub duration: Duration,
+    pub status: StepStatus,
+    pub read_count: usize,
+    pub write_count: usize,
+    pub read_skip_count: usize,
+    pub write_skip_count: usize,
 }
 
 pub struct Step<'a, R, W> {
@@ -42,8 +53,11 @@ impl<'a, R, W> Step<'a, R, W> {
                 ChunkStatus::CONTINUABLE => {
                     debug!("Read new item");
                     chunk.add_item(self.reader.read());
-                    let read_count = self.read_count.get();
-                    self.read_count.set(read_count + 1);
+
+                    if chunk.get_status() != &ChunkStatus::FINISHED {
+                        let read_count = self.read_count.get();
+                        self.read_count.set(read_count + 1);
+                    }
                 }
                 ChunkStatus::ERROR => {
                     let read_skip_count = self.read_skip_count.get();
@@ -68,6 +82,11 @@ impl<'a, R, W> Step<'a, R, W> {
             start,
             end: Instant::now(),
             duration: start.elapsed(),
+            status: StepStatus::SUCCESS,
+            read_count: self.read_count.get(),
+            write_count: self.write_count.get(),
+            read_skip_count: self.read_skip_count.get(),
+            write_skip_count: self.write_skip_count.get(),
         }
     }
 

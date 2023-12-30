@@ -2,7 +2,7 @@ use log::error;
 
 use crate::error::BatchError;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ChunkStatus {
     CONTINUABLE,
     ERROR,
@@ -56,6 +56,6 @@ impl<R> Chunk<R> {
 
     pub fn clear(&mut self) {
         self.status = ChunkStatus::CONTINUABLE;
-        self.items = Vec::with_capacity(self.chunk_size);
+        self.items.clear();
     }
 }
