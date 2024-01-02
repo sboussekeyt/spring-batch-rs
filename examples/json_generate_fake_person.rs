@@ -18,14 +18,12 @@ fn main() -> Result<(), BatchError> {
 
     let reader = PersonReaderBuilder::new().number_of_items(100).build();
 
-    let binding = temp_dir().join("example-fake-person.json");
-    let path = binding.to_str();
+    let path = temp_dir().join("example-fake-person.json");
 
     let writer = JsonItemWriterBuilder::new()
-        .path(path)
         .indent(b"  ")
         .pretty_formatter(true)
-        .build();
+        .from_path(path);
 
     let step: Step<Person, Person> = StepBuilder::new()
         .reader(&reader)
