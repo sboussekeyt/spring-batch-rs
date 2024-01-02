@@ -1,10 +1,4 @@
-use std::{
-    cell::RefCell,
-    fs::File,
-    io::{self, Write},
-    path::Path,
-    result,
-};
+use std::{cell::RefCell, fs::File, io::Write, path::Path, result};
 
 use csv::{Writer, WriterBuilder};
 use serde::Serialize;
@@ -132,7 +126,7 @@ impl CsvItemWriterBuilder {
     ///     Ok(())
     /// }
     /// ```
-    pub fn from_writer<W: io::Write>(self, wtr: W) -> CsvItemWriter<W> {
+    pub fn from_writer<W: Write>(self, wtr: W) -> CsvItemWriter<W> {
         let wtr = WriterBuilder::new()
             .flexible(false)
             .has_headers(self.has_headers)
