@@ -5,12 +5,11 @@ use serde::Serializer;
 use spring_batch_rs::{
     core::{
         item::ItemProcessor,
-        step::{Step, StepBuilder, StepResult},
+        step::{Step, StepBuilder},
     },
     CsvItemWriterBuilder, JsonItemReaderBuilder,
 };
 
-use log::info;
 use time::{format_description, Date, Month};
 
 fn date_serializer<S>(date: &Date, serializer: S) -> Result<S::Ok, S::Error>
@@ -56,10 +55,6 @@ impl ItemProcessor<Person, Person> for UpperCaseProcessor {
 }
 
 fn main() -> std::io::Result<()> {
-    env_logger::init();
-
-    info!("Start batch processing");
-
     let path = Path::new("examples/data/persons.json");
 
     let file = File::options()
@@ -84,10 +79,7 @@ fn main() -> std::io::Result<()> {
         .chunk(2)
         .build();
 
-    let result: StepResult = step.execute();
+    step.execute();
 
-    info!("Time elapsed is: {:?}", result.duration);
-
-    info!("Finishing generation");
     Ok(())
 }

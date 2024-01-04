@@ -1,18 +1,12 @@
 use std::{fs::File, path::Path};
 
 use spring_batch_rs::{
-    core::step::{Step, StepBuilder, StepResult},
+    core::step::{Step, StepBuilder},
     item::json::json_reader::JsonItemReaderBuilder,
     item::{fake::person_reader::Person, logger::LoggerWriter},
 };
 
-use log::info;
-
 fn main() -> std::io::Result<()> {
-    env_logger::init();
-
-    info!("Start batch processing");
-
     let path = Path::new("examples/data/persons.json");
 
     let file = File::options()
@@ -32,10 +26,7 @@ fn main() -> std::io::Result<()> {
         .chunk(4)
         .build();
 
-    let result: StepResult = step.execute();
+    step.execute();
 
-    info!("Time elapsed is: {:?}", result.duration);
-
-    info!("Finishing generation");
     Ok(())
 }

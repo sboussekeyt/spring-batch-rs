@@ -35,8 +35,6 @@ time = {version = "0.3.31", features = ["serde-human-readable"], optional = true
 serde_json = {version = "1.0.108", optional = true }
 
 [dev-dependencies]
-env_logger = "0.10.1"
-pretty_assertions = "1.4.0"
 spring-batch-rs = { path = ".", features = ["tests-cfg"] }
 
 [features]

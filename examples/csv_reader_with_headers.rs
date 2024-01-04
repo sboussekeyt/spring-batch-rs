@@ -3,12 +3,10 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use spring_batch_rs::{
-    core::step::{Step, StepBuilder, StepResult},
+    core::step::{Step, StepBuilder},
     item::csv::csv_reader::CsvItemReaderBuilder,
     item::logger::LoggerWriter,
 };
-
-use log::info;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 struct Record {
@@ -29,10 +27,6 @@ impl fmt::Display for Record {
 }
 
 fn main() -> std::io::Result<()> {
-    env_logger::init();
-
-    info!("Start batch processing");
-
     let csv = "year,make,model,description
     1948,Porsche,356,Luxury sports car
     1967,Ford,Mustang fastback 1967,American car";
@@ -49,11 +43,8 @@ fn main() -> std::io::Result<()> {
         .writer(&writer)
         .chunk(4)
         .build();
+    
+    step.execute();
 
-    let result: StepResult = step.execute();
-
-    info!("Time elapsed is: {:?}", result.duration);
-
-    info!("Finishing generation");
     Ok(())
 }
