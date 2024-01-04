@@ -69,8 +69,8 @@ jobs:
       - name: Push changes
         uses: ad-m/github-push-action@master
         with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        branch: ${{ github.ref }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
 
       - name: Login to Crates.io
         run: cargo login ${CARGO_REGISTRY_TOKEN}
