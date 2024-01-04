@@ -43,7 +43,7 @@ fn main() -> std::io::Result<()> {
         .writer(&writer)
         .chunk(4)
         .build();
-    
+
     step.execute();
 
     Ok(())
