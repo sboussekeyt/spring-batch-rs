@@ -60,9 +60,17 @@ jobs:
           echo "CRATE_VERSION=$CARGO_TOML_VERSION" >> $GITHUB_ENV
 
       - name: Create Commit
-        uses: stefanzweifel/git-auto-commit-action@v5
+        run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git add .
+        git commit -m "chore: bump version to v$CRATE_VERSION"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
         with:
-          commit_message: "chore: bump version to v$CRATE_VERSION"
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: ${{ github.ref }}
 
       - name: Login to Crates.io
         run: cargo login ${CARGO_REGISTRY_TOKEN}
