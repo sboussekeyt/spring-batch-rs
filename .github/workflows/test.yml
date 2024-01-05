@@ -1,0 +1,70 @@
+name: Tests Suite and Coverage
+
+on:
+  merge_group:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Runs "cargo test"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+
+      - name: Cache .cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-test-${{ hashFiles('**/Cargo.toml') }}
+
+      - name: Install grcov
+        run: |
+          rustup component add llvm-tools-preview
+          cargo install grcov
+          
+      - name: Run tests
+        run: cargo test --all-features
+        env:
+          RUSTFLAGS: "-Cinstrument-coverage"
+    
+      - name: Create coverage report
+        run: |
+          grcov . \
+            --binary-path ./target/debug/deps/ \
+            --source-dir . \
+            --excl-start 'mod test* \{' \
+            --ignore '*test*' \
+            --ignore "*test.rs" \
+            --ignore "*main.rs" \
+            --ignore "*steps.rs" \
+            --ignore "*tests.rs" \
+            --ignore "*github.com*" \
+            --ignore "*libcore*" \
+            --ignore "*rustc*" \
+            --ignore "*liballoc*" \
+            --ignore "*cargo*" \
+            -t coveralls+ \
+            --token ? \
+            -o ./cov_normal.json
+    
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          files: cov_normal.json
+          verbose: true
+          fail_ci_if_error: true
