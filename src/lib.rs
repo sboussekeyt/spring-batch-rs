@@ -8,7 +8,7 @@
 
    [![crate](https://img.shields.io/crates/v/spring-batch-rs.svg)](https://crates.io/crates/spring-batch-rs)
    [![docs](https://docs.rs/spring-batch-rs/badge.svg)](https://docs.rs/spring-batch-rs)
-   [![build status](https://github.com/sboussekeyt/spring-batch-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/sboussekeyt/spring-batch-rs/actions/workflows/rust.yml)
+   [![build status](https://github.com/sboussekeyt/spring-batch-rs/actions/workflows/test.yml/badge.svg)](https://github.com/sboussekeyt/spring-batch-rs/actions/workflows/test.yml)
    [![Discord chat](https://img.shields.io/discord/1097536141617528966.svg?logo=discord&style=flat-square)](https://discord.gg/9FNhawNsG6)
    [![CodeCov](https://codecov.io/gh/sboussekeyt/spring-batch-rs/branch/main/graph/badge.svg)](https://codecov.io/gh/sboussekeyt/spring-batch-rs)
    ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
