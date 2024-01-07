@@ -92,8 +92,8 @@ fn transform_from_json_file_to_csv_file_without_error() {
     assert!(result.status == StepStatus::SUCCESS);
     assert!(result.read_count == 4);
     assert!(result.write_count == 4);
-    assert!(result.read_skip_count == 0);
-    assert!(result.write_skip_count == 0);
+    assert!(result.read_error_count == 0);
+    assert!(result.write_error_count == 0);
 
     let file_content = fs::read_to_string(temp_dir().join("persons.csv"))
         .expect("Should have been able to read the file");
@@ -118,7 +118,7 @@ struct Car {
 }
 
 #[test]
-fn transform_from_csv_file_to_json_file_without_error() {
+fn convert_csv_file_to_json_file_without_error() {
     let path = Path::new("examples/data/cars_with_headers.csv");
 
     let file = File::options()
@@ -147,8 +147,8 @@ fn transform_from_csv_file_to_json_file_without_error() {
     assert!(result.status == StepStatus::SUCCESS);
     assert!(result.read_count == 7);
     assert!(result.write_count == 7);
-    assert!(result.read_skip_count == 0);
-    assert!(result.write_skip_count == 0);
+    assert!(result.read_error_count == 0);
+    assert!(result.write_error_count == 0);
 
     let file_content = fs::read_to_string(temp_dir().join("cars.json"))
         .expect("Should have been able to read the file");

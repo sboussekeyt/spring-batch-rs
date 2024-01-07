@@ -1,4 +1,4 @@
-name: Tests Suite and Coverage
+name: Tests Suite
 
 on:
   merge_group:

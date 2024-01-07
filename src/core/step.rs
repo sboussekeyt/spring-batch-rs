@@ -25,8 +25,8 @@ pub struct StepResult {
     pub status: StepStatus,
     pub read_count: usize,
     pub write_count: usize,
-    pub read_skip_count: usize,
-    pub write_skip_count: usize,
+    pub read_error_count: usize,
+    pub write_error_count: usize,
 }
 
 pub struct Step<'a, R, W> {
@@ -36,8 +36,8 @@ pub struct Step<'a, R, W> {
     chunk_size: Cell<usize>,
     read_count: Cell<usize>,
     write_count: Cell<usize>,
-    read_skip_count: Cell<usize>,
-    write_skip_count: Cell<usize>,
+    read_error_count: Cell<usize>,
+    write_error_count: Cell<usize>,
 }
 
 impl<'a, R, W> Step<'a, R, W> {
@@ -47,6 +47,8 @@ impl<'a, R, W> Step<'a, R, W> {
         let mut chunk = Chunk::new(self.chunk_size.get());
 
         Self::manage_error(self.writer.open());
+
+        let mut step_status = StepStatus::SUCCESS;
 
         loop {
             match chunk.get_status() {
@@ -60,8 +62,10 @@ impl<'a, R, W> Step<'a, R, W> {
                     }
                 }
                 ChunkStatus::ERROR => {
-                    let read_skip_count = self.read_skip_count.get();
-                    self.read_skip_count.set(read_skip_count + 1);
+                    let read_skip_count = self.read_error_count.get();
+                    self.read_error_count.set(read_skip_count + 1);
+                    step_status = StepStatus::ERROR;
+                    break;
                 }
                 ChunkStatus::FULL => {
                     self.execute_chunk(&chunk);
@@ -82,11 +86,11 @@ impl<'a, R, W> Step<'a, R, W> {
             start,
             end: Instant::now(),
             duration: start.elapsed(),
-            status: StepStatus::SUCCESS,
+            status: step_status,
             read_count: self.read_count.get(),
             write_count: self.write_count.get(),
-            read_skip_count: self.read_skip_count.get(),
-            write_skip_count: self.write_skip_count.get(),
+            read_error_count: self.read_error_count.get(),
+            write_error_count: self.write_error_count.get(),
         }
     }
 
@@ -119,8 +123,8 @@ impl<'a, R, W> Step<'a, R, W> {
                 self.write_count.set(write_count + 1);
             }
             Err(_err) => {
-                let write_skip_count = self.write_skip_count.get();
-                self.write_skip_count.set(write_skip_count + 1);
+                let write_skip_count = self.write_error_count.get();
+                self.write_error_count.set(write_skip_count + 1);
             }
         };
     }
@@ -183,8 +187,8 @@ impl<'a, R, W> StepBuilder<'a, R, W> {
             processor: self.processor.unwrap_or(default_processor),
             writer: self.writer.unwrap(),
             chunk_size: Cell::new(self.chunk_size),
-            write_skip_count: Cell::new(0),
-            read_skip_count: Cell::new(0),
+            write_error_count: Cell::new(0),
+            read_error_count: Cell::new(0),
             write_count: Cell::new(0),
             read_count: Cell::new(0),
         }

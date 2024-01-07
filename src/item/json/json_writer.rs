@@ -120,4 +120,13 @@ impl JsonItemWriterBuilder {
             use_pretty_formatter: self.pretty_formatter,
         }
     }
+
+    pub fn from_writer<W: Write>(self, wtr: W) -> JsonItemWriter<W> {
+        let buf_writer = BufWriter::new(wtr);
+
+        JsonItemWriter {
+            stream: RefCell::new(buf_writer),
+            use_pretty_formatter: self.pretty_formatter,
+        }
+    }
 }
