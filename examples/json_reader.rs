@@ -9,12 +9,7 @@ use spring_batch_rs::{
 fn main() -> std::io::Result<()> {
     let path = Path::new("examples/data/persons.json");
 
-    let file = File::options()
-        .append(true)
-        .read(true)
-        .create(false)
-        .open(path)
-        .expect("Unable to open file");
+    let file = File::open(path).expect("Unable to open file");
 
     let reader = JsonItemReaderBuilder::new().from_reader(file);
 

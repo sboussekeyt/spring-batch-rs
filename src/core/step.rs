@@ -62,8 +62,8 @@ impl<'a, R, W> Step<'a, R, W> {
                     }
                 }
                 ChunkStatus::ERROR => {
-                    let read_skip_count = self.read_error_count.get();
-                    self.read_error_count.set(read_skip_count + 1);
+                    let read_error_count = self.read_error_count.get();
+                    self.read_error_count.set(read_error_count + 1);
                     step_status = StepStatus::ERROR;
                     break;
                 }
@@ -123,8 +123,8 @@ impl<'a, R, W> Step<'a, R, W> {
                 self.write_count.set(write_count + 1);
             }
             Err(_err) => {
-                let write_skip_count = self.write_error_count.get();
-                self.write_error_count.set(write_skip_count + 1);
+                let write_error_count = self.write_error_count.get();
+                self.write_error_count.set(write_error_count + 1);
             }
         };
     }
