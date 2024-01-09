@@ -39,6 +39,7 @@ pub struct Step<'a, R, W> {
     processor: &'a dyn ItemProcessor<R, W>,
     writer: &'a dyn ItemWriter<W>,
     chunk_size: usize,
+    skip_limit: usize,
     read_count: Cell<usize>,
     write_count: Cell<usize>,
     read_error_count: Cell<usize>,
@@ -113,6 +114,10 @@ impl<'a, R, W> Step<'a, R, W> {
         StepStatus::STARTED
     }
 
+    fn _is_skip_limit_reached(&self) -> bool {
+        self.read_error_count.get() + self.write_error_count.get() > self.skip_limit
+    }
+
     fn _read_chunk(&self, read_items: &mut Vec<R>) -> ChunkStatus {
         debug!("Start reading chunk");
         read_items.clear();
@@ -132,8 +137,8 @@ impl<'a, R, W> Step<'a, R, W> {
                     }
                 };
 
-                // In first pahse, there is no fault tolerance
-                if self.read_error_count.get() > 0 {
+                // In first phase, there is no fault tolerance
+                if self._is_skip_limit_reached() {
                     return ChunkStatus::ERROR;
                 }
 
@@ -191,7 +196,11 @@ impl<'a, R, W> Step<'a, R, W> {
             Err(err) => {
                 self._inc_write_error_count(write_count);
                 error!("ItemWriter error: {}", err.to_string());
-                ChunkStatus::ERROR
+                if self._is_skip_limit_reached() {
+                    ChunkStatus::ERROR
+                } else {
+                    ChunkStatus::FULL
+                }
             }
         }
     }
@@ -229,6 +238,7 @@ pub struct StepBuilder<'a, R, W> {
     processor: Option<&'a dyn ItemProcessor<R, W>>,
     writer: Option<&'a dyn ItemWriter<W>>,
     chunk_size: usize,
+    skip_limit: usize,
 }
 
 impl<'a, R, W> StepBuilder<'a, R, W> {
@@ -238,6 +248,7 @@ impl<'a, R, W> StepBuilder<'a, R, W> {
             processor: None,
             writer: None,
             chunk_size: 1,
+            skip_limit: 0,
         }
     }
 
@@ -261,6 +272,11 @@ impl<'a, R, W> StepBuilder<'a, R, W> {
         self
     }
 
+    pub fn skip_limit(mut self, skip_limit: usize) -> StepBuilder<'a, R, W> {
+        self.skip_limit = skip_limit;
+        self
+    }
+
     pub fn build(self) -> Step<'a, R, W>
     where
         DefaultProcessor: ItemProcessor<R, W>,
@@ -271,6 +287,7 @@ impl<'a, R, W> StepBuilder<'a, R, W> {
             processor: self.processor.unwrap_or(default_processor),
             writer: self.writer.unwrap(),
             chunk_size: self.chunk_size,
+            skip_limit: self.skip_limit,
             write_error_count: Cell::new(0),
             read_error_count: Cell::new(0),
             write_count: Cell::new(0),

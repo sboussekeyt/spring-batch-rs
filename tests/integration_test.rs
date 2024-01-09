@@ -158,12 +158,62 @@ fn convert_csv_file_to_json_file_without_error() {
 }
 
 #[test]
-fn transform_csv_stream_to_writer() {
+fn transform_csv_stream_to_writer_with_one_error_should_succeded() {
     let csv = "year,make,model,description
     1948,Porsche,356,Luxury sports car
-    2011,Peugeot,206+,City car
+    2011d,Peugeot,206+,City car
     2012,Citroën,C4 Picasso,SUV
     2021,Mazda,CX-30,SUV Compact
+    1967,Ford,Mustang fastback 1967,American car";
+
+    let reader = CsvItemReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(csv.as_bytes());
+
+    let file_name = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+
+    let file_writer =
+        File::create(temp_dir().join(file_name.clone())).expect("Unable to open file");
+
+    let writer = JsonItemWriterBuilder::new().from_writer(file_writer);
+
+    let step: Step<Car, Car> = StepBuilder::new()
+        .reader(&reader)
+        .writer(&writer)
+        .chunk(3)
+        .skip_limit(1)
+        .build();
+
+    let result: StepResult = step.execute();
+
+    assert!(result.duration.as_nanos() > 0);
+    assert!(result.start.le(&Instant::now()));
+    assert!(result.end.le(&Instant::now()));
+    assert!(result.start.le(&result.end));
+    assert!(result.status == StepStatus::SUCCESS);
+    assert!(result.read_count == 4);
+    assert!(result.write_count == 4);
+    assert!(result.read_error_count == 1);
+    assert!(result.write_error_count == 0);
+
+    let file_content = fs::read_to_string(temp_dir().join(file_name))
+        .expect("Should have been able to read the file");
+
+    assert_eq!(
+        file_content,
+        r#"[{"year":1948,"make":"Porsche","model":"356","description":"Luxury sports car"},{"year":2012,"make":"Citroën","model":"C4 Picasso","description":"SUV"},{"year":2021,"make":"Mazda","model":"CX-30","description":"SUV Compact"},{"year":1967,"make":"Ford","model":"Mustang fastback 1967","description":"American car"}]
+"#
+    );
+}
+
+#[test]
+fn transform_csv_stream_to_writer_with_3_errors_should_failed() {
+    let csv = "year,make,model,description
+    1948,Porsche,356,Luxury sports car
+    2011d,Peugeot,206+,City car
+    2012,Citroën,C4 Picasso,SUV
+    1995,Peugeot,205,City car
+    2021d,Mazda,CX-30,SUV Compact
     1967d,Ford,Mustang fastback 1967,American car";
 
     let reader = CsvItemReaderBuilder::new()
@@ -181,6 +231,7 @@ fn transform_csv_stream_to_writer() {
         .reader(&reader)
         .writer(&writer)
         .chunk(3)
+        .skip_limit(2)
         .build();
 
     let result: StepResult = step.execute();
@@ -190,9 +241,9 @@ fn transform_csv_stream_to_writer() {
     assert!(result.end.le(&Instant::now()));
     assert!(result.start.le(&result.end));
     assert!(result.status == StepStatus::ERROR);
-    assert!(result.read_count == 4);
+    assert!(result.read_count == 3);
     assert!(result.write_count == 3);
-    assert!(result.read_error_count == 1);
+    assert!(result.read_error_count == 3);
     assert!(result.write_error_count == 0);
 
     let file_content = fs::read_to_string(temp_dir().join(file_name))
@@ -200,7 +251,7 @@ fn transform_csv_stream_to_writer() {
 
     assert_eq!(
         file_content,
-        r#"[{"year":1948,"make":"Porsche","model":"356","description":"Luxury sports car"},{"year":2011,"make":"Peugeot","model":"206+","description":"City car"},{"year":2012,"make":"Citroën","model":"C4 Picasso","description":"SUV"}]
+        r#"[{"year":1948,"make":"Porsche","model":"356","description":"Luxury sports car"},{"year":2012,"make":"Citroën","model":"C4 Picasso","description":"SUV"},{"year":1995,"make":"Peugeot","model":"205","description":"City car"}]
 "#
     );
 }
