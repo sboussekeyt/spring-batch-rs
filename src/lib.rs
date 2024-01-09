@@ -33,9 +33,8 @@
  + Save execution data in database
 
  ## Example
- ```toml
-[dependencies]
-spring-batch-rs = { version = "0.1.1", features = ["full"] }
+ ```sh
+cargo add spring-batch-rs
 ```
 Then, on your main.rs:
 

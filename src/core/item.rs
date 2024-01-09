@@ -14,7 +14,7 @@ pub trait ItemWriter<W> {
     fn open(&self) -> Result<(), BatchError> {
         Ok(())
     }
-    fn update(&self, _is_first_item: bool) -> Result<(), BatchError> {
+    fn next(&self, _is_first_item: bool) -> Result<(), BatchError> {
         Ok(())
     }
     fn close(&self) -> Result<(), BatchError> {

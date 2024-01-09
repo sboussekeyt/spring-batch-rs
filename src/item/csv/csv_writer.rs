@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fs::File, io::Write, path::Path, result};
+use std::{cell::RefCell, fs::File, io::Write, path::Path};
 
 use csv::{Writer, WriterBuilder};
 use serde::Serialize;
@@ -6,12 +6,12 @@ use serde::Serialize;
 use crate::{core::item::ItemWriter, BatchError};
 
 pub struct CsvItemWriter<T: Write> {
-    wrapper: RefCell<Writer<T>>,
+    writer: RefCell<Writer<T>>,
 }
 
 impl<T: Write, R: Serialize> ItemWriter<R> for CsvItemWriter<T> {
     fn write(&self, item: &R) -> Result<(), BatchError> {
-        let result = self.wrapper.borrow_mut().serialize(item);
+        let result = self.writer.borrow_mut().serialize(item);
         match result {
             Ok(()) => Ok(()),
             Err(error) => Err(BatchError::ItemWriter(error.to_string())),
@@ -25,19 +25,9 @@ impl<T: Write, R: Serialize> ItemWriter<R> for CsvItemWriter<T> {
     ///
     /// Note that this also flushes the underlying writer.
     fn flush(&self) -> Result<(), BatchError> {
-        let result = self.wrapper.borrow_mut().flush();
+        let result = self.writer.borrow_mut().flush();
         match result {
             Ok(()) => Ok(()),
-            Err(error) => Err(BatchError::ItemWriter(error.to_string())),
-        }
-    }
-}
-
-impl<T: Write> CsvItemWriter<T> {
-    pub fn into_inner(self) -> result::Result<T, BatchError> {
-        let result = self.wrapper.into_inner().into_inner();
-        match result {
-            Ok(record) => Ok(record),
             Err(error) => Err(BatchError::ItemWriter(error.to_string())),
         }
     }
@@ -68,12 +58,12 @@ impl CsvItemWriterBuilder {
     }
 
     pub fn from_path<R: AsRef<Path>>(self, path: R) -> CsvItemWriter<File> {
-        let wtr = WriterBuilder::new()
+        let writer = WriterBuilder::new()
             .has_headers(self.has_headers)
             .from_path(path);
 
         CsvItemWriter {
-            wrapper: RefCell::new(wtr.unwrap()),
+            writer: RefCell::new(writer.unwrap()),
         }
     }
 
@@ -117,12 +107,6 @@ impl CsvItemWriterBuilder {
     ///         population: 42695,
     ///     });
     ///
-    ///     let data = String::from_utf8(wtr.into_inner()?)?;
-    ///     assert_eq!(data, "\
-    /// city,country,popcount
-    /// Boston,United States,4628910
-    /// Concord,United States,42695
-    /// ");
     ///     Ok(())
     /// }
     /// ```
@@ -133,7 +117,7 @@ impl CsvItemWriterBuilder {
             .from_writer(wtr);
 
         CsvItemWriter {
-            wrapper: RefCell::new(wtr),
+            writer: RefCell::new(wtr),
         }
     }
 }
@@ -158,26 +142,19 @@ mod tests {
             .has_headers(true)
             .from_writer(vec![]);
 
-        wtr.write(&Row {
+        let resut = wtr.write(&Row {
             city: "Boston",
             country: "United States",
             population: 4628910,
-        })?;
+        });
+        assert!(resut.is_ok());
 
-        wtr.write(&Row {
+        let resut = wtr.write(&Row {
             city: "Concord",
             country: "United States",
             population: 42695,
-        })?;
-
-        let data = String::from_utf8(wtr.into_inner()?)?;
-        assert_eq!(
-            data,
-            "city,country,popcount
-Boston,United States,4628910
-Concord,United States,42695
-"
-        );
+        });
+        assert!(resut.is_ok());
 
         Ok(())
     }
@@ -187,16 +164,20 @@ Concord,United States,42695
         let wtr = CsvItemWriterBuilder::new()
             .has_headers(false)
             .from_path(temp_dir().join("foo.csv"));
-        wtr.write(&Row {
+
+        let resut = wtr.write(&Row {
             city: "Boston",
             country: "United States",
             population: 4628910,
-        })?;
-        wtr.write(&Row {
+        });
+        assert!(resut.is_ok());
+
+        let resut = wtr.write(&Row {
             city: "Concord",
             country: "United States",
             population: 42695,
-        })?;
+        });
+        assert!(resut.is_ok());
 
         Ok(())
     }

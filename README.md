@@ -32,9 +32,8 @@ Spring Batch for Rust, offers a robust and flexible framework for the developmen
 
  Make sure you activated the full features crate on Cargo.toml:
 
- ```toml
-[dependencies]
-spring-batch-rs = { version = "0.1.1", features = ["full"] }
+ ```sh
+cargo add spring-batch-rs
 ```
 
 Then, on your main.rs:
