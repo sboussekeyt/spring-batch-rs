@@ -51,7 +51,7 @@ impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
         }
     }
 
-    fn update(&self, is_first_item: bool) -> Result<(), BatchError> {
+    fn next(&self, is_first_item: bool) -> Result<(), BatchError> {
         if !is_first_item {
             let separator = if self.use_pretty_formatter {
                 b",\n".to_vec()
@@ -59,10 +59,10 @@ impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
                 b",".to_vec()
             };
 
-            let result = self.stream.borrow_mut().write_all(&separator);
+            let result = self.stream.borrow_mut().write(&separator);
 
             return match result {
-                Ok(()) => Ok(()),
+                Ok(_len) => Ok(()),
                 Err(error) => Err(BatchError::ItemWriter(error.to_string())),
             };
         }

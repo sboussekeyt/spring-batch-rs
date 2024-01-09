@@ -1,3 +1,5 @@
+pub mod common;
+
 use std::{
     env::temp_dir,
     fs::{self, File},
@@ -64,10 +66,7 @@ impl ItemProcessor<Person, Person> for UpperCaseProcessor {
 fn transform_from_json_file_to_csv_file_without_error() {
     let path = Path::new("examples/data/persons.json");
 
-    let file = File::options()
-        .read(true)
-        .open(path)
-        .expect("Unable to open file");
+    let file = File::open(path).expect("Unable to open file");
 
     let reader = JsonItemReaderBuilder::new().from_reader(file);
 
@@ -122,10 +121,7 @@ struct Car {
 fn convert_csv_file_to_json_file_without_error() {
     let path = Path::new("examples/data/cars_with_headers.csv");
 
-    let file = File::options()
-        .read(true)
-        .open(path)
-        .expect("Unable to open file");
+    let file = File::open(path).expect("Unable to open file");
 
     let reader = CsvItemReaderBuilder::new()
         .has_headers(true)
@@ -194,7 +190,7 @@ fn transform_csv_stream_to_writer() {
     assert!(result.end.le(&Instant::now()));
     assert!(result.start.le(&result.end));
     assert!(result.status == StepStatus::ERROR);
-    assert!(result.read_count == 5);
+    assert!(result.read_count == 4);
     assert!(result.write_count == 3);
     assert!(result.read_error_count == 1);
     assert!(result.write_error_count == 0);

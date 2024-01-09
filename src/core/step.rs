@@ -3,19 +3,24 @@ use std::{
     time::{Duration, Instant},
 };
 
-use log::debug;
+use log::{debug, error};
 
 use crate::BatchError;
 
-use super::{
-    chunk::{Chunk, ChunkStatus},
-    item::{DefaultProcessor, ItemProcessor, ItemReader, ItemWriter},
-};
+use super::item::{DefaultProcessor, ItemProcessor, ItemReader, ItemWriter};
+
+#[derive(Debug, PartialEq)]
+pub enum ChunkStatus {
+    ERROR,
+    FINISHED,
+    FULL,
+}
 
 #[derive(PartialEq)]
 pub enum StepStatus {
     ERROR,
     SUCCESS,
+    STARTED,
 }
 
 pub struct StepResult {
@@ -33,7 +38,7 @@ pub struct Step<'a, R, W> {
     reader: &'a dyn ItemReader<R>,
     processor: &'a dyn ItemProcessor<R, W>,
     writer: &'a dyn ItemWriter<W>,
-    chunk_size: Cell<usize>,
+    chunk_size: usize,
     read_count: Cell<usize>,
     write_count: Cell<usize>,
     read_error_count: Cell<usize>,
@@ -44,43 +49,36 @@ impl<'a, R, W> Step<'a, R, W> {
     pub fn execute(&self) -> StepResult {
         let start = Instant::now();
 
-        let mut chunk = Chunk::new(self.chunk_size.get());
+        debug!("Start of step");
 
-        Self::manage_error(self.writer.open());
+        Self::_manage_error(self.writer.open());
 
-        let mut step_status = StepStatus::SUCCESS;
+        let mut read_items: Vec<R> = Vec::with_capacity(self.chunk_size);
+
+        let mut step_status;
 
         loop {
-            match chunk.get_status() {
-                ChunkStatus::CONTINUABLE => {
-                    debug!("Read new item");
-                    chunk.add_item(self.reader.read());
+            let read_chunk_status = self._read_chunk(&mut read_items);
 
-                    if chunk.get_status() != &ChunkStatus::FINISHED {
-                        let read_count = self.read_count.get();
-                        self.read_count.set(read_count + 1);
-                    }
-                }
-                ChunkStatus::ERROR => {
-                    let read_error_count = self.read_error_count.get();
-                    self.read_error_count.set(read_error_count + 1);
-                    step_status = StepStatus::ERROR;
-                    break;
-                }
-                ChunkStatus::FULL => {
-                    self.execute_chunk(&chunk);
-                    chunk.clear();
-                    debug!("Chunk full, start a new one")
-                }
-                ChunkStatus::FINISHED => {
-                    self.execute_chunk(&chunk);
-                    debug!("End of step");
-                    break;
-                }
+            if read_chunk_status == ChunkStatus::ERROR {
+                step_status = StepStatus::ERROR;
+                break;
+            }
+
+            let processed_items = self._process_chunk(&read_items);
+
+            let write_chunk_status = self._write_chunk(&processed_items);
+
+            step_status = self._to_step_status(read_chunk_status, write_chunk_status);
+
+            if self._is_step_ended(&step_status) {
+                break;
             }
         }
 
-        Self::manage_error(self.writer.close());
+        Self::_manage_error(self.writer.close());
+
+        debug!("End of step");
 
         StepResult {
             start,
@@ -94,42 +92,128 @@ impl<'a, R, W> Step<'a, R, W> {
         }
     }
 
-    fn execute_chunk(&self, chunk: &Chunk<R>) {
-        let chunk_items = chunk.get_items();
-        let mut outputs = Vec::with_capacity(chunk_items.len());
+    fn _is_step_ended(&self, step_status: &StepStatus) -> bool {
+        match step_status {
+            StepStatus::SUCCESS => true,
+            StepStatus::ERROR => true,
+            StepStatus::STARTED => false,
+        }
+    }
+
+    fn _to_step_status(
+        &self,
+        read_chunk_status: ChunkStatus,
+        write_chunk_status: ChunkStatus,
+    ) -> StepStatus {
+        if write_chunk_status == ChunkStatus::ERROR || read_chunk_status == ChunkStatus::ERROR {
+            return StepStatus::ERROR;
+        } else if read_chunk_status == ChunkStatus::FINISHED {
+            return StepStatus::SUCCESS;
+        }
+        StepStatus::STARTED
+    }
+
+    fn _read_chunk(&self, read_items: &mut Vec<R>) -> ChunkStatus {
+        debug!("Start reading chunk");
+        read_items.clear();
+
+        loop {
+            let read_result = self.reader.read();
+
+            if let Some(result) = read_result {
+                match result {
+                    Ok(item) => {
+                        read_items.push(item);
+                        self._inc_read_count();
+                    }
+                    Err(err) => {
+                        self._inc_read_error_count();
+                        error!("Error occured during read item: {}", err);
+                    }
+                };
+
+                // In first pahse, there is no fault tolerance
+                if self.read_error_count.get() > 0 {
+                    return ChunkStatus::ERROR;
+                }
+
+                if read_items.len() == self.chunk_size {
+                    // The chunk is full, we can process and write items
+                    debug!("End reading chunk: FULL");
+                    return ChunkStatus::FULL;
+                }
+            } else {
+                // All items of reader have been read
+                debug!("End reading chunk: FINISHED");
+                return ChunkStatus::FINISHED;
+            }
+        }
+    }
+
+    fn _process_chunk(&self, read_items: &Vec<R>) -> Vec<W> {
+        let mut processesed_items = Vec::with_capacity(read_items.len());
 
         debug!("Start processing chunk");
-        for item in chunk_items {
+        for item in read_items {
             let item_processed = self.processor.process(item);
-            outputs.push(item_processed);
+            processesed_items.push(item_processed);
         }
         debug!("End processing chunk");
 
+        processesed_items
+    }
+
+    fn _write_chunk(&self, processesed_items: &Vec<W>) -> ChunkStatus {
         debug!("Start writting chunk");
-        for item in outputs {
-            Self::manage_error(self.writer.update(self.write_count.get() == 0));
-            self.write(&item);
+
+        let mut write_count = 0;
+
+        for item in processesed_items {
+            Self::_manage_error(
+                self.writer
+                    .next(self.write_count.get() == 0 && write_count == 0),
+            );
+
+            let result = self.writer.write(item);
+            match result {
+                Ok(()) => debug!("ItemWriter error"),
+                Err(err) => error!("ItemWriter error: {}", err.to_string()),
+            };
+            write_count += 1;
         }
-        Self::manage_error(self.writer.flush());
 
-        debug!("End writting chunk");
-    }
-
-    fn write(&self, item: &W) {
-        let result = self.writer.write(item);
-        match result {
+        match self.writer.flush() {
             Ok(()) => {
-                let write_count = self.write_count.get();
-                self.write_count.set(write_count + 1);
+                self._inc_write_count(write_count);
+                debug!("End writting chunk");
+                ChunkStatus::FULL
             }
-            Err(_err) => {
-                let write_error_count = self.write_error_count.get();
-                self.write_error_count.set(write_error_count + 1);
+            Err(err) => {
+                self._inc_write_error_count(write_count);
+                error!("ItemWriter error: {}", err.to_string());
+                ChunkStatus::ERROR
             }
-        };
+        }
     }
 
-    fn manage_error(result: Result<(), BatchError>) {
+    fn _inc_read_count(&self) {
+        self.read_count.set(self.read_count.get() + 1);
+    }
+
+    fn _inc_read_error_count(&self) {
+        self.read_error_count.set(self.read_error_count.get() + 1);
+    }
+
+    fn _inc_write_count(&self, write_count: usize) {
+        self.write_count.set(self.write_count.get() + write_count);
+    }
+
+    fn _inc_write_error_count(&self, write_count: usize) {
+        self.write_error_count
+            .set(self.write_error_count.get() + write_count);
+    }
+
+    fn _manage_error(result: Result<(), BatchError>) {
         match result {
             Ok(()) => {}
             Err(error) => {
@@ -186,7 +270,7 @@ impl<'a, R, W> StepBuilder<'a, R, W> {
             reader: self.reader.unwrap(),
             processor: self.processor.unwrap_or(default_processor),
             writer: self.writer.unwrap(),
-            chunk_size: Cell::new(self.chunk_size),
+            chunk_size: self.chunk_size,
             write_error_count: Cell::new(0),
             read_error_count: Cell::new(0),
             write_count: Cell::new(0),

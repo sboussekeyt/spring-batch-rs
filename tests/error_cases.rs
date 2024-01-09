@@ -1,12 +1,18 @@
+mod common;
+
+use common::MockFile;
+
+use ::serde::ser::Error;
+
+use rand::distributions::{Alphanumeric, DistString};
+
+use serde::{Deserialize, Serialize, Serializer};
 use std::{
     env::temp_dir,
-    fs::{self, File},
+    fs::{self},
+    io::{self, ErrorKind},
     time::Instant,
 };
-
-use ::serde::{ser::Error, Deserialize, Serialize};
-use rand::distributions::{Alphanumeric, DistString};
-use serde::Serializer;
 
 use spring_batch_rs::{
     core::{
@@ -15,6 +21,7 @@ use spring_batch_rs::{
     },
     CsvItemReaderBuilder, JsonItemWriterBuilder,
 };
+
 use time::{format_description, Date, Month};
 
 fn date_serializer<S>(date: &Date, serializer: S) -> Result<S::Ok, S::Error>
@@ -97,7 +104,7 @@ fn transform_csv_stream_to_json_file_with_error_at_first() {
     assert!(result.end.le(&Instant::now()));
     assert!(result.start.le(&result.end));
     assert!(result.status == StepStatus::ERROR);
-    assert!(result.read_count == 1);
+    assert!(result.read_count == 0);
     assert!(result.write_count == 0);
     assert!(result.read_error_count == 1);
     assert!(result.write_error_count == 0);
@@ -142,7 +149,7 @@ fn transform_csv_stream_to_json_file_with_error_at_end() {
     assert!(result.end.le(&Instant::now()));
     assert!(result.start.le(&result.end));
     assert!(result.status == StepStatus::ERROR);
-    assert!(result.read_count == 5);
+    assert!(result.read_count == 4);
     assert!(result.write_count == 3);
     assert!(result.read_error_count == 1);
     assert!(result.write_error_count == 0);
@@ -164,27 +171,24 @@ fn transform_csv_stream_to_writer_with_error() {
     2011,Peugeot,206+,City car
     2012,Citroën,C4 Picasso,SUV
     2021,Mazda,CX-30,SUV Compact
-    1967d,Ford,Mustang fastback 1967,American car";
+    1967,Ford,Mustang fastback 1967,American car";
 
     let reader = CsvItemReaderBuilder::new()
         .has_headers(true)
         .from_reader(csv.as_bytes());
 
-    let file_name = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+    let mut file = MockFile::default();
+    file.expect_write().times(3).returning(|_buf| {
+        let err = io::Error::from(ErrorKind::PermissionDenied);
+        Result::Err(err)
+    });
 
-    let file_writer = File::options()
-        .append(true)
-        .read(true)
-        .create(true)
-        .open(temp_dir().join(file_name.clone()))
-        .expect("Unable to open file");
-
-    let writer = JsonItemWriterBuilder::new().from_writer(file_writer);
+    let writer = JsonItemWriterBuilder::new().from_writer(file);
 
     let step: Step<Car, Car> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
-        .chunk(3)
+        .chunk(1)
         .build();
 
     let result: StepResult = step.execute();
@@ -194,17 +198,8 @@ fn transform_csv_stream_to_writer_with_error() {
     assert!(result.end.le(&Instant::now()));
     assert!(result.start.le(&result.end));
     assert!(result.status == StepStatus::ERROR);
-    assert!(result.read_count == 5);
-    assert!(result.write_count == 3);
-    assert!(result.read_error_count == 1);
-    assert!(result.write_error_count == 0);
-
-    let file_content = fs::read_to_string(temp_dir().join(file_name))
-        .expect("Should have been able to read the file");
-
-    assert_eq!(
-        file_content,
-        r#"[{"year":1948,"make":"Porsche","model":"356","description":"Luxury sports car"},{"year":2011,"make":"Peugeot","model":"206+","description":"City car"},{"year":2012,"make":"Citroën","model":"C4 Picasso","description":"SUV"}]
-"#
-    );
+    assert!(result.read_count == 1);
+    assert!(result.write_count == 0);
+    assert!(result.read_error_count == 0);
+    assert!(result.write_error_count == 1);
 }
