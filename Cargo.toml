@@ -37,6 +37,7 @@ serde_json = { version = "1.0.108", optional = true }
 [dev-dependencies]
 spring-batch-rs = { path = ".", features = ["tests-cfg"] }
 rand = { version = "0.8.5" }
+mockall = "0.12.1"
 
 [features]
 # Include nothing by default
