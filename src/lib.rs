@@ -16,7 +16,6 @@
   </div>
 
  # Spring-Batch for Rust
-
  Spring Batch for Rust, offers a robust and flexible framework for the development of batch processing applications, addressing the challenges of handling large-scale data processing tasks efficiently and reliably. It provides developers a comprehensive toolkit for building enterprise-grade batch applications.
 
  ## Features
@@ -32,73 +31,86 @@
  + Retry/Skip policies
  + Save execution data in database
 
- ## Example
- ```sh
-cargo add spring-batch-rs
+ ## Getting Started
+ Make sure you activated the suitable features crate on Cargo.toml:
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "<version>", features = ["<full|json|csv|fake|logger>"] }
 ```
+
 Then, on your main.rs:
 
-```rust,no_run
- # use std::fmt;
- # use serde::{Deserialize, Serialize};
- # use spring_batch_rs::{
- # core::step::{Step, StepBuilder},
- # item::csv::csv_reader::CsvItemReaderBuilder,
- # error::BatchError,
- # item::logger::LoggerWriter,
- # };
- #[derive(Deserialize, Serialize, Debug, Clone)]
- struct Record {
-     year: u16,
-     make: String,
-     model: String,
-     description: String,
- }
+```rust
+# use serde::{Deserialize, Serialize};
+# use spring_batch_rs::core::item::ItemProcessor;
+# use spring_batch_rs::{
+#     core::step::{Step, StepBuilder, StepStatus},
+#     error::BatchError,
+#     item::csv::csv_reader::CsvItemReaderBuilder,
+#     JsonItemWriterBuilder,
+# };
+# use std::env::temp_dir;
+# #[derive(Deserialize, Serialize, Debug, Clone)]
+# struct Car {
+#     year: u16,
+#     make: String,
+#     model: String,
+#     description: String,
+# }
+# #[derive(Default)]
+# struct UpperCaseProcessor {}
+# impl ItemProcessor<Car, Car> for UpperCaseProcessor {
+#     fn process<'a>(&'a self, item: &'a Car) -> Car {
+#         let car = Car {
+#             year: item.year,
+#             make: item.make.to_uppercase(),
+#             model: item.model.to_uppercase(),
+#             description: item.description.to_uppercase(),
+#         };
+#         car
+#     }
+# }
 
- impl fmt::Display for Record {
-     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-         write!(
-             f,
-             "(year={}, make={}, model={}, description={})",
-             self.year, self.make, self.model, self.description
-         )
-     }
- }
-
- fn main() -> Result<(), BatchError> {
+fn main() -> Result<(), BatchError> {
     let csv = "year,make,model,description
-    1948,Porsche,356,Luxury sports car
-    1967,Ford,Mustang fastback 1967,American car";
+   1948,Porsche,356,Luxury sports car
+   1995,Peugeot,205,City car
+   2021,Mazda,CX-30,SUV Compact
+   1967,Ford,Mustang fastback 1967,American car";
 
-    let mut reader = CsvItemReaderBuilder::new().delimiter(b',').from_reader(csv.as_bytes());
+    let reader = CsvItemReaderBuilder::new()
+        .delimiter(b',')
+        .has_headers(true)
+        .from_reader(csv.as_bytes());
 
-    let mut writer = LoggerWriter::new();
+    let processor = UpperCaseProcessor::default();
 
-    let mut step: Step<Record, Record> = StepBuilder::new()
-        .reader(&mut reader)
-        .writer(&mut writer)
-        .chunk(4)
+    let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join("cars.json"));
+
+    let step: Step<Car, Car> = StepBuilder::new()
+        .reader(&reader) // set csv reader
+        .writer(&writer) // set json writer
+        .processor(&processor) // set upper case processor
+        .chunk(2) // set commit interval
+        .skip_limit(2) // set fault tolerance
         .build();
 
-    step.execute();
+    let result = step.execute();
+
+    assert!(StepStatus::SUCCESS == result.status);
+
     Ok(())
- }
- ```
- ### Read CSV file with headers
- ```sh
-$ git clone git://github.com/sboussekeyt/spring-batch-rs
-$ cd spring-batch-rs
-$ cargo run --example csv_reader_with_headers --all-features < examples/data/cars_with_headers.csv
+}
 ```
-  ### Read Json file
- ```sh
-$ git clone git://github.com/sboussekeyt/spring-batch-rs
-$ cd spring-batch-rs
-$ cargo run --example json_reader --all-features < examples/data/persons.json
-```
+
+## Examples
++ [Generate CSV file from JSON file with processor](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_csv_file_from_json_file_with_processor.rs)
++ [Generate JSON file from CSV string with fault tolerance](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_json_file_from_csv_string_with_fault_tolerance.rs)
++ [Generate JSON file from fake persons](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_json_file_from_fake_persons.rs)
++ [Generate CSV file without headers from fake persons](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_csv_file_without_headers_from_fake_persons.rs)
 
  ## License
-
  Licensed under either of
 
  -   Apache License, Version 2.0
@@ -109,7 +121,6 @@ $ cargo run --example json_reader --all-features < examples/data/persons.json
  at your option.
 
  ## Contribution
-
  Unless you explicitly state otherwise, any contribution intentionally submitted
  for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
  dual licensed as above, without any additional terms or conditions
@@ -138,3 +149,7 @@ pub use item::csv::{csv_reader::*, csv_writer::*};
 #[cfg(feature = "json")]
 #[doc(inline)]
 pub use item::json::{json_reader::*, json_writer::*};
+
+#[cfg(feature = "fake")]
+#[doc(inline)]
+pub use item::fake::person_reader::*;

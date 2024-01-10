@@ -59,21 +59,13 @@ logger = []
 fake = ["dep:fake", "dep:rand", "dep:time"]
 
 [[example]]
-name = "transform_data_from_json_to_csv"
-required-features = ["csv", "json", "time"]
+name = "generate_csv_file_from_json_file_with_processor"
 
 [[example]]
-name = "csv_reader_with_headers"
-required-features = ["csv", "logger"]
+name = "generate_json_file_from_csv_string_with_fault_tolerance"
 
 [[example]]
-name = "fake_person_generator"
-required-features = ["csv", "fake"]
+name = "generate_json_file_from_fake_persons"
 
 [[example]]
-name = "json_generate_fake_person"
-required-features = ["json", "fake"]
-
-[[example]]
-name = "json_reader"
-required-features = ["json", "fake"]
+name = "generate_csv_file_without_headers_from_fake_persons"

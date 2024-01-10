@@ -1,5 +1,3 @@
-use std::{env::temp_dir, fs::File, path::Path};
-
 use ::serde::{ser::Error, Deserialize, Serialize};
 use serde::Serializer;
 use spring_batch_rs::{
@@ -9,7 +7,7 @@ use spring_batch_rs::{
     },
     CsvItemWriterBuilder, JsonItemReaderBuilder,
 };
-
+use std::{env::temp_dir, fs::File, path::Path};
 use time::{format_description, Date, Month};
 
 fn date_serializer<S>(date: &Date, serializer: S) -> Result<S::Ok, S::Error>
@@ -49,7 +47,6 @@ impl ItemProcessor<Person, Person> for UpperCaseProcessor {
             email: item.email.to_uppercase(),
             birth_date: Date::from_calendar_date(2019, Month::January, 1).unwrap(),
         };
-
         person
     }
 }
