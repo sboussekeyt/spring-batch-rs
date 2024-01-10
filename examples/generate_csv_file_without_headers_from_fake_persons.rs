@@ -14,12 +14,12 @@ fn main() -> Result<(), BatchError> {
 
     let writer = CsvItemWriterBuilder::new()
         .has_headers(false)
-        .from_path(temp_dir().join("example-fake-person.csv"));
+        .from_path(temp_dir().join("fake-persons.csv"));
 
     let step: Step<Person, Person> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
-        .chunk(1000)
+        .chunk(10)
         .build();
 
     step.execute();
