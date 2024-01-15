@@ -66,25 +66,25 @@ pub struct CsvItemReaderBuilder {
 /// }
 /// ```
 impl CsvItemReaderBuilder {
-    pub fn new() -> CsvItemReaderBuilder {
-        CsvItemReaderBuilder {
+    pub fn new() -> Self {
+        Self {
             delimiter: b',',
             terminator: Terminator::CRLF,
             has_headers: false,
         }
     }
 
-    pub fn delimiter(mut self, delimiter: u8) -> CsvItemReaderBuilder {
+    pub fn delimiter(mut self, delimiter: u8) -> Self {
         self.delimiter = delimiter;
         self
     }
 
-    pub fn terminator(mut self, terminator: Terminator) -> CsvItemReaderBuilder {
+    pub fn terminator(mut self, terminator: Terminator) -> Self {
         self.terminator = terminator;
         self
     }
 
-    pub fn has_headers(mut self, yes: bool) -> CsvItemReaderBuilder {
+    pub fn has_headers(mut self, yes: bool) -> Self {
         self.has_headers = yes;
         self
     }

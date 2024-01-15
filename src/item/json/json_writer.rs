@@ -93,19 +93,19 @@ pub struct JsonItemWriterBuilder {
 }
 
 impl JsonItemWriterBuilder {
-    pub fn new() -> JsonItemWriterBuilder {
-        JsonItemWriterBuilder {
+    pub fn new() -> Self {
+        Self {
             indent: Box::from(b"  ".to_vec()),
             pretty_formatter: false,
         }
     }
 
-    pub fn indent(mut self, indent: &[u8]) -> JsonItemWriterBuilder {
+    pub fn indent(mut self, indent: &[u8]) -> Self {
         self.indent = Box::from(indent);
         self
     }
 
-    pub fn pretty_formatter(mut self, yes: bool) -> JsonItemWriterBuilder {
+    pub fn pretty_formatter(mut self, yes: bool) -> Self {
         self.pretty_formatter = yes;
         self
     }

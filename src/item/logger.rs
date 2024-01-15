@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::Debug;
 
 use log::info;
 
@@ -15,10 +15,10 @@ impl LoggerWriter {
 
 impl<T> ItemWriter<T> for LoggerWriter
 where
-    T: Display,
+    T: Debug,
 {
     fn write(&self, item: &T) -> Result<(), BatchError> {
-        info!("Record:{}", item);
+        info!("Record:{:?}", item);
         Ok(())
     }
 

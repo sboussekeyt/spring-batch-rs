@@ -9,3 +9,6 @@ pub mod fake;
 
 #[cfg(feature = "json")]
 pub mod json;
+
+#[cfg(feature = "rdbc-postgres")]
+pub mod rdbc;
