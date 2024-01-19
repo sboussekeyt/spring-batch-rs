@@ -168,7 +168,7 @@ pub struct JsonItemReaderBuilder<T> {
 
 impl<T: DeserializeOwned> JsonItemReaderBuilder<T> {
     pub fn new() -> JsonItemReaderBuilder<T> {
-        JsonItemReaderBuilder {
+        Self {
             _pd: PhantomData,
             capacity: Some(8 * 1024),
         }

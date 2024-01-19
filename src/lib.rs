@@ -19,8 +19,15 @@
  Spring Batch for Rust, offers a robust and flexible framework for the development of batch processing applications, addressing the challenges of handling large-scale data processing tasks efficiently and reliably. It provides developers a comprehensive toolkit for building enterprise-grade batch applications.
 
  ## Features
- + CSV reader and writer
- + JSON reader and writer
+| **Feature**   | **Description**                                               |
+|---------------|---------------------------------------------------------------|
+| rdbc-postgres | Enable rdbc reader and writer for Postgres database           |
+| rdbc-mysql    | Enable rdbc reader and writer for Mysql and MariaDb databases |
+| rdbc-sqlite   | Enable rdbc reader and writer for Sqlite database             |
+| json          | Enable json reader and writer                                 |
+| csv           | Enable csv reader and writer                                  |
+| fake          | Enable fake reader. Usefull for generate fake dataset         |
+| logger        | Enable logger writer. Usefull for debugging                   |
 
  ## Roadmap
  + XML reader and writer
@@ -109,6 +116,7 @@ fn main() -> Result<(), BatchError> {
 + [Generate JSON file from CSV string with fault tolerance](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_json_file_from_csv_string_with_fault_tolerance.rs)
 + [Generate JSON file from fake persons](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_json_file_from_fake_persons.rs)
 + [Generate CSV file without headers from fake persons](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_csv_file_without_headers_from_fake_persons.rs)
++ [Log records from Postgres database](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/log_records_from_postgres_database.rs)
 
  ## License
  Licensed under either of
@@ -125,7 +133,7 @@ fn main() -> Result<(), BatchError> {
  for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
  dual licensed as above, without any additional terms or conditions
 
-*/
+ */
 
 pub mod core;
 
@@ -153,3 +161,7 @@ pub use item::json::{json_reader::*, json_writer::*};
 #[cfg(feature = "fake")]
 #[doc(inline)]
 pub use item::fake::person_reader::*;
+
+#[cfg(feature = "rdbc")]
+#[doc(inline)]
+pub use item::rdbc::rdbc_reader::*;

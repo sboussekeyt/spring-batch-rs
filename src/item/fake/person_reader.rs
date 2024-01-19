@@ -87,11 +87,11 @@ pub struct PersonReaderBuilder {
 }
 
 impl PersonReaderBuilder {
-    pub fn new() -> PersonReaderBuilder {
-        PersonReaderBuilder { number_of_items: 0 }
+    pub fn new() -> Self {
+        Self { number_of_items: 0 }
     }
 
-    pub fn number_of_items(mut self, number_of_items: usize) -> PersonReaderBuilder {
+    pub fn number_of_items(mut self, number_of_items: usize) -> Self {
         self.number_of_items = number_of_items;
         self
     }

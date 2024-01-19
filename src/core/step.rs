@@ -243,7 +243,7 @@ pub struct StepBuilder<'a, R, W> {
 
 impl<'a, R, W> StepBuilder<'a, R, W> {
     pub fn new() -> StepBuilder<'a, R, W> {
-        StepBuilder {
+        Self {
             reader: None,
             processor: None,
             writer: None,

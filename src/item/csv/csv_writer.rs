@@ -40,19 +40,19 @@ pub struct CsvItemWriterBuilder {
 }
 
 impl CsvItemWriterBuilder {
-    pub fn new() -> CsvItemWriterBuilder {
-        CsvItemWriterBuilder {
+    pub fn new() -> Self {
+        Self {
             delimiter: b',',
             has_headers: false,
         }
     }
 
-    pub fn delimiter(mut self, delimiter: u8) -> CsvItemWriterBuilder {
+    pub fn delimiter(mut self, delimiter: u8) -> Self {
         self.delimiter = delimiter;
         self
     }
 
-    pub fn has_headers(mut self, yes: bool) -> CsvItemWriterBuilder {
+    pub fn has_headers(mut self, yes: bool) -> Self {
         self.has_headers = yes;
         self
     }

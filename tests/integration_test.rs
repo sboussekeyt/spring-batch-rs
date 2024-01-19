@@ -2,7 +2,7 @@ pub mod common;
 
 use std::{
     env::temp_dir,
-    fs::{self, File},
+    fs::{self, read_to_string, File},
     path::Path,
     time::Instant,
 };
@@ -95,7 +95,7 @@ fn transform_from_json_file_to_csv_file_without_error() {
     assert!(result.read_error_count == 0);
     assert!(result.write_error_count == 0);
 
-    let file_content = fs::read_to_string(temp_dir().join("persons.csv"))
+    let file_content = read_to_string(temp_dir().join("persons.csv"))
         .expect("Should have been able to read the file");
 
     assert_eq!(
