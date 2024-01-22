@@ -25,7 +25,7 @@ pub struct JsonItemReader<R, T> {
 }
 
 impl<R: Read, T: DeserializeOwned> JsonItemReader<R, T> {
-    pub fn new(rdr: R, capacity: usize) -> Self {
+    fn new(rdr: R, capacity: usize) -> Self {
         let buf_reader = BufReader::with_capacity(capacity, rdr);
 
         Self {

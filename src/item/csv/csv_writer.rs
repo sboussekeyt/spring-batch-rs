@@ -10,12 +10,16 @@ pub struct CsvItemWriter<T: Write> {
 }
 
 impl<T: Write, R: Serialize> ItemWriter<R> for CsvItemWriter<T> {
-    fn write(&self, item: &R) -> Result<(), BatchError> {
-        let result = self.writer.borrow_mut().serialize(item);
-        match result {
-            Ok(()) => Ok(()),
-            Err(error) => Err(BatchError::ItemWriter(error.to_string())),
+    fn write(&self, items: &[R]) -> Result<(), BatchError> {
+        for item in items.iter() {
+            let result = self.writer.borrow_mut().serialize(item);
+
+            if result.is_err() {
+                let error = result.err().unwrap();
+                return Err(BatchError::ItemWriter(error.to_string()));
+            }
         }
+        Ok(())
     }
 
     /// Flush the contents of the internal buffer to the underlying writer.
@@ -30,6 +34,14 @@ impl<T: Write, R: Serialize> ItemWriter<R> for CsvItemWriter<T> {
             Ok(()) => Ok(()),
             Err(error) => Err(BatchError::ItemWriter(error.to_string())),
         }
+    }
+
+    fn open(&self) -> Result<(), BatchError> {
+        Ok(())
+    }
+
+    fn close(&self) -> Result<(), BatchError> {
+        Ok(())
     }
 }
 
@@ -95,17 +107,19 @@ impl CsvItemWriterBuilder {
     ///         .has_headers(true)
     ///         .from_writer(vec![]);
     ///
-    ///     wtr.write(&Row {
-    ///         city: "Boston",
-    ///         country: "United States",
-    ///         population: 4628910,
-    ///     });
-    ///
-    ///     wtr.write(&Row {
-    ///         city: "Concord",
-    ///         country: "United States",
-    ///         population: 42695,
-    ///     });
+    ///     let rows = &[
+    ///         Row {
+    ///             city: "Boston",
+    ///             country: "United States",
+    ///             population: 4628910,
+    ///         },
+    ///         Row {
+    ///             city: "Concord",
+    ///             country: "United States",
+    ///             population: 42695,
+    ///         }
+    ///     ];
+    ///     wtr.write(rows);
     ///
     ///     Ok(())
     /// }
@@ -119,66 +133,5 @@ impl CsvItemWriterBuilder {
         CsvItemWriter {
             writer: RefCell::new(wtr),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{env::temp_dir, error::Error};
-
-    use crate::{core::item::ItemWriter, item::csv::csv_writer::CsvItemWriterBuilder};
-
-    #[derive(serde::Serialize)]
-    struct Row<'a> {
-        city: &'a str,
-        country: &'a str,
-        #[serde(rename = "popcount")]
-        population: u64,
-    }
-
-    #[test]
-    fn this_test_will_pass() -> Result<(), Box<dyn Error>> {
-        let wtr = CsvItemWriterBuilder::new()
-            .has_headers(true)
-            .from_writer(vec![]);
-
-        let resut = wtr.write(&Row {
-            city: "Boston",
-            country: "United States",
-            population: 4628910,
-        });
-        assert!(resut.is_ok());
-
-        let resut = wtr.write(&Row {
-            city: "Concord",
-            country: "United States",
-            population: 42695,
-        });
-        assert!(resut.is_ok());
-
-        Ok(())
-    }
-
-    #[test]
-    fn records_should_be_serialized() -> Result<(), Box<dyn Error>> {
-        let wtr = CsvItemWriterBuilder::new()
-            .has_headers(false)
-            .from_path(temp_dir().join("foo.csv"));
-
-        let resut = wtr.write(&Row {
-            city: "Boston",
-            country: "United States",
-            population: 4628910,
-        });
-        assert!(resut.is_ok());
-
-        let resut = wtr.write(&Row {
-            city: "Concord",
-            country: "United States",
-            population: 42695,
-        });
-        assert!(resut.is_ok());
-
-        Ok(())
     }
 }

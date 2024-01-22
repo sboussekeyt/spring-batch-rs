@@ -171,30 +171,20 @@ impl<'a, R, W> Step<'a, R, W> {
     fn _write_chunk(&self, processesed_items: &Vec<W>) -> ChunkStatus {
         debug!("Start writting chunk");
 
-        let mut write_count = 0;
-
-        for item in processesed_items {
-            Self::_manage_error(
-                self.writer
-                    .next(self.write_count.get() == 0 && write_count == 0),
-            );
-
-            let result = self.writer.write(item);
-            match result {
-                Ok(()) => debug!("ItemWriter error"),
-                Err(err) => error!("ItemWriter error: {}", err.to_string()),
-            };
-            write_count += 1;
-        }
+        let result = self.writer.write(processesed_items);
+        match result {
+            Ok(()) => debug!("ItemWriter error"),
+            Err(err) => error!("ItemWriter error: {}", err.to_string()),
+        };
 
         match self.writer.flush() {
             Ok(()) => {
-                self._inc_write_count(write_count);
+                self._inc_write_count(processesed_items.len());
                 debug!("End writting chunk");
                 ChunkStatus::FULL
             }
             Err(err) => {
-                self._inc_write_error_count(write_count);
+                self._inc_write_error_count(processesed_items.len());
                 error!("ItemWriter error: {}", err.to_string());
                 if self._is_skip_limit_reached() {
                     ChunkStatus::ERROR

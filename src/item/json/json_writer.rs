@@ -1,5 +1,5 @@
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     fs::File,
     io::{BufWriter, Write},
     path::Path,
@@ -10,16 +10,34 @@ use crate::{core::item::ItemWriter, BatchError};
 pub struct JsonItemWriter<T: Write> {
     stream: RefCell<BufWriter<T>>,
     use_pretty_formatter: bool,
+    is_first_element: Cell<bool>,
 }
 
 impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
-    fn write(&self, item: &R) -> Result<(), BatchError> {
-        let json = if self.use_pretty_formatter {
-            serde_json::to_string_pretty(item)
-        } else {
-            serde_json::to_string(item)
-        };
-        let result = self.stream.borrow_mut().write_all(json.unwrap().as_bytes());
+    fn write(&self, items: &[R]) -> Result<(), BatchError> {
+        let mut json_chunk = String::new();
+
+        for item in items.iter() {
+            if !self.is_first_element.get() {
+                json_chunk.push(',');
+            } else {
+                self.is_first_element.set(false);
+            }
+
+            let result = if self.use_pretty_formatter {
+                serde_json::to_string_pretty(item)
+            } else {
+                serde_json::to_string(item)
+            };
+
+            json_chunk.push_str(&result.unwrap());
+
+            if self.use_pretty_formatter {
+                json_chunk.push('\n');
+            }
+        }
+
+        let result = self.stream.borrow_mut().write_all(json_chunk.as_bytes());
 
         match result {
             Ok(_ser) => Ok(()),
@@ -49,24 +67,6 @@ impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
             Ok(()) => Ok(()),
             Err(error) => Err(BatchError::ItemWriter(error.to_string())),
         }
-    }
-
-    fn next(&self, is_first_item: bool) -> Result<(), BatchError> {
-        if !is_first_item {
-            let separator = if self.use_pretty_formatter {
-                b",\n".to_vec()
-            } else {
-                b",".to_vec()
-            };
-
-            let result = self.stream.borrow_mut().write(&separator);
-
-            return match result {
-                Ok(_len) => Ok(()),
-                Err(error) => Err(BatchError::ItemWriter(error.to_string())),
-            };
-        }
-        Ok(())
     }
 
     fn close(&self) -> Result<(), BatchError> {
@@ -118,6 +118,7 @@ impl JsonItemWriterBuilder {
         JsonItemWriter {
             stream: RefCell::new(buf_writer),
             use_pretty_formatter: self.pretty_formatter,
+            is_first_element: Cell::new(true),
         }
     }
 
@@ -127,6 +128,7 @@ impl JsonItemWriterBuilder {
         JsonItemWriter {
             stream: RefCell::new(buf_writer),
             use_pretty_formatter: self.pretty_formatter,
+            is_first_element: Cell::new(true),
         }
     }
 }

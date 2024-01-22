@@ -3,12 +3,16 @@ use std::{io::Read, path::Path, time::Instant};
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::step::{Step, StepBuilder, StepResult, StepStatus},
-    item::rdbc::rdbc_reader::{RdbcItemReaderBuilder, RowMapper},
-    CsvItemWriterBuilder,
+    item::rdbc::{
+        rdbc_reader::{RdbcItemReaderBuilder, RdbcRowMapper},
+        rdbc_writer::{RdbcItemBinder, RdbcItemWriterBuilder},
+    },
+    CsvItemReaderBuilder, CsvItemWriterBuilder,
 };
 use sqlx::{
     migrate::{MigrateDatabase, Migrator},
-    AnyPool, Row, Sqlite,
+    query_builder::Separated,
+    Any, AnyPool, FromRow, Row, Sqlite,
 };
 use tempfile::NamedTempFile;
 
@@ -22,7 +26,7 @@ struct Person {
 #[derive(Default)]
 pub struct PersonRowMapper {}
 
-impl RowMapper<Person> for PersonRowMapper {
+impl RdbcRowMapper<Person> for PersonRowMapper {
     fn map_row(&self, row: &sqlx::any::AnyRow) -> Person {
         let id: i32 = row.get("id");
         let first_name: String = row.get("first_name");
@@ -37,7 +41,7 @@ impl RowMapper<Person> for PersonRowMapper {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test() -> Result<(), sqlx::Error> {
+async fn read_items_from_database() -> Result<(), sqlx::Error> {
     // Prepare database
     let database_file = NamedTempFile::new()?;
     let database_path = database_file.path().to_str().unwrap();
@@ -125,5 +129,100 @@ async fn test() -> Result<(), sqlx::Error> {
 "
     );
 
+    Ok(())
+}
+
+struct CarItemBinder {}
+
+impl RdbcItemBinder<Car> for CarItemBinder {
+    fn bind(&self, item: &Car, mut query_builder: Separated<Any, &str>) {
+        query_builder.push_bind(item.year);
+        query_builder.push_bind(item.make.clone());
+        query_builder.push_bind(item.model.clone());
+        query_builder.push_bind(item.description.clone());
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, FromRow)]
+struct Car {
+    year: i16,
+    make: String,
+    model: String,
+    description: String,
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn write_items_to_database() -> Result<(), sqlx::Error> {
+    // Prepare reader
+    let csv = "year,make,model,description
+            1948,Porsche,356,Luxury sports car
+            2011,Peugeot,206+,City car
+            2012,Citroën,C4 Picasso,SUV
+            2021,Mazda,CX-30,SUV Compact
+            1967,Ford,Mustang fastback 1967,American car";
+
+    let reader = CsvItemReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(csv.as_bytes());
+
+    // Prepare writer
+    let database_file = NamedTempFile::new()?;
+    let database_path = database_file.path().to_str().unwrap();
+    let connection_uri = format!("sqlite://{}", database_path);
+
+    sqlx::any::install_default_drivers();
+    let pool = AnyPool::connect(&connection_uri).await?;
+
+    if !Sqlite::database_exists(&connection_uri)
+        .await
+        .unwrap_or(false)
+    {
+        match Sqlite::create_database(&connection_uri).await {
+            Ok(_) => println!("Create db success"),
+            Err(error) => panic!("error: {}", error),
+        }
+    }
+
+    // Create table
+    let create_query = sqlx::query("CREATE TABLE IF NOT EXISTS cars (year INTEGER NOT NULL, make VARCHAR(25) NOT NULL, model VARCHAR(25) NOT NULL, description VARCHAR(25) NOT NULL);");
+    create_query.execute(&pool).await?;
+
+    let item_binder = CarItemBinder {};
+
+    let writer = RdbcItemWriterBuilder::new()
+        .table("cars")
+        .add_column("year")
+        .add_column("make")
+        .add_column("model")
+        .add_column("description")
+        .pool(&pool)
+        .item_binder(&item_binder)
+        .build();
+
+    // Execute process
+    let step: Step<Car, Car> = StepBuilder::new()
+        .reader(&reader)
+        .writer(&writer)
+        .chunk(3)
+        .build();
+
+    let result: StepResult = step.execute();
+
+    assert!(result.duration.as_nanos() > 0);
+    assert!(result.start.le(&Instant::now()));
+    assert!(result.end.le(&Instant::now()));
+    assert!(result.start.le(&result.end));
+    assert!(result.status == StepStatus::SUCCESS);
+    assert!(result.read_count == 5);
+    assert!(result.write_count == 5);
+    assert!(result.read_error_count == 0);
+    assert!(result.write_error_count == 0);
+
+    let car_results = sqlx::query_as::<_, Car>("SELECT year, make, model, description FROM cars")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+    assert!(!car_results.is_empty());
     Ok(())
 }
