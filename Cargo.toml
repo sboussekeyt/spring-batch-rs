@@ -89,3 +89,7 @@ required-features = ["csv", "fake"]
 [[example]]
 name = "log_records_from_postgres_database"
 required-features = ["rdbc-postgres", "logger"]
+
+[[example]]
+name = "insert_records_into_mysql_database"
+required-features = ["rdbc-mysql", "csv"]

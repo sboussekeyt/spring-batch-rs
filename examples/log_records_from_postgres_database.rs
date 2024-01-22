@@ -3,7 +3,7 @@ use std::env;
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::step::{Step, StepBuilder},
-    item::rdbc::rdbc_reader::{RdbcItemReaderBuilder, RowMapper},
+    item::rdbc::rdbc_reader::{RdbcItemReaderBuilder, RdbcRowMapper},
     LoggerWriter,
 };
 use sqlx::{AnyPool, Row};
@@ -18,7 +18,7 @@ struct Person {
 #[derive(Default)]
 pub struct PersonRowMapper {}
 
-impl RowMapper<Person> for PersonRowMapper {
+impl RdbcRowMapper<Person> for PersonRowMapper {
     fn map_row(&self, row: &sqlx::any::AnyRow) -> Person {
         let id: i32 = row.get("id");
         let first_name: String = row.get("first_name");

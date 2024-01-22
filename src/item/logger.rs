@@ -17,12 +17,8 @@ impl<T> ItemWriter<T> for LoggerWriter
 where
     T: Debug,
 {
-    fn write(&self, item: &T) -> Result<(), BatchError> {
-        info!("Record:{:?}", item);
-        Ok(())
-    }
-
-    fn flush(&self) -> Result<(), BatchError> {
+    fn write(&self, items: &[T]) -> Result<(), BatchError> {
+        items.iter().for_each(|item| info!("Record:{:?}", item));
         Ok(())
     }
 }

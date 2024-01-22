@@ -1,11 +1,11 @@
 use std::cell::{Cell, RefCell};
 
 use serde::de::DeserializeOwned;
-use sqlx::{any::AnyRow, query::Query, Any, Pool, QueryBuilder};
+use sqlx::{any::AnyRow, Any, Pool, QueryBuilder};
 
 use crate::{core::item::ItemReader, BatchError};
 
-pub trait RowMapper<T> {
+pub trait RdbcRowMapper<T> {
     fn map_row(&self, row: &AnyRow) -> T;
 }
 
@@ -14,16 +14,16 @@ pub struct RdbcItemReader<'a, T> {
     query: &'a str,
     page_size: Option<i32>,
     offset: Cell<i32>,
-    row_mapper: &'a dyn RowMapper<T>,
+    row_mapper: &'a dyn RdbcRowMapper<T>,
     buffer: RefCell<Vec<T>>,
 }
 
 impl<'a, T> RdbcItemReader<'a, T> {
-    pub fn new(
+    fn new(
         pool: &'a Pool<Any>,
         query: &'a str,
         page_size: Option<i32>,
-        row_mapper: &'a dyn RowMapper<T>,
+        row_mapper: &'a dyn RdbcRowMapper<T>,
     ) -> Self {
         let buffer = if let Some(page_size) = page_size {
             let buffer_size = page_size.try_into().unwrap_or(1);
@@ -46,13 +46,14 @@ impl<'a, T> RdbcItemReader<'a, T> {
         let mut query_builder = QueryBuilder::new(self.query);
 
         if self.page_size.is_some() {
-            query_builder.push(" LIMIT ");
-            query_builder.push_bind(self.page_size);
-            query_builder.push(" OFFSET ");
-            query_builder.push(self.offset.get());
+            query_builder.push(format!(
+                " LIMIT {} OFFSET {}",
+                self.page_size.unwrap(),
+                self.offset.get()
+            ));
         }
 
-        let query: Query<Any, sqlx::any::AnyArguments> = query_builder.build();
+        let query = query_builder.build();
 
         let rows = tokio::task::block_in_place(|| {
             tokio::runtime::Runtime::new()
@@ -96,7 +97,7 @@ pub struct RdbcItemReaderBuilder<'a, T> {
     pool: Option<&'a Pool<Any>>,
     query: Option<&'a str>,
     page_size: Option<i32>,
-    row_mapper: Option<&'a dyn RowMapper<T>>,
+    row_mapper: Option<&'a dyn RdbcRowMapper<T>>,
 }
 
 impl<'a, T> RdbcItemReaderBuilder<'a, T> {
@@ -124,7 +125,7 @@ impl<'a, T> RdbcItemReaderBuilder<'a, T> {
         self
     }
 
-    pub fn row_mapper(mut self, row_mapper: &'a dyn RowMapper<T>) -> Self {
+    pub fn row_mapper(mut self, row_mapper: &'a dyn RdbcRowMapper<T>) -> Self {
         self.row_mapper = Some(row_mapper);
         self
     }

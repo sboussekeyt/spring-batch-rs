@@ -9,12 +9,11 @@ pub trait ItemProcessor<R, W> {
 }
 
 pub trait ItemWriter<W> {
-    fn write(&self, item: &W) -> Result<(), BatchError>;
-    fn flush(&self) -> Result<(), BatchError>;
-    fn open(&self) -> Result<(), BatchError> {
+    fn write(&self, items: &[W]) -> Result<(), BatchError>;
+    fn flush(&self) -> Result<(), BatchError> {
         Ok(())
     }
-    fn next(&self, _is_first_item: bool) -> Result<(), BatchError> {
+    fn open(&self) -> Result<(), BatchError> {
         Ok(())
     }
     fn close(&self) -> Result<(), BatchError> {
