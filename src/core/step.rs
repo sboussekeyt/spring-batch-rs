@@ -4,6 +4,7 @@ use std::{
 };
 
 use log::{debug, error};
+use serde::{de::DeserializeOwned, Serialize};
 
 use crate::BatchError;
 
@@ -52,32 +53,32 @@ impl<'a, R, W> Step<'a, R, W> {
 
         debug!("Start of step");
 
-        Self::_manage_error(self.writer.open());
+        Self::manage_error(self.writer.open());
 
         let mut read_items: Vec<R> = Vec::with_capacity(self.chunk_size);
 
         let mut step_status;
 
         loop {
-            let read_chunk_status = self._read_chunk(&mut read_items);
+            let read_chunk_status = self.read_chunk(&mut read_items);
 
             if read_chunk_status == ChunkStatus::ERROR {
                 step_status = StepStatus::ERROR;
                 break;
             }
 
-            let processed_items = self._process_chunk(&read_items);
+            let processed_items = self.process_chunk(&read_items);
 
-            let write_chunk_status = self._write_chunk(&processed_items);
+            let write_chunk_status = self.write_chunk(&processed_items);
 
-            step_status = self._to_step_status(read_chunk_status, write_chunk_status);
+            step_status = self.to_step_status(read_chunk_status, write_chunk_status);
 
-            if self._is_step_ended(&step_status) {
+            if self.is_step_ended(&step_status) {
                 break;
             }
         }
 
-        Self::_manage_error(self.writer.close());
+        Self::manage_error(self.writer.close());
 
         debug!("End of step");
 
@@ -93,7 +94,7 @@ impl<'a, R, W> Step<'a, R, W> {
         }
     }
 
-    fn _is_step_ended(&self, step_status: &StepStatus) -> bool {
+    fn is_step_ended(&self, step_status: &StepStatus) -> bool {
         match step_status {
             StepStatus::SUCCESS => true,
             StepStatus::ERROR => true,
@@ -101,7 +102,7 @@ impl<'a, R, W> Step<'a, R, W> {
         }
     }
 
-    fn _to_step_status(
+    fn to_step_status(
         &self,
         read_chunk_status: ChunkStatus,
         write_chunk_status: ChunkStatus,
@@ -114,11 +115,11 @@ impl<'a, R, W> Step<'a, R, W> {
         StepStatus::STARTED
     }
 
-    fn _is_skip_limit_reached(&self) -> bool {
+    fn is_skip_limit_reached(&self) -> bool {
         self.read_error_count.get() + self.write_error_count.get() > self.skip_limit
     }
 
-    fn _read_chunk(&self, read_items: &mut Vec<R>) -> ChunkStatus {
+    fn read_chunk(&self, read_items: &mut Vec<R>) -> ChunkStatus {
         debug!("Start reading chunk");
         read_items.clear();
 
@@ -129,16 +130,16 @@ impl<'a, R, W> Step<'a, R, W> {
                 match result {
                     Ok(item) => {
                         read_items.push(item);
-                        self._inc_read_count();
+                        self.inc_read_count();
                     }
                     Err(err) => {
-                        self._inc_read_error_count();
+                        self.inc_read_error_count();
                         error!("Error occured during read item: {}", err);
                     }
                 };
 
                 // In first phase, there is no fault tolerance
-                if self._is_skip_limit_reached() {
+                if self.is_skip_limit_reached() {
                     return ChunkStatus::ERROR;
                 }
 
@@ -155,7 +156,7 @@ impl<'a, R, W> Step<'a, R, W> {
         }
     }
 
-    fn _process_chunk(&self, read_items: &Vec<R>) -> Vec<W> {
+    fn process_chunk(&self, read_items: &Vec<R>) -> Vec<W> {
         let mut processesed_items = Vec::with_capacity(read_items.len());
 
         debug!("Start processing chunk");
@@ -168,7 +169,7 @@ impl<'a, R, W> Step<'a, R, W> {
         processesed_items
     }
 
-    fn _write_chunk(&self, processesed_items: &Vec<W>) -> ChunkStatus {
+    fn write_chunk(&self, processesed_items: &Vec<W>) -> ChunkStatus {
         debug!("Start writting chunk");
 
         let result = self.writer.write(processesed_items);
@@ -179,14 +180,14 @@ impl<'a, R, W> Step<'a, R, W> {
 
         match self.writer.flush() {
             Ok(()) => {
-                self._inc_write_count(processesed_items.len());
+                self.inc_write_count(processesed_items.len());
                 debug!("End writting chunk");
                 ChunkStatus::FULL
             }
             Err(err) => {
-                self._inc_write_error_count(processesed_items.len());
+                self.inc_write_error_count(processesed_items.len());
                 error!("ItemWriter error: {}", err.to_string());
-                if self._is_skip_limit_reached() {
+                if self.is_skip_limit_reached() {
                     ChunkStatus::ERROR
                 } else {
                     ChunkStatus::FULL
@@ -195,24 +196,24 @@ impl<'a, R, W> Step<'a, R, W> {
         }
     }
 
-    fn _inc_read_count(&self) {
+    fn inc_read_count(&self) {
         self.read_count.set(self.read_count.get() + 1);
     }
 
-    fn _inc_read_error_count(&self) {
+    fn inc_read_error_count(&self) {
         self.read_error_count.set(self.read_error_count.get() + 1);
     }
 
-    fn _inc_write_count(&self, write_count: usize) {
+    fn inc_write_count(&self, write_count: usize) {
         self.write_count.set(self.write_count.get() + write_count);
     }
 
-    fn _inc_write_error_count(&self, write_count: usize) {
+    fn inc_write_error_count(&self, write_count: usize) {
         self.write_error_count
             .set(self.write_error_count.get() + write_count);
     }
 
-    fn _manage_error(result: Result<(), BatchError>) {
+    fn manage_error(result: Result<(), BatchError>) {
         match result {
             Ok(()) => {}
             Err(error) => {
@@ -231,7 +232,7 @@ pub struct StepBuilder<'a, R, W> {
     skip_limit: usize,
 }
 
-impl<'a, R, W> StepBuilder<'a, R, W> {
+impl<'a, R: Serialize, W: DeserializeOwned> StepBuilder<'a, R, W> {
     pub fn new() -> StepBuilder<'a, R, W> {
         Self {
             reader: None,
@@ -267,10 +268,7 @@ impl<'a, R, W> StepBuilder<'a, R, W> {
         self
     }
 
-    pub fn build(self) -> Step<'a, R, W>
-    where
-        DefaultProcessor: ItemProcessor<R, W>,
-    {
+    pub fn build(self) -> Step<'a, R, W> {
         let default_processor = &DefaultProcessor {};
         Step {
             reader: self.reader.unwrap(),

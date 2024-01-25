@@ -71,6 +71,7 @@ impl CsvItemWriterBuilder {
 
     pub fn from_path<R: AsRef<Path>>(self, path: R) -> CsvItemWriter<File> {
         let writer = WriterBuilder::new()
+            .flexible(false)
             .has_headers(self.has_headers)
             .from_path(path);
 

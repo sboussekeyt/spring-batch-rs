@@ -42,7 +42,7 @@ impl<'a, T> RdbcItemReader<'a, T> {
         }
     }
 
-    fn _read_page(&self) {
+    fn read_page(&self) {
         let mut query_builder = QueryBuilder::new(self.query);
 
         if self.page_size.is_some() {
@@ -79,7 +79,7 @@ impl<'a, T: DeserializeOwned + Clone> ItemReader<T> for RdbcItemReader<'a, T> {
         };
 
         if index == 0 {
-            self._read_page();
+            self.read_page();
         }
 
         let buffer = self.buffer.borrow();

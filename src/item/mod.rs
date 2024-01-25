@@ -12,3 +12,6 @@ pub mod json;
 
 #[cfg(feature = "rdbc-postgres")]
 pub mod rdbc;
+
+#[cfg(feature = "mongodb")]
+pub mod mongodb;
