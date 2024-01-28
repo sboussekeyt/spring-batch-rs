@@ -52,7 +52,9 @@ async fn read_items_from_database() -> Result<(), sqlx::Error> {
         local: local_port,
         internal: 5432,
     };
-    let postgres_image = RunnableImage::from(Postgres::default()).with_mapped_port(port);
+    let postgres_image = RunnableImage::from(Postgres::default())
+        .with_tag("latest")
+        .with_mapped_port(port);
     let _node = docker.run(postgres_image);
 
     // Prepare database
@@ -160,7 +162,9 @@ async fn write_items_to_database() -> Result<(), sqlx::Error> {
         local: local_port,
         internal: 5432,
     };
-    let postgres_image = RunnableImage::from(Postgres::default()).with_mapped_port(port);
+    let postgres_image = RunnableImage::from(Postgres::default())
+        .with_tag("latest")
+        .with_mapped_port(port);
     let _node = docker.run(postgres_image);
 
     // Prepare reader

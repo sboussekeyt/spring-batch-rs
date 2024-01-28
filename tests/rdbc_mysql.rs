@@ -52,7 +52,9 @@ async fn read_items_from_database() -> Result<(), sqlx::Error> {
         local: local_port,
         internal: 3306,
     };
-    let mysql_image = RunnableImage::from(Mysql::default()).with_mapped_port(port);
+    let mysql_image = RunnableImage::from(Mysql::default())
+        .with_tag("latest")
+        .with_mapped_port(port);
     let _node = docker.run(mysql_image);
 
     // Prepare database
@@ -160,7 +162,9 @@ async fn write_items_to_database() -> Result<(), sqlx::Error> {
         local: local_port,
         internal: 3306,
     };
-    let mysql_image = RunnableImage::from(Mysql::default()).with_mapped_port(port);
+    let mysql_image = RunnableImage::from(Mysql::default())
+        .with_tag("latest")
+        .with_mapped_port(port);
     let _node = docker.run(mysql_image);
 
     // Prepare reader

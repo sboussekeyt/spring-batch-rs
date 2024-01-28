@@ -54,7 +54,7 @@ async fn main() -> Result<(), sqlx::Error> {
         .build();
 
     // Prepare writer
-    let writer = LoggerWriter::new();
+    let writer = LoggerWriter {};
 
     // Execute step
     let step: Step<Person, Person> = StepBuilder::new()

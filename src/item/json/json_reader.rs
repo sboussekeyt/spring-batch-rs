@@ -10,13 +10,13 @@ use serde::de::DeserializeOwned;
 use crate::{core::item::ItemReader, BatchError};
 
 #[derive(Debug)]
-enum _JsonParserResult {
+enum JsonParserResult {
     NotEnded,
     ParsingError { error: serde_json::Error },
 }
 
 pub struct JsonItemReader<R, T> {
-    _pd: PhantomData<T>,
+    pd: PhantomData<T>,
     reader: RefCell<BufReader<R>>,
     capacity: usize,
     level: Cell<u16>,
@@ -29,7 +29,7 @@ impl<R: Read, T: DeserializeOwned> JsonItemReader<R, T> {
         let buf_reader = BufReader::with_capacity(capacity, rdr);
 
         Self {
-            _pd: PhantomData,
+            pd: PhantomData,
             reader: RefCell::new(buf_reader),
             capacity,
             level: Cell::new(0),
@@ -38,78 +38,76 @@ impl<R: Read, T: DeserializeOwned> JsonItemReader<R, T> {
         }
     }
 
-    fn _get_current_char(&self, buffer: &[u8]) -> u8 {
+    fn get_current_char(&self, buffer: &[u8]) -> u8 {
         buffer[self.index.get()]
     }
 
-    fn _is_new_seq(&self, buffer: &[u8]) -> bool {
-        self.level == 0.into() && self._get_current_char(buffer) == b'['
+    fn is_new_seq(&self, buffer: &[u8]) -> bool {
+        self.level == 0.into() && self.get_current_char(buffer) == b'['
     }
 
-    fn _is_end_seq(&self, buffer: &[u8]) -> bool {
-        self.level == 0.into() && self._get_current_char(buffer) == b']'
+    fn is_end_seq(&self, buffer: &[u8]) -> bool {
+        self.level == 0.into() && self.get_current_char(buffer) == b']'
     }
 
-    fn _is_new_object(&self, buffer: &[u8]) -> bool {
-        self.level == 0.into() && self._get_current_char(buffer) == b'{'
+    fn is_new_object(&self, buffer: &[u8]) -> bool {
+        self.level == 0.into() && self.get_current_char(buffer) == b'{'
     }
 
-    fn _is_end_object(&self, buffer: &[u8]) -> bool {
-        self.level == 1.into() && self._get_current_char(buffer) == b'}'
+    fn is_end_object(&self, buffer: &[u8]) -> bool {
+        self.level == 1.into() && self.get_current_char(buffer) == b'}'
     }
 
-    fn _start_new(&self) {
+    fn start_new(&self) {
         self.object.borrow_mut().clear();
     }
 
-    fn _append_char(&self, buffer: &[u8]) {
-        let current_char = self._get_current_char(buffer);
+    fn append_char(&self, buffer: &[u8]) {
+        let current_char = self.get_current_char(buffer);
         if current_char != b' ' && current_char != b'\n' {
-            self.object
-                .borrow_mut()
-                .push(self._get_current_char(buffer));
+            self.object.borrow_mut().push(self.get_current_char(buffer));
         }
     }
 
-    fn _clear_buff(&self) {
+    fn clear_buff(&self) {
         self.index.set(0);
     }
 
-    fn _level_inc(&self) {
+    fn level_inc(&self) {
         self.level.set(self.level.get() + 1);
     }
 
-    fn _level_dec(&self) {
+    fn level_dec(&self) {
         self.level.set(self.level.get() - 1);
     }
 
-    fn _index_inc(&self) {
+    fn index_inc(&self) {
         self.index.set(self.index.get() + 1);
     }
 
-    fn _next(&self, buffer: &[u8]) -> Result<T, _JsonParserResult> {
-        while self.index.get() < buffer.len() - 1 && !self._is_end_seq(buffer) {
-            if self._is_new_object(buffer) {
-                self._start_new();
-            } else if self._is_new_seq(buffer) {
-                self._index_inc();
+    fn next(&self, buffer: &[u8]) -> Result<T, JsonParserResult> {
+        while self.index.get() < buffer.len() - 1 && !self.is_end_seq(buffer) {
+            if self.is_new_object(buffer) {
+                self.start_new();
+            } else if self.is_new_seq(buffer) {
+                self.index_inc();
                 continue;
             }
 
-            let current_char = self._get_current_char(buffer);
+            let current_char = self.get_current_char(buffer);
 
             if current_char == b'{' {
-                self._level_inc();
+                self.level_inc();
             } else if current_char == b'}' {
-                self._level_dec();
+                self.level_dec();
             }
 
-            self._append_char(buffer);
+            self.append_char(buffer);
 
-            self._index_inc();
+            self.index_inc();
 
-            if self._is_end_object(buffer) {
-                self._append_char(buffer);
+            if self.is_end_object(buffer) {
+                self.append_char(buffer);
 
                 let result = serde_json::from_slice(self.object.borrow_mut().as_slice());
                 debug!(
@@ -118,13 +116,13 @@ impl<R: Read, T: DeserializeOwned> JsonItemReader<R, T> {
                 );
                 return match result {
                     Ok(record) => Ok(record),
-                    Err(error) => Err(_JsonParserResult::ParsingError { error }),
+                    Err(error) => Err(JsonParserResult::ParsingError { error }),
                 };
             }
         }
 
-        self._append_char(buffer);
-        Err(_JsonParserResult::NotEnded)
+        self.append_char(buffer);
+        Err(JsonParserResult::NotEnded)
     }
 }
 
@@ -141,17 +139,17 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for JsonItemReader<R, T> {
                 return None;
             }
 
-            let result: Result<T, _JsonParserResult> = self._next(buffer);
+            let result: Result<T, JsonParserResult> = self.next(buffer);
 
             if let Ok(record) = result {
                 return Some(Ok(record));
             } else if let Err(error) = result {
                 match error {
-                    _JsonParserResult::NotEnded => {
-                        self._clear_buff();
+                    JsonParserResult::NotEnded => {
+                        self.clear_buff();
                         buf_reader.consume(self.capacity)
                     }
-                    _JsonParserResult::ParsingError { error } => {
+                    JsonParserResult::ParsingError { error } => {
                         return Some(Err(BatchError::ItemReader((error).to_string())))
                     }
                 }

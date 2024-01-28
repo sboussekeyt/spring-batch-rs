@@ -1,3 +1,5 @@
+use serde::{de::DeserializeOwned, Serialize};
+
 use crate::error::BatchError;
 
 pub trait ItemReader<R> {
@@ -21,10 +23,14 @@ pub trait ItemWriter<W> {
     }
 }
 
+#[derive(Default)]
 pub struct DefaultProcessor {}
 
-impl<R: Clone> ItemProcessor<R, R> for DefaultProcessor {
-    fn process<'a>(&'a self, item: &'a R) -> R {
-        item.clone()
+impl<R: Serialize, W: DeserializeOwned> ItemProcessor<R, W> for DefaultProcessor {
+    fn process<'a>(&'a self, item: &'a R) -> W {
+        // TODO: For performance reason the best is to return directly the item. R and W are of the same type
+        // https://github.com/sboussekeyt/spring-batch-rs/issues/32
+        let serialised = serde_json::to_string(&item).unwrap();
+        serde_json::from_str(&serialised).unwrap()
     }
 }

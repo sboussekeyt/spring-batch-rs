@@ -7,12 +7,6 @@ use crate::{core::item::ItemWriter, BatchError};
 #[derive(Default)]
 pub struct LoggerWriter {}
 
-impl LoggerWriter {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
 impl<T> ItemWriter<T> for LoggerWriter
 where
     T: Debug,
