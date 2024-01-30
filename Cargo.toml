@@ -101,3 +101,7 @@ required-features = ["rdbc-mysql", "csv"]
 [[example]]
 name = "read_records_from_mongodb_database"
 required-features = ["mongodb", "csv"]
+
+[[example]]
+name = "write_records_to_mongodb_database"
+required-features = ["mongodb", "csv"]
