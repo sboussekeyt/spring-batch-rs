@@ -12,7 +12,8 @@ use spring_batch_rs::{
         step::{Step, StepBuilder, StepResult, StepStatus},
     },
     item::mongodb::mongodb_reader::{MongodbItemReaderBuilder, WithObjectId},
-    CsvItemWriterBuilder,
+    mongodb_writer::MongodbItemWriterBuilder,
+    CsvItemReaderBuilder, CsvItemWriterBuilder,
 };
 use tempfile::NamedTempFile;
 use testcontainers_modules::{
@@ -205,6 +206,65 @@ fn read_items_from_database() -> Result<()> {
 13_TO_KILL_A_MOCKINGBIRD,HARPER_LEE
 "
     );
+
+    Ok(())
+}
+
+#[test]
+fn write_items_to_database() -> Result<()> {
+    // Prepare container
+    let docker = clients::Cli::default();
+
+    let local_port = 27019;
+    let port = Port {
+        local: local_port,
+        internal: 27017,
+    };
+    let mongo_image = RunnableImage::from(Mongo::default())
+        .with_tag("latest")
+        .with_mapped_port(port);
+    let _node = docker.run(mongo_image);
+
+    let url = format!("mongodb://127.0.0.1:{local_port}/");
+
+    let client: Client = Client::with_uri_str(&url).unwrap();
+
+    let db = client.database("test");
+
+    let book_collection = db.collection::<FormattedBook>("books");
+
+    // Prepare reader
+    let csv = "title,author
+            Shining,Stephen King
+            UN SAC DE BILLES,JOSEPH JOFFO";
+
+    let reader = CsvItemReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(csv.as_bytes());
+
+    // Prepare writer
+    let writer = MongodbItemWriterBuilder::new()
+        .collection(&book_collection)
+        .build();
+
+    // Execute process
+    let step: Step<FormattedBook, FormattedBook> = StepBuilder::new()
+        .reader(&reader)
+        .writer(&writer)
+        .chunk(3)
+        .build();
+
+    let result: StepResult = step.execute();
+
+    assert!(result.duration.as_nanos() > 0);
+    assert!(result.start.le(&Instant::now()));
+    assert!(result.end.le(&Instant::now()));
+    assert!(result.start.le(&result.end));
+    assert!(result.status == StepStatus::SUCCESS);
+    assert!(result.read_count == 2);
+    assert!(result.write_count == 2);
+    assert!(result.read_error_count == 0);
+    assert!(result.write_error_count == 0);
 
     Ok(())
 }
