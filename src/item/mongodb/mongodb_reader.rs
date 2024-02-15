@@ -7,12 +7,13 @@ use mongodb::{
 };
 use serde::de::DeserializeOwned;
 
-use crate::{core::item::ItemReader, BatchError};
+use crate::core::item::{ItemReader, ItemReaderResult};
 
 pub trait WithObjectId {
     fn get_id(&self) -> ObjectId;
 }
 
+/// A MongoDB item reader that reads items from a MongoDB collection.
 pub struct MongodbItemReader<'a, R> {
     collection: &'a Collection<R>,
     filter: Document,
@@ -24,6 +25,7 @@ pub struct MongodbItemReader<'a, R> {
 }
 
 impl<'a, R: DeserializeOwned + WithObjectId> MongodbItemReader<'a, R> {
+    /// Reads a page of items from the MongoDB collection and stores them in the buffer.
     fn read_page(&self) {
         self.buffer.borrow_mut().clear();
 
@@ -50,7 +52,12 @@ impl<'a, R: DeserializeOwned + WithObjectId> MongodbItemReader<'a, R> {
 }
 
 impl<'a, R: DeserializeOwned + Clone + WithObjectId> ItemReader<R> for MongodbItemReader<'a, R> {
-    fn read(&self) -> Option<Result<R, BatchError>> {
+    /// Reads the next item from the MongoDB collection.
+    ///
+    /// Returns `Ok(Some(item))` if an item is read successfully,
+    /// `Ok(None)` if there are no more items to read,
+    /// or an error if reading the item fails.
+    fn read(&self) -> ItemReaderResult<R> {
         let index = if let Some(page_size) = self.page_size {
             self.offset.get() % (page_size as usize)
         } else {
@@ -68,9 +75,9 @@ impl<'a, R: DeserializeOwned + Clone + WithObjectId> ItemReader<R> for MongodbIt
         match result {
             Some(item) => {
                 self.offset.set(self.offset.get() + 1);
-                Some(Ok(item.clone()))
+                Ok(Some(item.clone()))
             }
-            None => None,
+            None => Ok(None),
         }
     }
 }
@@ -83,6 +90,7 @@ pub struct MongodbItemReaderBuilder<'a, R> {
 }
 
 impl<'a, R> MongodbItemReaderBuilder<'a, R> {
+    /// Creates a new `MongodbItemReaderBuilder`.
     pub fn new() -> Self {
         Self {
             collection: None,
@@ -91,21 +99,25 @@ impl<'a, R> MongodbItemReaderBuilder<'a, R> {
         }
     }
 
+    /// Sets the MongoDB collection to read from.
     pub fn collection(mut self, collection: &'a Collection<R>) -> MongodbItemReaderBuilder<'a, R> {
         self.collection = Some(collection);
         self
     }
 
+    /// Sets the filter to apply when reading items from the collection.
     pub fn filter(mut self, filter: Document) -> MongodbItemReaderBuilder<'a, R> {
         self.filter = Some(filter);
         self
     }
 
+    /// Sets the page size for reading items.
     pub fn page_size(mut self, page_size: i64) -> MongodbItemReaderBuilder<'a, R> {
         self.page_size = Some(page_size);
         self
     }
 
+    /// Builds the `MongodbItemReader` with the configured options.
     pub fn build(&self) -> MongodbItemReader<'a, R> {
         let buffer: Vec<R> = if let Some(page_size) = self.page_size {
             let buffer_size = page_size.try_into().unwrap_or(1);

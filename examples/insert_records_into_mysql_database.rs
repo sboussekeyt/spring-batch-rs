@@ -1,12 +1,13 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
-    core::step::{Step, StepBuilder},
+    core::step::{Step, StepBuilder, StepInstance},
+    item::csv::csv_reader::CsvItemReaderBuilder,
     item::rdbc::rdbc_writer::{RdbcItemBinder, RdbcItemWriterBuilder},
-    CsvItemReaderBuilder,
 };
 use sqlx::{query_builder::Separated, Any, AnyPool, FromRow};
 
-struct CarItemBinder {}
+struct CarItemBinder;
 
 impl RdbcItemBinder<Car> for CarItemBinder {
     fn bind(&self, item: &Car, mut query_builder: Separated<Any, &str>) {
@@ -26,7 +27,7 @@ struct Car {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), sqlx::Error> {
+async fn main() -> Result<()> {
     // Prepare reader
     let csv = "year,make,model,description
             1948,Porsche,356,Luxury sports car
@@ -58,13 +59,13 @@ async fn main() -> Result<(), sqlx::Error> {
         .build();
 
     // Execute process
-    let step: Step<Car, Car> = StepBuilder::new()
+    let step: StepInstance<Car, Car> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
         .chunk(3)
         .build();
 
-    step.execute();
+    let _result = step.execute();
 
     Ok(())
 }

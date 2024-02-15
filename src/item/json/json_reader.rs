@@ -7,7 +7,10 @@ use std::{
 use log::debug;
 use serde::de::DeserializeOwned;
 
-use crate::{core::item::ItemReader, BatchError};
+use crate::{
+    core::item::{ItemReader, ItemReaderResult},
+    BatchError,
+};
 
 #[derive(Debug)]
 enum JsonParserResult {
@@ -127,7 +130,7 @@ impl<R: Read, T: DeserializeOwned> JsonItemReader<R, T> {
 }
 
 impl<R: Read, T: DeserializeOwned> ItemReader<T> for JsonItemReader<R, T> {
-    fn read(&self) -> Option<Result<T, BatchError>> {
+    fn read(&self) -> ItemReaderResult<T> {
         let mut buf_reader = self.reader.borrow_mut();
 
         loop {
@@ -136,13 +139,13 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for JsonItemReader<R, T> {
             let buffer_length = buffer.len();
 
             if buffer_length == 0 {
-                return None;
+                return Ok(None);
             }
 
             let result: Result<T, JsonParserResult> = self.next(buffer);
 
             if let Ok(record) = result {
-                return Some(Ok(record));
+                return Ok(Some(record));
             } else if let Err(error) = result {
                 match error {
                     JsonParserResult::NotEnded => {
@@ -150,7 +153,7 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for JsonItemReader<R, T> {
                         buf_reader.consume(self.capacity)
                     }
                     JsonParserResult::ParsingError { error } => {
-                        return Some(Err(BatchError::ItemReader((error).to_string())))
+                        return Err(BatchError::ItemReader(error.to_string()))
                     }
                 }
             }
@@ -187,7 +190,7 @@ mod tests {
     use std::{error::Error, fs::File, io::Cursor, path::Path};
 
     use crate::{
-        core::item::ItemReader,
+        core::item::{ItemReader, ItemReaderResult},
         item::{fake::person_reader::Person, json::json_reader::JsonItemReaderBuilder},
     };
 
@@ -204,30 +207,30 @@ mod tests {
 
         let reader = JsonItemReaderBuilder::new().capacity(320).from_reader(file);
 
-        let result: Option<Result<Person, crate::BatchError>> = reader.read();
+        let result: ItemReaderResult<Person> = reader.read();
 
-        assert!(result.is_some());
+        assert!(result.is_ok());
         assert_eq!(
             "first_name:Océane, last_name:Dupond, birth_date:1963-05-16",
             result.unwrap().unwrap().to_string()
         );
 
-        let result: Option<Result<Person, crate::BatchError>> = reader.read();
-        assert!(result.is_some());
+        let result: ItemReaderResult<Person> = reader.read();
+        assert!(result.is_ok());
         assert_eq!(
             "first_name:Amandine, last_name:Évrat, birth_date:1933-07-12",
             result.unwrap().unwrap().to_string()
         );
 
-        let result: Option<Result<Person, crate::BatchError>> = reader.read();
-        assert!(result.is_some());
+        let result: ItemReaderResult<Person> = reader.read();
+        assert!(result.is_ok());
         assert_eq!(
             "first_name:Ugo, last_name:Niels, birth_date:1980-04-05",
             result.unwrap().unwrap().to_string()
         );
 
-        let result: Option<Result<Person, crate::BatchError>> = reader.read();
-        assert!(result.is_some());
+        let result: ItemReaderResult<Person> = reader.read();
+        assert!(result.is_ok());
         assert_eq!(
             "first_name:Léo, last_name:Zola, birth_date:1914-08-13",
             result.unwrap().unwrap().to_string()
@@ -244,9 +247,9 @@ mod tests {
             .capacity(320)
             .from_reader(input);
 
-        let result: Option<Result<Person, crate::BatchError>> = reader.read();
+        let result: ItemReaderResult<Person> = reader.read();
 
-        assert!(result.is_none());
+        assert!(result.is_ok());
 
         Ok(())
     }

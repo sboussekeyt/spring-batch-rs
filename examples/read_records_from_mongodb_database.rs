@@ -7,11 +7,11 @@ use mongodb::{
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::{
-        item::ItemProcessor,
-        step::{Step, StepBuilder},
+        item::{ItemProcessor, ItemProcessorResult},
+        step::{Step, StepBuilder, StepInstance},
     },
+    item::csv::csv_writer::CsvItemWriterBuilder,
     item::mongodb::mongodb_reader::{MongodbItemReaderBuilder, WithObjectId},
-    CsvItemWriterBuilder,
 };
 use tempfile::NamedTempFile;
 
@@ -36,16 +36,16 @@ struct FormattedBook {
 }
 
 #[derive(Default)]
-struct FormatBookProcessor {}
+struct FormatBookProcessor;
 
 impl ItemProcessor<Book, FormattedBook> for FormatBookProcessor {
-    fn process<'a>(&'a self, item: &'a Book) -> FormattedBook {
+    fn process(&self, item: &Book) -> ItemProcessorResult<FormattedBook> {
         let book = FormattedBook {
             title: item.title.replace(" ", "_").to_uppercase(),
             author: item.author.replace(" ", "_").to_uppercase(),
         };
 
-        book
+        Ok(book)
     }
 }
 
@@ -75,14 +75,14 @@ fn main() -> Result<()> {
 
     let writer = CsvItemWriterBuilder::new().from_writer(tmpfile.as_file());
 
-    let step: Step<Book, FormattedBook> = StepBuilder::new()
+    let step: StepInstance<Book, FormattedBook> = StepBuilder::new()
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
         .chunk(3)
         .build();
 
-    step.execute();
+    let _result = step.execute();
 
     Ok(())
 }

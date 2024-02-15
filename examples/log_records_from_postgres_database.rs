@@ -1,12 +1,12 @@
-use std::env;
-
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
-    core::step::{Step, StepBuilder},
+    core::step::{Step, StepBuilder, StepInstance},
+    item::logger::LoggerWriter,
     item::rdbc::rdbc_reader::{RdbcItemReaderBuilder, RdbcRowMapper},
-    LoggerWriter,
 };
 use sqlx::{AnyPool, Row};
+use std::env;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Person {
@@ -16,7 +16,7 @@ struct Person {
 }
 
 #[derive(Default)]
-pub struct PersonRowMapper {}
+struct PersonRowMapper;
 
 impl RdbcRowMapper<Person> for PersonRowMapper {
     fn map_row(&self, row: &sqlx::any::AnyRow) -> Person {
@@ -33,7 +33,7 @@ impl RdbcRowMapper<Person> for PersonRowMapper {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), sqlx::Error> {
+async fn main() -> Result<()> {
     env::set_var("RUST_LOG", "INFO");
     env_logger::init();
 
@@ -57,13 +57,13 @@ async fn main() -> Result<(), sqlx::Error> {
     let writer = LoggerWriter {};
 
     // Execute step
-    let step: Step<Person, Person> = StepBuilder::new()
+    let step: StepInstance<Person, Person> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
         .chunk(3)
         .build();
 
-    step.execute();
+    let _result = step.execute();
 
     Ok(())
 }

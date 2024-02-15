@@ -69,9 +69,11 @@ fn main() -> Result<(), BatchError> {
         .skip_limit(2) // set fault tolerance
         .build();
 
-    let result = step.execute();
+    let job = JobBuilder::new().start(Box::new(&step)).build();
+    let result = job.run();
 
-    assert!(StepStatus::SUCCESS == result.status);
+    assert!(result.is_ok());
+    assert!(step.get_status() == StepStatus::Success);
 
     Ok(())
 }

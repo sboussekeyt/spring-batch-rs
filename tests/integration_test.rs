@@ -4,7 +4,6 @@ use std::{
     env::temp_dir,
     fs::{self, read_to_string, File},
     path::Path,
-    time::Instant,
 };
 
 use ::serde::{ser::Error, Deserialize, Serialize};
@@ -13,10 +12,14 @@ use serde::Serializer;
 
 use spring_batch_rs::{
     core::{
-        item::ItemProcessor,
-        step::{Step, StepBuilder, StepResult, StepStatus},
+        item::{ItemProcessor, ItemProcessorResult},
+        job::{Job, JobBuilder},
+        step::{Step, StepBuilder, StepInstance, StepStatus},
     },
-    CsvItemReaderBuilder, CsvItemWriterBuilder, JsonItemReaderBuilder, JsonItemWriterBuilder,
+    item::csv::csv_reader::CsvItemReaderBuilder,
+    item::csv::csv_writer::CsvItemWriterBuilder,
+    item::json::json_reader::JsonItemReaderBuilder,
+    item::json::json_writer::JsonItemWriterBuilder,
 };
 use time::{format_description, Date, Month};
 
@@ -46,10 +49,10 @@ pub struct Person {
 }
 
 #[derive(Default)]
-struct UpperCaseProcessor {}
+struct UpperCaseProcessor;
 
 impl ItemProcessor<Person, Person> for UpperCaseProcessor {
-    fn process<'a>(&'a self, item: &'a Person) -> Person {
+    fn process(&self, item: &Person) -> ItemProcessorResult<Person> {
         let person = Person {
             first_name: item.first_name.to_uppercase(),
             last_name: item.last_name.to_uppercase(),
@@ -58,7 +61,7 @@ impl ItemProcessor<Person, Person> for UpperCaseProcessor {
             birth_date: Date::from_calendar_date(2019, Month::January, 1).unwrap(),
         };
 
-        person
+        Ok(person)
     }
 }
 
@@ -76,24 +79,21 @@ fn transform_from_json_file_to_csv_file_without_error() {
         .has_headers(true)
         .from_path(temp_dir().join("persons.csv"));
 
-    let step: Step<Person, Person> = StepBuilder::new()
+    let step: StepInstance<Person, Person> = StepBuilder::new()
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
         .chunk(3)
         .build();
 
-    let result: StepResult = step.execute();
-
-    assert!(result.duration.as_nanos() > 0);
-    assert!(result.start.le(&Instant::now()));
-    assert!(result.end.le(&Instant::now()));
-    assert!(result.start.le(&result.end));
-    assert!(result.status == StepStatus::SUCCESS);
-    assert!(result.read_count == 4);
-    assert!(result.write_count == 4);
-    assert!(result.read_error_count == 0);
-    assert!(result.write_error_count == 0);
+    let job = JobBuilder::new().start(&step).build();
+    let result = job.run();
+    assert!(result.is_ok());
+    assert!(step.get_status() == StepStatus::Success);
+    assert!(step.get_read_count() == 4);
+    assert!(step.get_write_count() == 4);
+    assert!(step.get_read_error_count() == 0);
+    assert!(step.get_write_error_count() == 0);
 
     let file_content = read_to_string(temp_dir().join("persons.csv"))
         .expect("Should have been able to read the file");
@@ -129,23 +129,20 @@ fn convert_csv_file_to_json_file_without_error() {
 
     let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join("cars.json"));
 
-    let step: Step<Car, Car> = StepBuilder::new()
+    let step: StepInstance<Car, Car> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
         .chunk(3)
         .build();
 
-    let result: StepResult = step.execute();
-
-    assert!(result.duration.as_nanos() > 0);
-    assert!(result.start.le(&Instant::now()));
-    assert!(result.end.le(&Instant::now()));
-    assert!(result.start.le(&result.end));
-    assert!(result.status == StepStatus::SUCCESS);
-    assert!(result.read_count == 7);
-    assert!(result.write_count == 7);
-    assert!(result.read_error_count == 0);
-    assert!(result.write_error_count == 0);
+    let job = JobBuilder::new().start(&step).build();
+    let result = job.run();
+    assert!(result.is_ok());
+    assert!(step.get_status() == StepStatus::Success);
+    assert!(step.get_read_count() == 7);
+    assert!(step.get_write_count() == 7);
+    assert!(step.get_read_error_count() == 0);
+    assert!(step.get_write_error_count() == 0);
 
     let file_content = fs::read_to_string(temp_dir().join("cars.json"))
         .expect("Should have been able to read the file");
@@ -177,24 +174,21 @@ fn transform_csv_stream_to_writer_with_one_error_should_succeded() {
 
     let writer = JsonItemWriterBuilder::new().from_writer(file_writer);
 
-    let step: Step<Car, Car> = StepBuilder::new()
+    let step: StepInstance<Car, Car> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
         .chunk(3)
         .skip_limit(1)
         .build();
 
-    let result: StepResult = step.execute();
-
-    assert!(result.duration.as_nanos() > 0);
-    assert!(result.start.le(&Instant::now()));
-    assert!(result.end.le(&Instant::now()));
-    assert!(result.start.le(&result.end));
-    assert!(result.status == StepStatus::SUCCESS);
-    assert!(result.read_count == 4);
-    assert!(result.write_count == 4);
-    assert!(result.read_error_count == 1);
-    assert!(result.write_error_count == 0);
+    let job = JobBuilder::new().start(&step).build();
+    let result = job.run();
+    assert!(result.is_ok());
+    assert!(step.get_status() == StepStatus::Success);
+    assert!(step.get_read_count() == 4);
+    assert!(step.get_write_count() == 4);
+    assert!(step.get_read_error_count() == 1);
+    assert!(step.get_write_error_count() == 0);
 
     let file_content = fs::read_to_string(temp_dir().join(file_name))
         .expect("Should have been able to read the file");
@@ -227,24 +221,21 @@ fn transform_csv_stream_to_writer_with_3_errors_should_failed() {
 
     let writer = JsonItemWriterBuilder::new().from_writer(file_writer);
 
-    let step: Step<Car, Car> = StepBuilder::new()
+    let step: StepInstance<Car, Car> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
         .chunk(3)
         .skip_limit(2)
         .build();
 
-    let result: StepResult = step.execute();
-
-    assert!(result.duration.as_nanos() > 0);
-    assert!(result.start.le(&Instant::now()));
-    assert!(result.end.le(&Instant::now()));
-    assert!(result.start.le(&result.end));
-    assert!(result.status == StepStatus::ERROR);
-    assert!(result.read_count == 3);
-    assert!(result.write_count == 3);
-    assert!(result.read_error_count == 3);
-    assert!(result.write_error_count == 0);
+    let job = JobBuilder::new().start(&step).build();
+    let result = job.run();
+    assert!(result.is_err());
+    assert!(step.get_status() == StepStatus::ReadError);
+    assert!(step.get_read_count() == 3);
+    assert!(step.get_write_count() == 3);
+    assert!(step.get_read_error_count() == 3);
+    assert!(step.get_write_error_count() == 0);
 
     let file_content = fs::read_to_string(temp_dir().join(file_name))
         .expect("Should have been able to read the file");
