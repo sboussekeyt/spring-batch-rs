@@ -1,36 +1,59 @@
+use crate::error::BatchError;
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::error::BatchError;
+/// Represents the result of reading an item from the reader.
+pub type ItemReaderResult<R> = Result<Option<R>, BatchError>;
 
+/// Represents the result of processing an item by the processor.
+pub type ItemProcessorResult<W> = Result<W, BatchError>;
+
+/// Represents the result of writing items by the writer.
+pub type ItemWriterResult = Result<(), BatchError>;
+
+/// A trait for reading items.
 pub trait ItemReader<R> {
-    fn read(&self) -> Option<Result<R, BatchError>>;
+    /// Reads an item from the reader.
+    fn read(&self) -> ItemReaderResult<R>;
 }
 
+/// A trait for processing items.
 pub trait ItemProcessor<R, W> {
-    fn process<'a>(&'a self, item: &'a R) -> W;
+    /// Processes an item and returns the processed result.
+    fn process(&self, item: &R) -> ItemProcessorResult<W>;
 }
 
+/// A trait for writing items.
 pub trait ItemWriter<W> {
-    fn write(&self, items: &[W]) -> Result<(), BatchError>;
-    fn flush(&self) -> Result<(), BatchError> {
+    /// Writes the given items.
+    fn write(&self, items: &[W]) -> ItemWriterResult;
+
+    /// Flushes any buffered data.
+    fn flush(&self) -> ItemWriterResult {
         Ok(())
     }
-    fn open(&self) -> Result<(), BatchError> {
+
+    /// Opens the writer.
+    fn open(&self) -> ItemWriterResult {
         Ok(())
     }
-    fn close(&self) -> Result<(), BatchError> {
+
+    /// Closes the writer.
+    fn close(&self) -> ItemWriterResult {
         Ok(())
     }
 }
 
+/// A default implementation of the `ItemProcessor` trait.
 #[derive(Default)]
-pub struct DefaultProcessor {}
+pub struct DefaultProcessor;
 
 impl<R: Serialize, W: DeserializeOwned> ItemProcessor<R, W> for DefaultProcessor {
-    fn process<'a>(&'a self, item: &'a R) -> W {
+    /// Processes an item by serializing and deserializing it.
+    fn process(&self, item: &R) -> ItemProcessorResult<W> {
         // TODO: For performance reason the best is to return directly the item. R and W are of the same type
         // https://github.com/sboussekeyt/spring-batch-rs/issues/32
         let serialised = serde_json::to_string(&item).unwrap();
-        serde_json::from_str(&serialised).unwrap()
+        let item = serde_json::from_str(&serialised).unwrap();
+        Ok(item)
     }
 }

@@ -5,7 +5,10 @@ use std::{
     path::Path,
 };
 
-use crate::{core::item::ItemWriter, BatchError};
+use crate::{
+    core::item::{ItemWriter, ItemWriterResult},
+    BatchError,
+};
 
 pub struct JsonItemWriter<T: Write> {
     stream: RefCell<BufWriter<T>>,
@@ -14,7 +17,7 @@ pub struct JsonItemWriter<T: Write> {
 }
 
 impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
-    fn write(&self, items: &[R]) -> Result<(), BatchError> {
+    fn write(&self, items: &[R]) -> ItemWriterResult {
         let mut json_chunk = String::new();
 
         for item in items.iter() {
@@ -45,7 +48,7 @@ impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
         }
     }
 
-    fn flush(&self) -> Result<(), BatchError> {
+    fn flush(&self) -> ItemWriterResult {
         let result = self.stream.borrow_mut().flush();
 
         match result {
@@ -54,7 +57,7 @@ impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
         }
     }
 
-    fn open(&self) -> Result<(), BatchError> {
+    fn open(&self) -> ItemWriterResult {
         let begin_array = if self.use_pretty_formatter {
             b"[\n".to_vec()
         } else {
@@ -69,7 +72,7 @@ impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
         }
     }
 
-    fn close(&self) -> Result<(), BatchError> {
+    fn close(&self) -> ItemWriterResult {
         let end_array = if self.use_pretty_formatter {
             b"\n]\n".to_vec()
         } else {

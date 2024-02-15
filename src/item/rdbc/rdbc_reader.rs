@@ -3,12 +3,15 @@ use std::cell::{Cell, RefCell};
 use serde::de::DeserializeOwned;
 use sqlx::{any::AnyRow, Any, Pool, QueryBuilder};
 
-use crate::{core::item::ItemReader, BatchError};
+use crate::core::item::{ItemReader, ItemReaderResult};
 
+/// Trait for mapping a database row to a specific type.
 pub trait RdbcRowMapper<T> {
+    /// Maps a database row to the specified type.
     fn map_row(&self, row: &AnyRow) -> T;
 }
 
+/// A reader for reading items from a relational database using SQLx.
 pub struct RdbcItemReader<'a, T> {
     pool: &'a Pool<Any>,
     query: &'a str,
@@ -19,7 +22,19 @@ pub struct RdbcItemReader<'a, T> {
 }
 
 impl<'a, T> RdbcItemReader<'a, T> {
-    fn new(
+    /// Creates a new `RdbcItemReader`.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The database connection pool.
+    /// * `query` - The SQL query to execute.
+    /// * `page_size` - The number of items to read per page.
+    /// * `row_mapper` - The row mapper for mapping database rows to items.
+    ///
+    /// # Returns
+    ///
+    /// A new `RdbcItemReader` instance.
+    pub fn new(
         pool: &'a Pool<Any>,
         query: &'a str,
         page_size: Option<i32>,
@@ -42,6 +57,7 @@ impl<'a, T> RdbcItemReader<'a, T> {
         }
     }
 
+    /// Reads a page of items from the database.
     fn read_page(&self) {
         let mut query_builder = QueryBuilder::new(self.query);
 
@@ -71,7 +87,12 @@ impl<'a, T> RdbcItemReader<'a, T> {
 }
 
 impl<'a, T: DeserializeOwned + Clone> ItemReader<T> for RdbcItemReader<'a, T> {
-    fn read(&self) -> Option<Result<T, BatchError>> {
+    /// Reads the next item from the reader.
+    ///
+    /// # Returns
+    ///
+    /// The next item, or `None` if there are no more items.
+    fn read(&self) -> ItemReaderResult<T> {
         let index = if let Some(page_size) = self.page_size {
             self.offset.get() % page_size
         } else {
@@ -88,10 +109,11 @@ impl<'a, T: DeserializeOwned + Clone> ItemReader<T> for RdbcItemReader<'a, T> {
 
         self.offset.set(self.offset.get() + 1);
 
-        result.map(|item| Ok(item.clone()))
+        Ok(result.cloned())
     }
 }
 
+/// Builder for creating an `RdbcItemReader`.
 #[derive(Default)]
 pub struct RdbcItemReaderBuilder<'a, T> {
     pool: Option<&'a Pool<Any>>,
@@ -101,6 +123,7 @@ pub struct RdbcItemReaderBuilder<'a, T> {
 }
 
 impl<'a, T> RdbcItemReaderBuilder<'a, T> {
+    /// Creates a new `RdbcItemReaderBuilder`.
     pub fn new() -> Self {
         Self {
             pool: None,
@@ -110,26 +133,67 @@ impl<'a, T> RdbcItemReaderBuilder<'a, T> {
         }
     }
 
+    /// Sets the page size for the reader.
+    ///
+    /// # Arguments
+    ///
+    /// * `page_size` - The number of items to read per page.
+    ///
+    /// # Returns
+    ///
+    /// The updated `RdbcItemReaderBuilder` instance.
     pub fn page_size(mut self, page_size: i32) -> Self {
         self.page_size = Some(page_size);
         self
     }
 
+    /// Sets the SQL query for the reader.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - The SQL query to execute.
+    ///
+    /// # Returns
+    ///
+    /// The updated `RdbcItemReaderBuilder` instance.
     pub fn query(mut self, query: &'a str) -> Self {
         self.query = Some(query);
         self
     }
 
+    /// Sets the database connection pool for the reader.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The database connection pool.
+    ///
+    /// # Returns
+    ///
+    /// The updated `RdbcItemReaderBuilder` instance.
     pub fn pool(mut self, pool: &'a Pool<Any>) -> Self {
         self.pool = Some(pool);
         self
     }
 
+    /// Sets the row mapper for the reader.
+    ///
+    /// # Arguments
+    ///
+    /// * `row_mapper` - The row mapper for mapping database rows to items.
+    ///
+    /// # Returns
+    ///
+    /// The updated `RdbcItemReaderBuilder` instance.
     pub fn row_mapper(mut self, row_mapper: &'a dyn RdbcRowMapper<T>) -> Self {
         self.row_mapper = Some(row_mapper);
         self
     }
 
+    /// Builds the `RdbcItemReader` instance.
+    ///
+    /// # Returns
+    ///
+    /// The built `RdbcItemReader` instance.
     pub fn build(self) -> RdbcItemReader<'a, T> {
         RdbcItemReader::new(
             self.pool.unwrap(),
