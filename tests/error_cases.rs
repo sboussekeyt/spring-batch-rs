@@ -11,13 +11,13 @@ use std::{
     env::temp_dir,
     fs::{self},
     io::{self, ErrorKind},
-    time::Instant,
 };
 
 use spring_batch_rs::{
     core::{
-        item::ItemProcessor,
-        step::{Step, StepBuilder, StepResult, StepStatus},
+        item::{ItemProcessor, ItemProcessorResult},
+        job::{Job, JobBuilder},
+        step::{Step, StepBuilder, StepInstance},
     },
     CsvItemReaderBuilder, JsonItemWriterBuilder,
 };
@@ -50,10 +50,10 @@ pub struct Person {
 }
 
 #[derive(Default)]
-struct UpperCaseProcessor {}
+struct UpperCaseProcessor;
 
 impl ItemProcessor<Person, Person> for UpperCaseProcessor {
-    fn process<'a>(&'a self, item: &'a Person) -> Person {
+    fn process(&self, item: &Person) -> ItemProcessorResult<Person> {
         let person = Person {
             first_name: item.first_name.to_uppercase(),
             last_name: item.last_name.to_uppercase(),
@@ -62,7 +62,7 @@ impl ItemProcessor<Person, Person> for UpperCaseProcessor {
             birth_date: Date::from_calendar_date(2019, Month::January, 1).unwrap(),
         };
 
-        person
+        Ok(person)
     }
 }
 
@@ -91,23 +91,19 @@ fn transform_csv_stream_to_json_file_with_error_at_first() {
 
     let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join(file_name.clone()));
 
-    let step: Step<Car, Car> = StepBuilder::new()
+    let step: StepInstance<Car, Car> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
         .chunk(3)
         .build();
 
-    let result: StepResult = step.execute();
-
-    assert!(result.duration.as_nanos() > 0);
-    assert!(result.start.le(&Instant::now()));
-    assert!(result.end.le(&Instant::now()));
-    assert!(result.start.le(&result.end));
-    assert!(result.status == StepStatus::ERROR);
-    assert!(result.read_count == 0);
-    assert!(result.write_count == 0);
-    assert!(result.read_error_count == 1);
-    assert!(result.write_error_count == 0);
+    let job = JobBuilder::new().start(&step).build();
+    let result = job.run();
+    assert!(result.is_err());
+    assert!(step.get_read_count() == 0);
+    assert!(step.get_write_count() == 0);
+    assert!(step.get_read_error_count() == 1);
+    assert!(step.get_write_error_count() == 0);
 
     let file_content = fs::read_to_string(temp_dir().join(file_name))
         .expect("Should have been able to read the file");
@@ -136,23 +132,19 @@ fn transform_csv_stream_to_json_file_with_error_at_end() {
 
     let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join(file_name.clone()));
 
-    let step: Step<Car, Car> = StepBuilder::new()
+    let step: StepInstance<Car, Car> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
         .chunk(3)
         .build();
 
-    let result: StepResult = step.execute();
-
-    assert!(result.duration.as_nanos() > 0);
-    assert!(result.start.le(&Instant::now()));
-    assert!(result.end.le(&Instant::now()));
-    assert!(result.start.le(&result.end));
-    assert!(result.status == StepStatus::ERROR);
-    assert!(result.read_count == 4);
-    assert!(result.write_count == 3);
-    assert!(result.read_error_count == 1);
-    assert!(result.write_error_count == 0);
+    let job = JobBuilder::new().start(&step).build();
+    let result = job.run();
+    assert!(result.is_err());
+    assert!(step.get_read_count() == 4);
+    assert!(step.get_write_count() == 3);
+    assert!(step.get_read_error_count() == 1);
+    assert!(step.get_write_error_count() == 0);
 
     let file_content = fs::read_to_string(temp_dir().join(file_name))
         .expect("Should have been able to read the file");
@@ -185,21 +177,17 @@ fn transform_csv_stream_to_writer_with_error() {
 
     let writer = JsonItemWriterBuilder::new().from_writer(file);
 
-    let step: Step<Car, Car> = StepBuilder::new()
+    let step: StepInstance<Car, Car> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
         .chunk(1)
         .build();
 
-    let result: StepResult = step.execute();
-
-    assert!(result.duration.as_nanos() > 0);
-    assert!(result.start.le(&Instant::now()));
-    assert!(result.end.le(&Instant::now()));
-    assert!(result.start.le(&result.end));
-    assert!(result.status == StepStatus::ERROR);
-    assert!(result.read_count == 1);
-    assert!(result.write_count == 0);
-    assert!(result.read_error_count == 0);
-    assert!(result.write_error_count == 1);
+    let job = JobBuilder::new().start(&step).build();
+    let result = job.run();
+    assert!(result.is_err());
+    assert!(step.get_read_count() == 1);
+    assert!(step.get_write_count() == 0);
+    assert!(step.get_read_error_count() == 0);
+    assert!(step.get_write_error_count() == 1);
 }

@@ -50,9 +50,12 @@ Then, on your main.rs:
 
 ```rust
 # use serde::{Deserialize, Serialize};
-# use spring_batch_rs::core::item::ItemProcessor;
 # use spring_batch_rs::{
-#     core::step::{Step, StepBuilder, StepStatus},
+#     core::{
+#         item::{ItemProcessor, ItemProcessorResult},
+#         job::{Job, JobBuilder},
+#         step::{Step, StepBuilder, StepInstance, StepStatus},
+#     },
 #     error::BatchError,
 #     item::csv::csv_reader::CsvItemReaderBuilder,
 #     JsonItemWriterBuilder,
@@ -68,14 +71,14 @@ Then, on your main.rs:
 # #[derive(Default)]
 # struct UpperCaseProcessor {}
 # impl ItemProcessor<Car, Car> for UpperCaseProcessor {
-#     fn process<'a>(&'a self, item: &'a Car) -> Car {
+#     fn process(&self, item: &Car) -> ItemProcessorResult<Car> {
 #         let car = Car {
 #             year: item.year,
 #             make: item.make.to_uppercase(),
 #             model: item.model.to_uppercase(),
 #             description: item.description.to_uppercase(),
 #         };
-#         car
+#         Ok(car)
 #     }
 # }
 
@@ -95,7 +98,7 @@ fn main() -> Result<(), BatchError> {
 
     let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join("cars.json"));
 
-    let step: Step<Car, Car> = StepBuilder::new()
+    let step: StepInstance<Car, Car> = StepBuilder::new()
         .reader(&reader) // set csv reader
         .writer(&writer) // set json writer
         .processor(&processor) // set upper case processor
@@ -103,9 +106,11 @@ fn main() -> Result<(), BatchError> {
         .skip_limit(2) // set fault tolerance
         .build();
 
-    let result = step.execute();
+    let job = JobBuilder::new().start(&step).build();
+    let result = job.run();
 
-    assert!(StepStatus::SUCCESS == result.status);
+    assert!(result.is_ok());
+    assert!(step.get_status() == StepStatus::Success);
 
     Ok(())
 }
@@ -167,8 +172,8 @@ pub use item::fake::person_reader::*;
 
 #[cfg(feature = "rdbc")]
 #[doc(inline)]
-pub use item::rdbc::rdbc_reader::*;
+pub use item::rdbc::{rdbc_reader::*, rdbc_writer::*};
 
 #[cfg(feature = "mongodb")]
 #[doc(inline)]
-pub use item::mongodb::*;
+pub use item::mongodb::{mongodb_reader::*, mongodb_writer::*};

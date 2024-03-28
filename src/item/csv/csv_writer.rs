@@ -3,14 +3,17 @@ use std::{cell::RefCell, fs::File, io::Write, path::Path};
 use csv::{Writer, WriterBuilder};
 use serde::Serialize;
 
-use crate::{core::item::ItemWriter, BatchError};
+use crate::{
+    core::item::{ItemWriter, ItemWriterResult},
+    BatchError,
+};
 
 pub struct CsvItemWriter<T: Write> {
     writer: RefCell<Writer<T>>,
 }
 
 impl<T: Write, R: Serialize> ItemWriter<R> for CsvItemWriter<T> {
-    fn write(&self, items: &[R]) -> Result<(), BatchError> {
+    fn write(&self, items: &[R]) -> ItemWriterResult {
         for item in items.iter() {
             let result = self.writer.borrow_mut().serialize(item);
 
@@ -28,20 +31,12 @@ impl<T: Write, R: Serialize> ItemWriter<R> for CsvItemWriter<T> {
     /// is returned.
     ///
     /// Note that this also flushes the underlying writer.
-    fn flush(&self) -> Result<(), BatchError> {
+    fn flush(&self) -> ItemWriterResult {
         let result = self.writer.borrow_mut().flush();
         match result {
             Ok(()) => Ok(()),
             Err(error) => Err(BatchError::ItemWriter(error.to_string())),
         }
-    }
-
-    fn open(&self) -> Result<(), BatchError> {
-        Ok(())
-    }
-
-    fn close(&self) -> Result<(), BatchError> {
-        Ok(())
     }
 }
 
