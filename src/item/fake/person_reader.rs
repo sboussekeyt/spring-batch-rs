@@ -11,8 +11,10 @@ use rand::Rng;
 use time::format_description;
 use time::{Date, Month};
 
-use crate::{core::item::ItemReader, error::BatchError};
+use crate::core::item::ItemReader;
+use crate::core::item::ItemReaderResult;
 
+/// Represents a person with their personal information.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Person {
     first_name: String,
@@ -23,6 +25,7 @@ pub struct Person {
     birth_date: Date,
 }
 
+/// Serializes a `Date` object into a string representation.
 fn date_serializer<S>(date: &Date, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -48,14 +51,19 @@ impl fmt::Display for Person {
     }
 }
 
+/// A reader for generating fake `Person` objects.
 pub struct PersonReader {
     count: Cell<usize>,
 }
 
 impl ItemReader<Person> for PersonReader {
-    fn read(&self) -> Option<Result<Person, BatchError>> {
+    /// Reads the next `Person` object.
+    ///
+    /// Returns `Ok(Some(person))` if there are more `Person` objects to read.
+    /// Returns `Ok(None)` if there are no more `Person` objects to read.
+    fn read(&self) -> ItemReaderResult<Person> {
         if self.count.get() == 0 {
-            return None;
+            return Ok(None);
         }
 
         self.count.set(self.count.get() - 1);
@@ -68,10 +76,11 @@ impl ItemReader<Person> for PersonReader {
             birth_date: fake_date(),
         };
         debug!("Person: {}", person.to_string());
-        Some(Ok(person))
+        Ok(Some(person))
     }
 }
 
+/// Generates a random `Date` object.
 fn fake_date() -> Date {
     let mut rng = rand::thread_rng();
     let year = rng.gen_range(1900..2022);
@@ -81,21 +90,25 @@ fn fake_date() -> Date {
     Date::from_calendar_date(year, Month::try_from(month).unwrap(), day).unwrap()
 }
 
+/// Builder for creating a `PersonReader`.
 #[derive(Default)]
 pub struct PersonReaderBuilder {
     number_of_items: usize,
 }
 
 impl PersonReaderBuilder {
+    /// Creates a new `PersonReaderBuilder` instance.
     pub fn new() -> Self {
         Self { number_of_items: 0 }
     }
 
+    /// Sets the number of `Person` objects to generate.
     pub fn number_of_items(mut self, number_of_items: usize) -> Self {
         self.number_of_items = number_of_items;
         self
     }
 
+    /// Builds a `PersonReader` instance with the configured settings.
     pub fn build(self) -> PersonReader {
         PersonReader {
             count: self.number_of_items.into(),
@@ -115,20 +128,20 @@ mod tests {
 
         let result1 = reader.read();
         assert_eq!(reader.count.get(), 1);
-        assert_eq!(result1.is_some(), true);
+        assert_eq!(result1.is_ok(), true);
 
         let person = result1.unwrap();
-        assert_eq!(person.is_ok(), true);
+        assert_eq!(person.is_some(), true);
         assert_eq!(person.as_ref().unwrap().first_name.is_empty(), false);
         assert_eq!(person.as_ref().unwrap().last_name.is_empty(), false);
 
         let result2 = reader.read();
         assert_eq!(reader.count.get(), 0);
-        assert_eq!(result2.is_some(), true);
-        assert_eq!(result2.unwrap().is_ok(), true);
+        assert_eq!(result2.is_ok(), true);
+        assert_eq!(result2.unwrap().is_some(), true);
 
         let result3 = reader.read();
         assert_eq!(reader.count.get(), 0);
-        assert_eq!(result3.is_none(), true);
+        assert_eq!(result3.unwrap().is_none(), true);
     }
 }

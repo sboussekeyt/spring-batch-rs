@@ -1,9 +1,12 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
-    core::step::{Step, StepBuilder, StepStatus},
-    error::BatchError,
+    core::{
+        job::{Job, JobBuilder},
+        step::{Step, StepBuilder, StepInstance, StepStatus},
+    },
     item::csv::csv_reader::CsvItemReaderBuilder,
-    JsonItemWriterBuilder,
+    item::json::json_writer::JsonItemWriterBuilder,
 };
 use std::env::temp_dir;
 
@@ -15,7 +18,7 @@ struct Car {
     description: String,
 }
 
-fn main() -> Result<(), BatchError> {
+fn main() -> Result<()> {
     let csv = "year,make,model,description
    1948,Porsche,356,Luxury sports car
    1995,Peugeot,205,City car
@@ -29,17 +32,18 @@ fn main() -> Result<(), BatchError> {
 
     let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join("cars.json"));
 
-    let step: Step<Car, Car> = StepBuilder::new()
+    let step: StepInstance<Car, Car> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
         .chunk(2)
         .skip_limit(1) // set fault tolerance to 1: only one error is allowed
         .build();
 
-    let result = step.execute();
+    let job = JobBuilder::new().start(&step).build();
+    let _result = job.run();
 
-    assert_eq!(1, result.read_error_count); // The year of the 4th line is not valid
-    assert!(StepStatus::SUCCESS == result.status); // Step is successful despite of the previous error
+    assert_eq!(1, step.get_read_error_count()); // The year of the 4th line is not valid
+    assert!(StepStatus::Success == step.get_status()); // Step is successful despite of the previous error
 
     Ok(())
 }

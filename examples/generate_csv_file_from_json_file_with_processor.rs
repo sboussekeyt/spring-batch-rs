@@ -1,11 +1,14 @@
 use ::serde::{ser::Error, Deserialize, Serialize};
+use anyhow::Result;
 use serde::Serializer;
 use spring_batch_rs::{
     core::{
-        item::ItemProcessor,
-        step::{Step, StepBuilder},
+        item::{ItemProcessor, ItemProcessorResult},
+        job::{Job, JobBuilder},
+        step::{StepBuilder, StepInstance},
     },
-    CsvItemWriterBuilder, JsonItemReaderBuilder,
+    item::csv::csv_writer::CsvItemWriterBuilder,
+    item::json::json_reader::JsonItemReaderBuilder,
 };
 use std::{env::temp_dir, fs::File, path::Path};
 use time::{format_description, Date, Month};
@@ -36,10 +39,10 @@ pub struct Person {
 }
 
 #[derive(Default)]
-struct UpperCaseProcessor {}
+struct UpperCaseProcessor;
 
 impl ItemProcessor<Person, Person> for UpperCaseProcessor {
-    fn process<'a>(&'a self, item: &'a Person) -> Person {
+    fn process(&self, item: &Person) -> ItemProcessorResult<Person> {
         let person = Person {
             first_name: item.first_name.to_uppercase(),
             last_name: item.last_name.to_uppercase(),
@@ -47,11 +50,11 @@ impl ItemProcessor<Person, Person> for UpperCaseProcessor {
             email: item.email.to_uppercase(),
             birth_date: Date::from_calendar_date(2019, Month::January, 1).unwrap(),
         };
-        person
+        Ok(person)
     }
 }
 
-fn main() -> std::io::Result<()> {
+fn main() -> Result<()> {
     let path = Path::new("examples/data/persons.json");
 
     let file = File::open(path).expect("Unable to open file");
@@ -64,14 +67,15 @@ fn main() -> std::io::Result<()> {
         .has_headers(true)
         .from_path(temp_dir().join("persons.csv"));
 
-    let step: Step<Person, Person> = StepBuilder::new()
+    let step: StepInstance<Person, Person> = StepBuilder::new()
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
         .chunk(2)
         .build();
 
-    step.execute();
+    let job = JobBuilder::new().start(&step).build();
+    let _result = job.run();
 
     Ok(())
 }

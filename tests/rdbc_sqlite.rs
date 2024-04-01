@@ -1,13 +1,17 @@
-use std::{io::Read, path::Path, time::Instant};
+use std::{io::Read, path::Path};
 
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
-    core::step::{Step, StepBuilder, StepResult, StepStatus},
+    core::{
+        job::{Job, JobBuilder},
+        step::{Step, StepBuilder, StepInstance, StepStatus},
+    },
+    item::csv::csv_reader::CsvItemReaderBuilder,
+    item::csv::csv_writer::CsvItemWriterBuilder,
     item::rdbc::{
         rdbc_reader::{RdbcItemReaderBuilder, RdbcRowMapper},
         rdbc_writer::{RdbcItemBinder, RdbcItemWriterBuilder},
     },
-    CsvItemReaderBuilder, CsvItemWriterBuilder,
 };
 use sqlx::{
     migrate::{MigrateDatabase, Migrator},
@@ -80,23 +84,20 @@ async fn read_items_from_database() -> Result<(), sqlx::Error> {
         .from_writer(tmpfile.as_file());
 
     // Execute process
-    let step: Step<Person, Person> = StepBuilder::new()
+    let step: StepInstance<Person, Person> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
         .chunk(3)
         .build();
 
-    let result: StepResult = step.execute();
-
-    assert!(result.duration.as_nanos() > 0);
-    assert!(result.start.le(&Instant::now()));
-    assert!(result.end.le(&Instant::now()));
-    assert!(result.start.le(&result.end));
-    assert!(result.status == StepStatus::SUCCESS);
-    assert!(result.read_count == 18);
-    assert!(result.write_count == 18);
-    assert!(result.read_error_count == 0);
-    assert!(result.write_error_count == 0);
+    let job = JobBuilder::new().start(&step).build();
+    let result = job.run();
+    assert!(result.is_ok());
+    assert!(step.get_status() == StepStatus::Success);
+    assert!(step.get_read_count() == 18);
+    assert!(step.get_write_count() == 18);
+    assert!(step.get_read_error_count() == 0);
+    assert!(step.get_write_error_count() == 0);
 
     let mut tmpfile = tmpfile.reopen()?;
     let mut file_content = String::new();
@@ -200,23 +201,20 @@ async fn write_items_to_database() -> Result<(), sqlx::Error> {
         .build();
 
     // Execute process
-    let step: Step<Car, Car> = StepBuilder::new()
+    let step: StepInstance<Car, Car> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
         .chunk(3)
         .build();
 
-    let result: StepResult = step.execute();
-
-    assert!(result.duration.as_nanos() > 0);
-    assert!(result.start.le(&Instant::now()));
-    assert!(result.end.le(&Instant::now()));
-    assert!(result.start.le(&result.end));
-    assert!(result.status == StepStatus::SUCCESS);
-    assert!(result.read_count == 5);
-    assert!(result.write_count == 5);
-    assert!(result.read_error_count == 0);
-    assert!(result.write_error_count == 0);
+    let job = JobBuilder::new().start(&step).build();
+    let result = job.run();
+    assert!(result.is_ok());
+    assert!(step.get_status() == StepStatus::Success);
+    assert!(step.get_read_count() == 5);
+    assert!(step.get_write_count() == 5);
+    assert!(step.get_read_error_count() == 0);
+    assert!(step.get_write_error_count() == 0);
 
     let car_results = sqlx::query_as::<_, Car>("SELECT year, make, model, description FROM cars")
         .fetch_all(&pool)

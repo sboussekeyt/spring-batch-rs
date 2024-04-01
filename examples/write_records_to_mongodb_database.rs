@@ -1,5 +1,4 @@
 use anyhow::Result;
-
 use mongodb::{
     bson::{doc, oid::ObjectId},
     sync::Client,
@@ -7,12 +6,11 @@ use mongodb::{
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::{
-        item::ItemProcessor,
-        step::{Step, StepBuilder},
+        item::{ItemProcessor, ItemProcessorResult},
+        step::{Step, StepBuilder, StepInstance},
     },
-    item::mongodb::mongodb_reader::WithObjectId,
-    mongodb_writer::MongodbItemWriterBuilder,
-    CsvItemReaderBuilder,
+    item::csv::csv_reader::CsvItemReaderBuilder,
+    item::mongodb::{mongodb_reader::WithObjectId, mongodb_writer::MongodbItemWriterBuilder},
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -39,13 +37,13 @@ struct FormattedBook {
 struct FormatBookProcessor {}
 
 impl ItemProcessor<Book, FormattedBook> for FormatBookProcessor {
-    fn process<'a>(&'a self, item: &'a Book) -> FormattedBook {
+    fn process(&self, item: &Book) -> ItemProcessorResult<FormattedBook> {
         let book = FormattedBook {
             title: item.title.replace(" ", "_").to_uppercase(),
             author: item.author.replace(" ", "_").to_uppercase(),
         };
 
-        book
+        Ok(book)
     }
 }
 
@@ -73,13 +71,13 @@ fn main() -> Result<()> {
         .build();
 
     // Execute process
-    let step: Step<FormattedBook, FormattedBook> = StepBuilder::new()
+    let step: StepInstance<FormattedBook, FormattedBook> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
         .chunk(3)
         .build();
 
-    step.execute();
+    let _result = step.execute();
 
     Ok(())
 }

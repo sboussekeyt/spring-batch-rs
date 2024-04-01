@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::{io::Read, time::Instant};
+use std::io::Read;
 
 use mongodb::{
     bson::{doc, oid::ObjectId},
@@ -8,12 +8,14 @@ use mongodb::{
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::{
-        item::ItemProcessor,
-        step::{Step, StepBuilder, StepResult, StepStatus},
+        item::{ItemProcessor, ItemProcessorResult},
+        job::{Job, JobBuilder},
+        step::{Step, StepBuilder, StepInstance, StepStatus},
     },
+    item::csv::csv_reader::CsvItemReaderBuilder,
+    item::csv::csv_writer::CsvItemWriterBuilder,
     item::mongodb::mongodb_reader::{MongodbItemReaderBuilder, WithObjectId},
-    mongodb_writer::MongodbItemWriterBuilder,
-    CsvItemReaderBuilder, CsvItemWriterBuilder,
+    item::mongodb::mongodb_writer::MongodbItemWriterBuilder,
 };
 use tempfile::NamedTempFile;
 use testcontainers_modules::{
@@ -45,13 +47,13 @@ struct FormattedBook {
 struct FormatBookProcessor {}
 
 impl ItemProcessor<Book, FormattedBook> for FormatBookProcessor {
-    fn process<'a>(&'a self, item: &'a Book) -> FormattedBook {
+    fn process(&self, item: &Book) -> ItemProcessorResult<FormattedBook> {
         let book = FormattedBook {
             title: item.title.replace(" ", "_").to_uppercase(),
             author: item.author.replace(" ", "_").to_uppercase(),
         };
 
-        book
+        Ok(book)
     }
 }
 
@@ -164,24 +166,21 @@ fn read_items_from_database() -> Result<()> {
 
     let writer = CsvItemWriterBuilder::new().from_writer(tmpfile.as_file());
 
-    let step: Step<Book, FormattedBook> = StepBuilder::new()
+    let step: StepInstance<Book, FormattedBook> = StepBuilder::new()
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
         .chunk(3)
         .build();
 
-    let result: StepResult = step.execute();
-
-    assert!(result.duration.as_nanos() > 0);
-    assert!(result.start.le(&Instant::now()));
-    assert!(result.end.le(&Instant::now()));
-    assert!(result.start.le(&result.end));
-    assert!(result.status == StepStatus::SUCCESS);
-    assert!(result.read_count == 12);
-    assert!(result.write_count == 12);
-    assert!(result.read_error_count == 0);
-    assert!(result.write_error_count == 0);
+    let job = JobBuilder::new().start(&step).build();
+    let result = job.run();
+    assert!(result.is_ok());
+    assert!(step.get_status() == StepStatus::Success);
+    assert!(step.get_read_count() == 12);
+    assert!(step.get_write_count() == 12);
+    assert!(step.get_read_error_count() == 0);
+    assert!(step.get_write_error_count() == 0);
 
     let mut tmpfile = tmpfile.reopen()?;
     let mut file_content = String::new();
@@ -248,23 +247,20 @@ fn write_items_to_database() -> Result<()> {
         .build();
 
     // Execute process
-    let step: Step<FormattedBook, FormattedBook> = StepBuilder::new()
+    let step: StepInstance<FormattedBook, FormattedBook> = StepBuilder::new()
         .reader(&reader)
         .writer(&writer)
         .chunk(3)
         .build();
 
-    let result: StepResult = step.execute();
-
-    assert!(result.duration.as_nanos() > 0);
-    assert!(result.start.le(&Instant::now()));
-    assert!(result.end.le(&Instant::now()));
-    assert!(result.start.le(&result.end));
-    assert!(result.status == StepStatus::SUCCESS);
-    assert!(result.read_count == 2);
-    assert!(result.write_count == 2);
-    assert!(result.read_error_count == 0);
-    assert!(result.write_error_count == 0);
+    let job = JobBuilder::new().start(&step).build();
+    let result = job.run();
+    assert!(result.is_ok());
+    assert!(step.get_status() == StepStatus::Success);
+    assert!(step.get_read_count() == 2);
+    assert!(step.get_write_count() == 2);
+    assert!(step.get_read_error_count() == 0);
+    assert!(step.get_write_error_count() == 0);
 
     Ok(())
 }
