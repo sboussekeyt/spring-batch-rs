@@ -17,9 +17,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: stable
-          override: true
           components: clippy
 
       - name: Cache .cargo

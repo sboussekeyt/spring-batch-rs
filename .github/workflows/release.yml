@@ -26,7 +26,6 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: stable
 
       - name: publish crate
@@ -53,9 +52,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: stable
-          override: true
 
       - name: Install `cargo-edit`
         run: cargo install cargo-edit

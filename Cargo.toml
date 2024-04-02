@@ -6,7 +6,7 @@ authors = ["Simon Boussekeyt <sboussekeyt@gmail.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/sboussekeyt/spring-batch-rs"
 documentation = "https://docs.rs/spring-batch-rs"
-keywords = ["batch", "csv", "data", "json", "rdbc", "mongodb"]
+keywords = ["batch", "csv", "data", "json", "rdbc"]
 readme = "README.md"
 description = "A toolkit for building enterprise-grade batch applications"
 
