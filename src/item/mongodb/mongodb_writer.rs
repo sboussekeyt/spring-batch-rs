@@ -6,11 +6,11 @@ use crate::{
 };
 
 /// Represents a MongoDB item writer.
-pub struct MongodbItemWriter<'a, W> {
+pub struct MongodbItemWriter<'a, W: Send + Sync> {
     collection: &'a Collection<W>,
 }
 
-impl<'a, W: serde::Serialize> ItemWriter<W> for MongodbItemWriter<'a, W> {
+impl<'a, W: serde::Serialize + Send + Sync> ItemWriter<W> for MongodbItemWriter<'a, W> {
     /// Writes the items to the MongoDB collection.
     ///
     /// # Arguments
@@ -23,7 +23,7 @@ impl<'a, W: serde::Serialize> ItemWriter<W> for MongodbItemWriter<'a, W> {
     fn write(&self, items: &[W]) -> ItemWriterResult {
         let opts = InsertManyOptions::builder().ordered(false).build();
 
-        let result = self.collection.insert_many(items, opts);
+        let result = self.collection.insert_many(items).with_options(opts).run();
 
         match result {
             Ok(_ser) => Ok(()),
@@ -34,11 +34,11 @@ impl<'a, W: serde::Serialize> ItemWriter<W> for MongodbItemWriter<'a, W> {
 
 /// Builder for `MongodbItemWriter`.
 #[derive(Default)]
-pub struct MongodbItemWriterBuilder<'a, W> {
+pub struct MongodbItemWriterBuilder<'a, W: Send + Sync> {
     collection: Option<&'a Collection<W>>,
 }
 
-impl<'a, W> MongodbItemWriterBuilder<'a, W> {
+impl<'a, W: Send + Sync> MongodbItemWriterBuilder<'a, W> {
     /// Creates a new `MongodbItemWriterBuilder` instance.
     pub fn new() -> Self {
         Self { collection: None }

@@ -136,7 +136,7 @@ fn read_items_from_database() -> Result<()> {
         },
     ];
 
-    let _ = book_collection.insert_many(books, None);
+    let _ = book_collection.insert_many(books).run();
 
     let filter = doc! {"title": {"$regex": "To Kill"}};
 
