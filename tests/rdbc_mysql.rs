@@ -1,5 +1,6 @@
 use std::{io::Read, path::Path};
 
+use anyhow::Error;
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::{
@@ -15,13 +16,7 @@ use spring_batch_rs::{
 };
 use sqlx::{migrate::Migrator, query_builder::Separated, Any, AnyPool, FromRow, Row};
 use tempfile::NamedTempFile;
-use testcontainers_modules::{
-    mysql::Mysql,
-    testcontainers::{
-        clients::Cli,
-        core::{Port, RunnableImage},
-    },
-};
+use testcontainers_modules::{mysql, testcontainers::runners::AsyncRunner};
 
 #[derive(Serialize, Deserialize, Clone)]
 struct Person {
@@ -48,22 +43,15 @@ impl RdbcRowMapper<Person> for PersonRowMapper {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn read_items_from_database() -> Result<(), sqlx::Error> {
+async fn read_items_from_database() -> Result<(), Error> {
     // Prepare container
-    let docker = Cli::default();
-    let local_port = 33061;
-    let port = Port {
-        local: local_port,
-        internal: 3306,
-    };
-    let mysql_image = RunnableImage::from(Mysql::default())
-        .with_tag("latest")
-        .with_mapped_port(port);
-    let _node = docker.run(mysql_image);
+    let container = mysql::Mysql::default().start().await?;
+    let host_ip = container.get_host().await?;
+    let host_port = container.get_host_port_ipv4(3306).await?;
 
     // Prepare database
     sqlx::any::install_default_drivers();
-    let connection_uri = format!("mysql://localhost:{}/test", local_port);
+    let connection_uri = format!("mysql://{}:{}/test", host_ip, host_port);
     let pool = AnyPool::connect(&connection_uri).await?;
     let migrator = Migrator::new(Path::new("tests/migrations/mysql")).await?;
     migrator.run(&pool).await?;
@@ -155,18 +143,11 @@ struct Car {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn write_items_to_database() -> Result<(), sqlx::Error> {
+async fn write_items_to_database() -> Result<(), Error> {
     // Prepare container
-    let docker = Cli::default();
-    let local_port = 33062;
-    let port = Port {
-        local: local_port,
-        internal: 3306,
-    };
-    let mysql_image = RunnableImage::from(Mysql::default())
-        .with_tag("latest")
-        .with_mapped_port(port);
-    let _node = docker.run(mysql_image);
+    let container = mysql::Mysql::default().start().await?;
+    let host_ip = container.get_host().await?;
+    let host_port = container.get_host_port_ipv4(3306).await?;
 
     // Prepare reader
     let csv = "year,make,model,description
@@ -182,7 +163,7 @@ async fn write_items_to_database() -> Result<(), sqlx::Error> {
 
     // Prepare writer
     sqlx::any::install_default_drivers();
-    let connection_uri = format!("mysql://localhost:{}/test", local_port);
+    let connection_uri = format!("mysql://{}:{}/test", host_ip, host_port);
     let pool = AnyPool::connect(&connection_uri).await?;
 
     // Create table
