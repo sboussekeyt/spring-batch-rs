@@ -14,17 +14,17 @@ pub trait WithObjectId {
 }
 
 /// A MongoDB item reader that reads items from a MongoDB collection.
-pub struct MongodbItemReader<'a, R> {
+pub struct MongodbItemReader<'a, R: Send + Sync> {
     collection: &'a Collection<R>,
     filter: Document,
-    options: FindOptions,
+    options: Option<FindOptions>,
     page_size: Option<i64>,
     buffer: RefCell<Vec<R>>,
     last_id: Cell<Option<ObjectId>>,
     offset: Cell<usize>,
 }
 
-impl<'a, R: DeserializeOwned + WithObjectId> MongodbItemReader<'a, R> {
+impl<'a, R: DeserializeOwned + WithObjectId + Send + Sync> MongodbItemReader<'a, R> {
     /// Reads a page of items from the MongoDB collection and stores them in the buffer.
     fn read_page(&self) {
         self.buffer.borrow_mut().clear();
@@ -39,7 +39,12 @@ impl<'a, R: DeserializeOwned + WithObjectId> MongodbItemReader<'a, R> {
 
         let options = &self.options;
 
-        let mut cursor = self.collection.find(filter, options.clone()).unwrap();
+        let mut cursor = self
+            .collection
+            .find(filter)
+            .with_options(options.clone())
+            .run()
+            .unwrap();
 
         while cursor.advance().unwrap() {
             let result = cursor.deserialize_current();
@@ -51,7 +56,9 @@ impl<'a, R: DeserializeOwned + WithObjectId> MongodbItemReader<'a, R> {
     }
 }
 
-impl<'a, R: DeserializeOwned + Clone + WithObjectId> ItemReader<R> for MongodbItemReader<'a, R> {
+impl<'a, R: DeserializeOwned + Clone + WithObjectId + Send + Sync> ItemReader<R>
+    for MongodbItemReader<'a, R>
+{
     /// Reads the next item from the MongoDB collection.
     ///
     /// Returns `Ok(Some(item))` if an item is read successfully,
@@ -83,13 +90,13 @@ impl<'a, R: DeserializeOwned + Clone + WithObjectId> ItemReader<R> for MongodbIt
 }
 
 #[derive(Default)]
-pub struct MongodbItemReaderBuilder<'a, R> {
+pub struct MongodbItemReaderBuilder<'a, R: Send + Sync> {
     collection: Option<&'a Collection<R>>,
     filter: Option<Document>,
     page_size: Option<i64>,
 }
 
-impl<'a, R> MongodbItemReaderBuilder<'a, R> {
+impl<'a, R: Send + Sync> MongodbItemReaderBuilder<'a, R> {
     /// Creates a new `MongodbItemReaderBuilder`.
     pub fn new() -> Self {
         Self {
@@ -142,7 +149,7 @@ impl<'a, R> MongodbItemReaderBuilder<'a, R> {
         MongodbItemReader {
             collection: self.collection.unwrap(),
             filter,
-            options: find_options,
+            options: Some(find_options),
             page_size: self.page_size,
             buffer: RefCell::new(buffer),
             last_id: Cell::new(None),
