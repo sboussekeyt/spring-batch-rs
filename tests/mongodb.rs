@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::io::Read;
+use testcontainers_modules::{mongo, testcontainers::runners::SyncRunner};
 
 use mongodb::{
     bson::{doc, oid::ObjectId},
@@ -18,10 +19,6 @@ use spring_batch_rs::{
     item::mongodb::mongodb_writer::MongodbItemWriterBuilder,
 };
 use tempfile::NamedTempFile;
-use testcontainers_modules::{
-    mongo::Mongo,
-    testcontainers::{clients, core::Port, RunnableImage},
-};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Book {
@@ -59,19 +56,11 @@ impl ItemProcessor<Book, FormattedBook> for FormatBookProcessor {
 
 #[test]
 fn read_items_from_database() -> Result<()> {
-    let docker = clients::Cli::default();
+    let container = mongo::Mongo::default().start().unwrap();
+    let host_ip = container.get_host().unwrap();
+    let host_port = container.get_host_port_ipv4(27017).unwrap();
 
-    let local_port = 27018;
-    let port = Port {
-        local: local_port,
-        internal: 27017,
-    };
-    let mongo_image = RunnableImage::from(Mongo::default())
-        .with_tag("latest")
-        .with_mapped_port(port);
-    let _node = docker.run(mongo_image);
-
-    let url = format!("mongodb://127.0.0.1:{local_port}/");
+    let url = format!("mongodb://{host_ip}:{host_port}/");
 
     let client: Client = Client::with_uri_str(&url).unwrap();
 
@@ -211,20 +200,11 @@ fn read_items_from_database() -> Result<()> {
 
 #[test]
 fn write_items_to_database() -> Result<()> {
-    // Prepare container
-    let docker = clients::Cli::default();
+    let container = mongo::Mongo::default().start().unwrap();
+    let host_ip = container.get_host().unwrap();
+    let host_port = container.get_host_port_ipv4(27017).unwrap();
 
-    let local_port = 27019;
-    let port = Port {
-        local: local_port,
-        internal: 27017,
-    };
-    let mongo_image = RunnableImage::from(Mongo::default())
-        .with_tag("latest")
-        .with_mapped_port(port);
-    let _node = docker.run(mongo_image);
-
-    let url = format!("mongodb://127.0.0.1:{local_port}/");
+    let url = format!("mongodb://{host_ip}:{host_port}/");
 
     let client: Client = Client::with_uri_str(&url).unwrap();
 

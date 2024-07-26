@@ -1,5 +1,6 @@
 use std::{io::Read, path::Path};
 
+use anyhow::Error;
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::{
@@ -15,13 +16,7 @@ use spring_batch_rs::{
 };
 use sqlx::{migrate::Migrator, query_builder::Separated, Any, AnyPool, FromRow, Row};
 use tempfile::NamedTempFile;
-use testcontainers_modules::{
-    postgres::Postgres,
-    testcontainers::{
-        clients::Cli,
-        core::{Port, RunnableImage},
-    },
-};
+use testcontainers_modules::{postgres, testcontainers::runners::AsyncRunner};
 
 #[derive(Serialize, Deserialize, Clone)]
 struct Person {
@@ -48,22 +43,15 @@ impl RdbcRowMapper<Person> for PersonRowMapper {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn read_items_from_database() -> Result<(), sqlx::Error> {
+async fn read_items_from_database() -> Result<(), Error> {
     // Prepare container
-    let docker = Cli::default();
-    let local_port = 53431;
-    let port = Port {
-        local: local_port,
-        internal: 5432,
-    };
-    let postgres_image = RunnableImage::from(Postgres::default())
-        .with_tag("latest")
-        .with_mapped_port(port);
-    let _node = docker.run(postgres_image);
+    let container = postgres::Postgres::default().start().await?;
+    let host_ip = container.get_host().await?;
+    let host_port = container.get_host_port_ipv4(5432).await?;
 
     // Prepare database
     sqlx::any::install_default_drivers();
-    let connection_uri = format!("postgres://postgres:postgres@localhost:{}", local_port);
+    let connection_uri = format!("postgres://postgres:postgres@{}:{}", host_ip, host_port);
     let pool = AnyPool::connect(&connection_uri).await?;
     let migrator = Migrator::new(Path::new("tests/migrations/postgres")).await?;
     migrator.run(&pool).await?;
@@ -155,18 +143,11 @@ struct Car {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore] // Ignore because of issue: https://github.com/launchbadge/sqlx/issues/3000
-async fn write_items_to_database() -> Result<(), sqlx::Error> {
+async fn write_items_to_database() -> Result<(), Error> {
     // Prepare container
-    let docker = Cli::default();
-    let local_port = 53432;
-    let port = Port {
-        local: local_port,
-        internal: 5432,
-    };
-    let postgres_image = RunnableImage::from(Postgres::default())
-        .with_tag("latest")
-        .with_mapped_port(port);
-    let _node = docker.run(postgres_image);
+    let container = postgres::Postgres::default().start().await?;
+    let host_ip = container.get_host().await?;
+    let host_port = container.get_host_port_ipv4(5432).await?;
 
     // Prepare reader
     let csv = "year,make,model,description
@@ -182,7 +163,7 @@ async fn write_items_to_database() -> Result<(), sqlx::Error> {
 
     // Prepare writer
     sqlx::any::install_default_drivers();
-    let connection_uri = format!("postgres://postgres:postgres@localhost:{}", local_port);
+    let connection_uri = format!("postgres://postgres:postgres@{}:{}", host_ip, host_port);
     let pool = AnyPool::connect(&connection_uri).await?;
 
     // Create table
