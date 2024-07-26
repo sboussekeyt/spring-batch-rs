@@ -43,7 +43,7 @@ uuid = { version = "1.7.0", features = ["v4"] }
 [dev-dependencies]
 spring-batch-rs = { path = ".", features = ["tests-cfg"] }
 rand = { version = "0.8.5" }
-mockall = "0.12.1"
+mockall = "0.13.0"
 testcontainers-modules = { version = "0.8.0", features = ["postgres", "mysql", "mongo", "blocking"] }
 tempfile = "3.10.0"
 env_logger = "0.11.1"
