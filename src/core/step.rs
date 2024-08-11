@@ -1,6 +1,5 @@
 use crate::BatchError;
 use log::{debug, info, warn};
-use serde::{de::DeserializeOwned, Serialize};
 use std::{
     cell::Cell,
     time::{Duration, Instant},
@@ -418,7 +417,7 @@ pub struct StepBuilder<'a, R, W> {
     skip_limit: usize,
 }
 
-impl<'a, R: Serialize, W: DeserializeOwned> StepBuilder<'a, R, W> {
+impl<'a, R: 'static, W: 'static + Clone> StepBuilder<'a, R, W> {
     pub fn new() -> StepBuilder<'a, R, W> {
         Self {
             name: None,
@@ -461,7 +460,7 @@ impl<'a, R: Serialize, W: DeserializeOwned> StepBuilder<'a, R, W> {
     }
 
     pub fn build(self) -> StepInstance<'a, R, W> {
-        let default_processor = &DefaultProcessor {};
+        let default_processor = &DefaultProcessor;
 
         StepInstance {
             id: Uuid::new_v4(),

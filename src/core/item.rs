@@ -1,5 +1,6 @@
+use std::any::Any;
+
 use crate::error::BatchError;
-use serde::{de::DeserializeOwned, Serialize};
 
 /// Represents the result of reading an item from the reader.
 pub type ItemReaderResult<R> = Result<Option<R>, BatchError>;
@@ -47,13 +48,13 @@ pub trait ItemWriter<W> {
 #[derive(Default)]
 pub struct DefaultProcessor;
 
-impl<R: Serialize, W: DeserializeOwned> ItemProcessor<R, W> for DefaultProcessor {
-    /// Processes an item by serializing and deserializing it.
+impl<R: Any, W: Clone + Any> ItemProcessor<R, W> for DefaultProcessor {
     fn process(&self, item: &R) -> ItemProcessorResult<W> {
-        // TODO: For performance reason the best is to return directly the item. R and W are of the same type
-        // https://github.com/sboussekeyt/spring-batch-rs/issues/32
-        let serialised = serde_json::to_string(&item).unwrap();
-        let item = serde_json::from_str(&serialised).unwrap();
-        Ok(item)
+        let value_any = item as &dyn Any;
+
+        match value_any.downcast_ref::<W>() {
+            Some(as_w) => Ok(as_w.clone()),
+            None => Err(BatchError::ItemProcessor("Cannot downcast".to_string())),
+        }
     }
 }
