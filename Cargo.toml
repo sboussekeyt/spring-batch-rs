@@ -45,7 +45,7 @@ spring-batch-rs = { path = ".", features = ["tests-cfg"] }
 rand = { version = "0.8" }
 mockall = "0.13"
 testcontainers-modules = { version = "0.9", features = ["postgres", "mysql", "mongo", "blocking"] }
-tempfile = "3.11"
+tempfile = "3.12"
 env_logger = "0.11"
 
 [features]
