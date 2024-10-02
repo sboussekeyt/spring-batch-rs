@@ -55,6 +55,7 @@ jobs:
             --ignore "*liballoc*" \
             --ignore "*cargo*" \
             -t coveralls+ \
+            --token ? \
             -o ./cov_normal.json
     
       - name: Upload coverage reports to Codecov
