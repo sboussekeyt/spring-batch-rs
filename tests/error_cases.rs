@@ -15,7 +15,6 @@ use std::{
 
 use spring_batch_rs::{
     core::{
-        item::{ItemProcessor, ItemProcessorResult},
         job::{Job, JobBuilder},
         step::{Step, StepBuilder, StepInstance},
     },
@@ -23,7 +22,7 @@ use spring_batch_rs::{
     item::json::json_writer::JsonItemWriterBuilder,
 };
 
-use time::{format_description, Date, Month};
+use time::{format_description, Date};
 
 fn date_serializer<S>(date: &Date, serializer: S) -> Result<S::Ok, S::Error>
 where
@@ -48,23 +47,6 @@ pub struct Person {
     email: String,
     #[serde(serialize_with = "date_serializer")]
     birth_date: Date,
-}
-
-#[derive(Default)]
-struct UpperCaseProcessor;
-
-impl ItemProcessor<Person, Person> for UpperCaseProcessor {
-    fn process(&self, item: &Person) -> ItemProcessorResult<Person> {
-        let person = Person {
-            first_name: item.first_name.to_uppercase(),
-            last_name: item.last_name.to_uppercase(),
-            title: item.title.to_uppercase(),
-            email: item.email.to_uppercase(),
-            birth_date: Date::from_calendar_date(2019, Month::January, 1).unwrap(),
-        };
-
-        Ok(person)
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

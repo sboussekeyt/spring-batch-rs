@@ -5,10 +5,7 @@ use mongodb::{
 };
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
-    core::{
-        item::{ItemProcessor, ItemProcessorResult},
-        step::{Step, StepBuilder, StepInstance},
-    },
+    core::step::{Step, StepBuilder, StepInstance},
     item::csv::csv_reader::CsvItemReaderBuilder,
     item::mongodb::{mongodb_reader::WithObjectId, mongodb_writer::MongodbItemWriterBuilder},
 };
@@ -31,20 +28,6 @@ impl WithObjectId for Book {
 struct FormattedBook {
     title: String,
     author: String,
-}
-
-#[derive(Default)]
-struct FormatBookProcessor {}
-
-impl ItemProcessor<Book, FormattedBook> for FormatBookProcessor {
-    fn process(&self, item: &Book) -> ItemProcessorResult<FormattedBook> {
-        let book = FormattedBook {
-            title: item.title.replace(" ", "_").to_uppercase(),
-            author: item.author.replace(" ", "_").to_uppercase(),
-        };
-
-        Ok(book)
-    }
 }
 
 fn main() -> Result<()> {
