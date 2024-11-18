@@ -59,7 +59,7 @@ jobs:
             -o ./cov_normal.json
     
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ./cov_normal.json
           verbose: true
