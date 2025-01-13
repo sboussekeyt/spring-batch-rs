@@ -33,7 +33,7 @@ fake = { version = "3.0", features = ["time"], optional = true }
 rand = { version = "0.8"}
 time = { version = "0.3", features = ["serde-human-readable"], optional = true }
 serde_json = { version = "1.0" }
-tokio = { version = "1.41", features = ["full"] }
+tokio = { version = "1.43", features = ["full"] }
 sqlx = { version = "0.8", optional = true, features = ["runtime-tokio"] }
 anyhow = { version = "1.0" }
 mongodb = { version = "3.1", optional = true, features = ["sync"] }
