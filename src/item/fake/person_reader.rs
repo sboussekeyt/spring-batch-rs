@@ -75,7 +75,7 @@ impl ItemReader<Person> for PersonReader {
             email: FreeEmail(FR_FR).fake(),
             birth_date: fake_date(),
         };
-        debug!("Person: {}", person.to_string());
+        debug!("Person: {}", person);
         Ok(Some(person))
     }
 }

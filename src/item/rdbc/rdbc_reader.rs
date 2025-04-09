@@ -86,7 +86,7 @@ impl<'a, T> RdbcItemReader<'a, T> {
     }
 }
 
-impl<'a, T: DeserializeOwned + Clone> ItemReader<T> for RdbcItemReader<'a, T> {
+impl<T: DeserializeOwned + Clone> ItemReader<T> for RdbcItemReader<'_, T> {
     /// Reads the next item from the reader.
     ///
     /// # Returns

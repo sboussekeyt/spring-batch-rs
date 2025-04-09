@@ -24,7 +24,7 @@ pub struct MongodbItemReader<'a, R: Send + Sync> {
     offset: Cell<usize>,
 }
 
-impl<'a, R: DeserializeOwned + WithObjectId + Send + Sync> MongodbItemReader<'a, R> {
+impl<R: DeserializeOwned + WithObjectId + Send + Sync> MongodbItemReader<'_, R> {
     /// Reads a page of items from the MongoDB collection and stores them in the buffer.
     fn read_page(&self) {
         self.buffer.borrow_mut().clear();
@@ -56,8 +56,8 @@ impl<'a, R: DeserializeOwned + WithObjectId + Send + Sync> MongodbItemReader<'a,
     }
 }
 
-impl<'a, R: DeserializeOwned + Clone + WithObjectId + Send + Sync> ItemReader<R>
-    for MongodbItemReader<'a, R>
+impl<R: DeserializeOwned + Clone + WithObjectId + Send + Sync> ItemReader<R>
+    for MongodbItemReader<'_, R>
 {
     /// Reads the next item from the MongoDB collection.
     ///

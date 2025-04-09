@@ -45,7 +45,7 @@ impl<'a, W> RdbcItemWriter<'a, W> {
     }
 }
 
-impl<'a, W: Serialize + Clone> ItemWriter<W> for RdbcItemWriter<'a, W> {
+impl<W: Serialize + Clone> ItemWriter<W> for RdbcItemWriter<'_, W> {
     /// Writes the items to the database.
     ///
     /// # Arguments
@@ -66,7 +66,7 @@ impl<'a, W: Serialize + Clone> ItemWriter<W> for RdbcItemWriter<'a, W> {
         query_builder.push_values(
             items.iter().take(BIND_LIMIT / self.columns.len()),
             |b, item| {
-                self.item_binder.bind(item, b.into());
+                self.item_binder.bind(item, b);
             },
         );
 

@@ -10,7 +10,7 @@ pub struct MongodbItemWriter<'a, W: Send + Sync> {
     collection: &'a Collection<W>,
 }
 
-impl<'a, W: serde::Serialize + Send + Sync> ItemWriter<W> for MongodbItemWriter<'a, W> {
+impl<W: serde::Serialize + Send + Sync> ItemWriter<W> for MongodbItemWriter<'_, W> {
     /// Writes the items to the MongoDB collection.
     ///
     /// # Arguments
