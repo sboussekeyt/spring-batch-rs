@@ -110,7 +110,7 @@ pub struct StepInstance<'a, R, W> {
     write_error_count: Cell<usize>,
 }
 
-impl<'a, R, W> Step for StepInstance<'a, R, W> {
+impl<R, W> Step for StepInstance<'_, R, W> {
     fn execute(&self) -> StepResult<StepExecution> {
         // Start the timer
         let start = Instant::now();
@@ -212,7 +212,7 @@ impl<'a, R, W> Step for StepInstance<'a, R, W> {
 }
 
 /// Represents an instance of a step in a batch job.
-impl<'a, R, W> StepInstance<'a, R, W> {
+impl<R, W> StepInstance<'_, R, W> {
     /// Sets the status of the step instance.
     ///
     /// # Arguments
@@ -300,7 +300,7 @@ impl<'a, R, W> StepInstance<'a, R, W> {
                     if self.is_skip_limit_reached() {
                         return Err(BatchError::ItemProcessor(err.to_string()));
                     } else {
-                        warn!("ItemProcessor error: {}", err.to_string());
+                        warn!("ItemProcessor error: {}", err);
                     }
                 }
             };

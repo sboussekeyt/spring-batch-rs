@@ -30,7 +30,7 @@ pub struct JobInstance<'a> {
     steps: Vec<&'a dyn Step>,
 }
 
-impl<'a> Job for JobInstance<'a> {
+impl Job for JobInstance<'_> {
     fn run(&self) -> JobResult<JobExecution> {
         let start = Instant::now();
 

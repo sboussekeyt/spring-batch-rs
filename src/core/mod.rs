@@ -12,7 +12,5 @@ pub mod step;
 ///
 /// A `String` containing the generated random name.
 fn build_name() -> String {
-    Alphanumeric
-        .sample_string(&mut rand::rng(), 8)
-        .clone()
+    Alphanumeric.sample_string(&mut rand::rng(), 8).clone()
 }
