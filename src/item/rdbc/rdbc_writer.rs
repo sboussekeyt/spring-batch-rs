@@ -1,5 +1,5 @@
 use serde::Serialize;
-use sqlx::{query, query_builder::Separated, Any, Pool, QueryBuilder};
+use sqlx::{query_builder::Separated, Any, Pool, QueryBuilder};
 
 use crate::core::item::{ItemWriter, ItemWriterResult};
 
