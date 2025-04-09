@@ -1,5 +1,5 @@
 use serde::Serialize;
-use sqlx::{query_builder::Separated, Any, Pool, QueryBuilder};
+use sqlx::{query, query_builder::Separated, Any, Pool, QueryBuilder};
 
 use crate::core::item::{ItemWriter, ItemWriterResult};
 
@@ -65,8 +65,8 @@ impl<'a, W: Serialize + Clone> ItemWriter<W> for RdbcItemWriter<'a, W> {
 
         query_builder.push_values(
             items.iter().take(BIND_LIMIT / self.columns.len()),
-            |b: sqlx::query_builder::Separated<'_, '_, Any, &str>, item| {
-                self.item_binder.bind(item, b);
+            |b, item| {
+                self.item_binder.bind(item, b.into());
             },
         );
 

@@ -82,10 +82,10 @@ impl ItemReader<Person> for PersonReader {
 
 /// Generates a random `Date` object.
 fn fake_date() -> Date {
-    let mut rng = rand::thread_rng();
-    let year = rng.gen_range(1900..2022);
-    let month = rng.gen_range(1..12);
-    let day = rng.gen_range(1..28);
+    let mut rng = rand::rng();
+    let year = rng.random_range(1900..2022);
+    let month = rng.random_range(1..12);
+    let day = rng.random_range(1..28);
 
     Date::from_calendar_date(year, Month::try_from(month).unwrap(), day).unwrap()
 }

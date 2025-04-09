@@ -14,7 +14,7 @@ use spring_batch_rs::{
         rdbc_writer::{RdbcItemBinder, RdbcItemWriterBuilder},
     },
 };
-use sqlx::{migrate::Migrator, query_builder::Separated, Any, AnyPool, FromRow, Row};
+use sqlx::{migrate::Migrator, query_builder::Separated, Any, AnyPool, FromRow, Postgres, Row};
 use tempfile::NamedTempFile;
 use testcontainers_modules::{postgres, testcontainers::runners::AsyncRunner};
 

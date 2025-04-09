@@ -4,7 +4,7 @@ use common::MockFile;
 
 use ::serde::ser::Error;
 
-use rand::distributions::{Alphanumeric, DistString};
+use rand::distr::{Alphanumeric, SampleString};
 
 use serde::{Deserialize, Serialize, Serializer};
 use std::{
@@ -70,7 +70,7 @@ fn transform_csv_stream_to_json_file_with_error_at_first() {
         .has_headers(true)
         .from_reader(csv.as_bytes());
 
-    let file_name = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+    let file_name = Alphanumeric.sample_string(&mut rand::rng(), 16);
 
     let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join(file_name.clone()));
 
@@ -111,7 +111,7 @@ fn transform_csv_stream_to_json_file_with_error_at_end() {
         .has_headers(true)
         .from_reader(csv.as_bytes());
 
-    let file_name = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+    let file_name = Alphanumeric.sample_string(&mut rand::rng(), 16);
 
     let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join(file_name.clone()));
 

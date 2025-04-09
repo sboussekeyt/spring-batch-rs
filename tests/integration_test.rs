@@ -7,7 +7,7 @@ use std::{
 };
 
 use ::serde::{ser::Error, Deserialize, Serialize};
-use rand::distributions::{Alphanumeric, DistString};
+use rand::distr::{Alphanumeric, SampleString};
 use serde::Serializer;
 
 use spring_batch_rs::{
@@ -167,7 +167,7 @@ fn transform_csv_stream_to_writer_with_one_error_should_succeded() {
         .has_headers(true)
         .from_reader(csv.as_bytes());
 
-    let file_name = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+    let file_name = Alphanumeric.sample_string(&mut rand::rng(), 16);
 
     let file_writer =
         File::create(temp_dir().join(file_name.clone())).expect("Unable to open file");
@@ -214,7 +214,7 @@ fn transform_csv_stream_to_writer_with_3_errors_should_failed() {
         .has_headers(true)
         .from_reader(csv.as_bytes());
 
-    let file_name = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+    let file_name = Alphanumeric.sample_string(&mut rand::rng(), 16);
 
     let file_writer =
         File::create(temp_dir().join(file_name.clone())).expect("Unable to open file");
