@@ -1,0 +1,9 @@
+{
+  "rust-analyzer.linkedProjects": ["./Cargo.toml"],
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": true,
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  }
+}

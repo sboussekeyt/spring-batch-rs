@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vehicles_list>
+    <vehicle type="car" id="V001">
+        <make>Honda</make>
+        <model>Civic</model>
+        <year>2022</year>
+        <engine cylinders="4">
+            <type>Petrol</type>
+            <displacement unit="cc">1500</displacement>
+        </engine>
+        <features>
+            <feature>Sunroof</feature>
+            <feature>GPS</feature>
+            <feature>Heated Seats</feature>
+        </features>
+    </vehicle>
+    <vehicle type="motorcycle" id="M002">
+        <make>Yamaha</make>
+        <model>MT-07</model>
+        <year>2021</year>
+        <engine cylinders="2">
+            <type>Petrol</type>
+            <displacement unit="cc">689</displacement>
+        </engine>
+        <features>
+            <feature>ABS</feature>
+        </features>
+    </vehicle>
+    <vehicle type="truck" id="T003">
+        <make>Ford</make>
+        <model>F-150</model>
+        <year>2023</year>
+        <engine cylinders="6">
+            <type>Diesel</type>
+            <displacement unit="L">3.5</displacement>
+        </engine>
+        <features>
+            <feature>Towing Package</feature>
+            <feature>4x4</feature>
+        </features>
+    </vehicle>
+</vehicles_list> 

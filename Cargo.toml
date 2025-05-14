@@ -6,7 +6,7 @@ authors = ["Simon Boussekeyt <sboussekeyt@gmail.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/sboussekeyt/spring-batch-rs"
 documentation = "https://docs.rs/spring-batch-rs"
-keywords = ["batch", "csv", "data", "json", "rdbc"]
+keywords = ["batch", "csv", "data", "json", "rdbc", "xml"]
 readme = "README.md"
 description = "A toolkit for building enterprise-grade batch applications"
 
@@ -33,19 +33,20 @@ fake = { version = "4.3", features = ["time"], optional = true }
 rand = { version = "0.9"}
 time = { version = "0.3", features = ["serde-human-readable"], optional = true }
 serde_json = { version = "1.0" }
-tokio = { version = "1.44", features = ["full"] }
+tokio = { version = "1.45", features = ["full"] }
 sqlx = { version = "0.8", optional = true, features = ["runtime-tokio"] }
 anyhow = { version = "1.0" }
 mongodb = { version = "3.2", optional = true, features = ["sync"] }
 bson = { version = "2.14", optional = true, default-features = false }
 uuid = { version = "1.16", features = ["v4"] }
+quick-xml = { version = "0.37", features = ["serialize"], optional = true }
+tempfile = { version = "3.20", optional = true }
 
 [dev-dependencies]
 spring-batch-rs = { path = ".", features = ["tests-cfg"] }
 rand = { version = "0.9" }
 mockall = "0.13"
-testcontainers-modules = { version = "0.11", features = ["postgres", "mysql", "mongo", "blocking"] }
-tempfile = "3.19"
+testcontainers-modules = { version = "0.12", features = ["postgres", "mysql", "mongo", "blocking"] }
 env_logger = "0.11"
 
 [features]
@@ -62,11 +63,13 @@ full = [
   "rdbc-postgres",
   "rdbc-mysql",
   "rdbc-sqlite",
-  "mongodb"
+  "mongodb",
+  "xml"
 ]
 
 csv = ["dep:csv"]
 json = []
+xml = ["dep:quick-xml", "dep:tempfile"]
 rdbc-postgres = ["sqlx/postgres", "rdbc"]
 rdbc-mysql = ["sqlx/mysql", "rdbc"]
 rdbc-sqlite = ["sqlx/sqlite", "rdbc"]
@@ -106,3 +109,7 @@ required-features = ["mongodb", "csv"]
 [[example]]
 name = "write_records_to_mongodb_database"
 required-features = ["mongodb", "csv"]
+
+[[example]]
+name = "generate_json_file_from_xml_file"
+required-features = ["xml", "json"]

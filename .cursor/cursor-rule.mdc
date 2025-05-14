@@ -1,0 +1,13 @@
+---
+description: 
+globs: *.rs
+alwaysApply: false
+---
+- All code, comments or ducumentation must be in english.
+- Add comments and doc test on code.
+- Generate unit tests for all cases.
+- Generate an example in examples folder. Use an explicit filename.
+- Update the readme.md when we add an item reader or item writer.
+- Remove all unused import.
+- After modification, check if unit tests are still ok.
+- Add log with suitable level (error, warn, info, debug) with macro. Do not use println
