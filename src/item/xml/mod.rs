@@ -79,7 +79,7 @@
 /// ## Writing to XML
 ///
 /// ```
-/// use spring_batch_rs::item::xml::writer::XmlItemWriterBuilder;
+/// use spring_batch_rs::item::xml::xml_writer::XmlItemWriterBuilder;
 /// use spring_batch_rs::core::item::ItemWriter;
 /// use serde::Serialize;
 /// use std::io::Cursor;

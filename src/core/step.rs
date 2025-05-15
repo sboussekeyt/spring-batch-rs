@@ -714,7 +714,7 @@ impl<'a, R: 'static, W: 'static + Clone> StepBuilder<'a, R, W> {
     }
 }
 
-impl<'a, R: 'static, W: 'static + Clone> Default for StepBuilder<'a, R, W> {
+impl<R: 'static, W: 'static + Clone> Default for StepBuilder<'_, R, W> {
     /// Creates a new StepBuilder with default values.
     ///
     /// This is equivalent to calling `StepBuilder::new()`.

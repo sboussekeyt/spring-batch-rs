@@ -383,24 +383,22 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for XmlItemReader<R, T> {
 
                         // Extract the full XML for this element
                         let mut xml_string = String::new();
-                        xml_string.push_str("<");
-                        xml_string.push_str(tag_name);
-
-                        // Add any attributes from the start tag
-                        for attr in e.attributes() {
-                            if let Ok(attr) = attr {
-                                xml_string.push_str(" ");
-                                if let Ok(key) = str::from_utf8(attr.key.as_ref()) {
-                                    xml_string.push_str(key);
-                                }
-                                xml_string.push_str("=\"");
-                                if let Ok(value) = str::from_utf8(&attr.value) {
-                                    xml_string.push_str(value);
-                                }
-                                xml_string.push_str("\"");
-                            }
+                        xml_string.push('<');
+                        if let Ok(name) = str::from_utf8(tag_name.as_ref()) {
+                            xml_string.push_str(name);
                         }
-                        xml_string.push_str(">");
+                        for attr in e.attributes().flatten() {
+                            xml_string.push(' ');
+                            if let Ok(key) = str::from_utf8(attr.key.as_ref()) {
+                                xml_string.push_str(key);
+                            }
+                            xml_string.push_str("=\"");
+                            if let Ok(value) = str::from_utf8(attr.value.as_ref()) {
+                                xml_string.push_str(value);
+                            }
+                            xml_string.push('"');
+                        }
+                        xml_string.push('>');
 
                         // Continue reading to get the content
                         let mut depth = 1;
@@ -411,24 +409,22 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for XmlItemReader<R, T> {
                                     depth += 1;
                                     let s_name = start.name();
                                     if let Ok(name) = str::from_utf8(s_name.as_ref()) {
-                                        xml_string.push_str("<");
+                                        xml_string.push('<');
                                         xml_string.push_str(name);
 
                                         // Add attributes
-                                        for attr in start.attributes() {
-                                            if let Ok(attr) = attr {
-                                                xml_string.push_str(" ");
-                                                if let Ok(key) = str::from_utf8(attr.key.as_ref()) {
-                                                    xml_string.push_str(key);
-                                                }
-                                                xml_string.push_str("=\"");
-                                                if let Ok(value) = str::from_utf8(&attr.value) {
-                                                    xml_string.push_str(value);
-                                                }
-                                                xml_string.push_str("\"");
+                                        for attr in start.attributes().flatten() {
+                                            xml_string.push(' ');
+                                            if let Ok(key) = str::from_utf8(attr.key.as_ref()) {
+                                                xml_string.push_str(key);
                                             }
+                                            xml_string.push_str("=\"");
+                                            if let Ok(value) = str::from_utf8(attr.value.as_ref()) {
+                                                xml_string.push_str(value);
+                                            }
+                                            xml_string.push('"');
                                         }
-                                        xml_string.push_str(">");
+                                        xml_string.push('>');
                                     }
                                 }
                                 Ok(Event::End(ref end)) => {
@@ -437,7 +433,7 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for XmlItemReader<R, T> {
                                     if let Ok(name) = str::from_utf8(e_name.as_ref()) {
                                         xml_string.push_str("</");
                                         xml_string.push_str(name);
-                                        xml_string.push_str(">");
+                                        xml_string.push('>');
                                     }
                                 }
                                 Ok(Event::Text(ref text)) => {

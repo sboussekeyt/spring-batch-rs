@@ -16,7 +16,7 @@ use std::path::Path;
 /// # Examples
 ///
 /// ```
-/// use spring_batch_rs::item::xml::writer::XmlItemWriterBuilder;
+/// use spring_batch_rs::item::xml::xml_writer::XmlItemWriterBuilder;
 /// use spring_batch_rs::core::item::ItemWriter;
 /// use serde::Serialize;
 /// use std::io::Cursor;
@@ -51,7 +51,7 @@ use std::path::Path;
 /// Using a file as output:
 ///
 /// ```no_run
-/// use spring_batch_rs::item::xml::writer::XmlItemWriterBuilder;
+/// use spring_batch_rs::item::xml::xml_writer::XmlItemWriterBuilder;
 /// use spring_batch_rs::core::item::ItemWriter;
 /// use serde::Serialize;
 /// use tempfile::NamedTempFile;
@@ -155,7 +155,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use spring_batch_rs::item::xml::writer::XmlItemWriterBuilder;
+/// use spring_batch_rs::item::xml::xml_writer::XmlItemWriterBuilder;
 /// use spring_batch_rs::core::item::ItemWriter;
 /// use serde::Serialize;
 /// use std::io::Cursor;
@@ -217,7 +217,7 @@ impl XmlItemWriterBuilder {
     /// # Examples
     ///
     /// ```
-    /// use spring_batch_rs::item::xml::writer::XmlItemWriterBuilder;
+    /// use spring_batch_rs::item::xml::xml_writer::XmlItemWriterBuilder;
     ///
     /// let builder = XmlItemWriterBuilder::new();
     /// ```
@@ -235,7 +235,7 @@ impl XmlItemWriterBuilder {
     /// # Examples
     ///
     /// ```
-    /// use spring_batch_rs::item::xml::writer::XmlItemWriterBuilder;
+    /// use spring_batch_rs::item::xml::xml_writer::XmlItemWriterBuilder;
     ///
     /// let builder = XmlItemWriterBuilder::new()
     ///     .root_tag("people");
@@ -253,7 +253,7 @@ impl XmlItemWriterBuilder {
     /// # Examples
     ///
     /// ```
-    /// use spring_batch_rs::item::xml::writer::XmlItemWriterBuilder;
+    /// use spring_batch_rs::item::xml::xml_writer::XmlItemWriterBuilder;
     ///
     /// let builder = XmlItemWriterBuilder::new()
     ///     .root_tag("people")
@@ -269,7 +269,7 @@ impl XmlItemWriterBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use spring_batch_rs::item::xml::writer::XmlItemWriterBuilder;
+    /// use spring_batch_rs::item::xml::xml_writer::XmlItemWriterBuilder;
     /// use serde::Serialize;
     /// use tempfile::NamedTempFile;
     ///
@@ -318,7 +318,7 @@ impl XmlItemWriterBuilder {
     /// # Examples
     ///
     /// ```
-    /// use spring_batch_rs::item::xml::writer::XmlItemWriterBuilder;
+    /// use spring_batch_rs::item::xml::xml_writer::XmlItemWriterBuilder;
     /// use spring_batch_rs::core::item::ItemWriter;
     /// use serde::Serialize;
     /// use std::io::Cursor;
