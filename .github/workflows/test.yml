@@ -31,13 +31,13 @@ jobs:
       - name: Install grcov
         run: |
           rustup component add llvm-tools-preview
-          cargo install grcov
-          
+          cargo install grcov --version 0.8.0
+
       - name: Run tests
         run: cargo test --all-features
         env:
           RUSTFLAGS: "-Cinstrument-coverage"
-    
+
       - name: Create coverage report
         run: |
           grcov . \
@@ -57,7 +57,7 @@ jobs:
             -t coveralls+ \
             --token ? \
             -o ./cov_normal.json
-    
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
