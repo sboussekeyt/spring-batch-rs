@@ -748,4 +748,240 @@ mod tests {
         // No more items
         assert!(reader.read().unwrap().is_none());
     }
+
+    #[test]
+    fn test_empty_xml_file() {
+        // Empty XML file
+        let xml_content = "<root></root>";
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(xml_content.as_bytes()).unwrap();
+
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("TestItem")
+            .from_path(temp_file.path())
+            .unwrap();
+
+        // Should return None immediately - no items to read
+        assert!(reader.read().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_xml_with_empty_tags() {
+        // XML with empty tags that match our target
+        let xml_content = r#"
+            <root>
+                <TestItem>
+                    <name></name>
+                    <value>0</value>
+                </TestItem>
+                <TestItem>
+                    <name></name>
+                    <value>0</value>
+                </TestItem>
+            </root>
+        "#;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(xml_content.as_bytes()).unwrap();
+
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("TestItem")
+            .from_path(temp_file.path())
+            .unwrap();
+
+        // Both items should be read as default values
+        let item1 = reader.read().unwrap().unwrap();
+        assert_eq!(item1.name, "");
+        assert_eq!(item1.value, 0);
+
+        let item2 = reader.read().unwrap().unwrap();
+        assert_eq!(item2.name, "");
+        assert_eq!(item2.value, 0);
+
+        assert!(reader.read().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_xml_with_attributes() {
+        // Define a type that captures XML attributes
+        #[derive(Debug, Deserialize, Serialize, PartialEq)]
+        struct ItemWithAttrs {
+            #[serde(rename = "@id")]
+            id: String,
+            #[serde(rename = "@type")]
+            item_type: String,
+            content: String,
+        }
+
+        let xml_content = r#"
+            <root>
+                <item id="1" type="normal">
+                    <content>First item</content>
+                </item>
+                <item id="2" type="special">
+                    <content>Second item</content>
+                </item>
+            </root>
+        "#;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(xml_content.as_bytes()).unwrap();
+
+        let reader = XmlItemReaderBuilder::<ItemWithAttrs>::new()
+            .tag("item")
+            .from_path(temp_file.path())
+            .unwrap();
+
+        let item1 = reader.read().unwrap().unwrap();
+        assert_eq!(item1.id, "1");
+        assert_eq!(item1.item_type, "normal");
+        assert_eq!(item1.content, "First item");
+
+        let item2 = reader.read().unwrap().unwrap();
+        assert_eq!(item2.id, "2");
+        assert_eq!(item2.item_type, "special");
+        assert_eq!(item2.content, "Second item");
+
+        assert!(reader.read().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_xml_with_cdata() {
+        // Test with CDATA sections which may contain special characters
+        let xml_content = r#"
+            <root>
+                <TestItem>
+                    <name><![CDATA[name with <special> & chars]]></name>
+                    <value>42</value>
+                </TestItem>
+                <TestItem>
+                    <name>regular name</name>
+                    <value><![CDATA[55]]></value>
+                </TestItem>
+            </root>
+        "#;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(xml_content.as_bytes()).unwrap();
+
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("TestItem")
+            .from_path(temp_file.path())
+            .unwrap();
+
+        let item1 = reader.read().unwrap().unwrap();
+        assert_eq!(item1.name, "name with <special> & chars");
+        assert_eq!(item1.value, 42);
+
+        let item2 = reader.read().unwrap().unwrap();
+        assert_eq!(item2.name, "regular name");
+        assert_eq!(item2.value, 55);
+
+        assert!(reader.read().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_malformed_xml() {
+        // Malformed XML with unclosed tags
+        let xml_content = r#"
+            <root>
+                <TestItem>
+                    <name>test1</name>
+                    <value>42
+                </TestItem>
+            </root>
+        "#;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(xml_content.as_bytes()).unwrap();
+
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("TestItem")
+            .from_path(temp_file.path())
+            .unwrap();
+
+        // Should return an error when trying to read
+        let result = reader.read();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_xml_type_mismatch() {
+        // XML with a value that doesn't match the expected type
+        let xml_content = r#"
+            <root>
+                <TestItem>
+                    <name>test1</name>
+                    <value>not_a_number</value>
+                </TestItem>
+            </root>
+        "#;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(xml_content.as_bytes()).unwrap();
+
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("TestItem")
+            .from_path(temp_file.path())
+            .unwrap();
+
+        // Should return an error when trying to deserialize
+        let result = reader.read();
+        assert!(result.is_ok()); // The outer result is Ok
+        assert!(result.unwrap().is_none()); // But it should have skipped the bad item
+    }
+
+    #[test]
+    fn test_default_tag_inference() {
+        // When tag is not specified, it should use the type name
+        let xml_content = r#"
+            <root>
+                <TestItem>
+                    <name>test1</name>
+                    <value>42</value>
+                </TestItem>
+            </root>
+        "#;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(xml_content.as_bytes()).unwrap();
+
+        // Notice we don't specify the tag
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .from_path(temp_file.path())
+            .unwrap();
+
+        // Should infer the tag name from the type
+        let item = reader.read().unwrap().unwrap();
+        assert_eq!(item.name, "test1");
+        assert_eq!(item.value, 42);
+
+        assert!(reader.read().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_read_from_memory() {
+        // Test reading directly from a memory buffer
+        let xml_content = r#"
+            <root>
+                <TestItem>
+                    <name>memory test</name>
+                    <value>100</value>
+                </TestItem>
+            </root>
+        "#;
+
+        // Create an in-memory reader
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("TestItem")
+            .from_reader(xml_content.as_bytes());
+
+        // Should read correctly from memory
+        let item = reader.read().unwrap().unwrap();
+        assert_eq!(item.name, "memory test");
+        assert_eq!(item.value, 100);
+
+        assert!(reader.read().unwrap().is_none());
+    }
 }

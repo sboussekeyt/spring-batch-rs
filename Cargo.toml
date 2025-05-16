@@ -67,7 +67,7 @@ full = [
   "xml"
 ]
 
-csv = ["dep:csv"]
+csv = ["dep:csv", "dep:tempfile"]
 json = []
 xml = ["dep:quick-xml", "dep:tempfile"]
 rdbc-postgres = ["sqlx/postgres", "rdbc"]

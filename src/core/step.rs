@@ -97,6 +97,12 @@ pub trait Step {
     /// # Returns
     /// The count of write errors encountered by the step
     fn get_write_error_count(&self) -> usize;
+
+    /// Gets the number of process errors encountered by the step.
+    ///
+    /// # Returns
+    /// The count of process errors encountered by the step
+    fn get_process_error_count(&self) -> usize;
 }
 
 /// Represents the status of a chunk.
@@ -344,6 +350,10 @@ impl<R, W> Step for StepInstance<'_, R, W> {
 
     fn get_write_error_count(&self) -> usize {
         self.write_error_count.get()
+    }
+
+    fn get_process_error_count(&self) -> usize {
+        self.process_error_count.get()
     }
 }
 
@@ -961,6 +971,175 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(step.get_status(), StepStatus::Success);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_should_fail_with_read_error() -> Result<()> {
+        let mut i = 0;
+        let mut reader = MockTestItemReader::default();
+        reader
+            .expect_read()
+            .returning(move || mock_read(&mut i, 1, 4));
+
+        let mut processor = MockTestProcessor::default();
+        let mut i = 0;
+        processor
+            .expect_process()
+            .returning(move |_| mock_process(&mut i, &[]));
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_write().never();
+
+        let step: StepInstance<Car, Car> = StepBuilder::new()
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .chunk(3)
+            .build();
+
+        let result = step.execute();
+
+        assert!(result.is_err());
+        assert_eq!(step.get_status(), StepStatus::ReadError);
+        assert_eq!(step.get_read_error_count(), 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_should_respect_chunk_size() -> Result<()> {
+        let mut i = 0;
+        let mut reader = MockTestItemReader::default();
+        reader
+            .expect_read()
+            .returning(move || mock_read(&mut i, 0, 6));
+
+        let mut processor = MockTestProcessor::default();
+        let mut i = 0;
+        processor
+            .expect_process()
+            .returning(move |_| mock_process(&mut i, &[]));
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_write().times(2).returning(|_| Ok(()));
+
+        let step: StepInstance<Car, Car> = StepBuilder::new()
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .chunk(3)
+            .build();
+
+        let result = step.execute();
+
+        assert!(result.is_ok());
+        assert_eq!(step.get_status(), StepStatus::Success);
+        assert_eq!(step.get_read_count(), 6);
+        assert_eq!(step.get_write_count(), 6);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_should_track_error_counts() -> Result<()> {
+        let mut i = 0;
+        let mut reader = MockTestItemReader::default();
+        reader
+            .expect_read()
+            .returning(move || mock_read(&mut i, 0, 4));
+
+        let mut processor = MockTestProcessor::default();
+        let mut i = 0;
+        processor
+            .expect_process()
+            .returning(move |_| mock_process(&mut i, &[1, 2]));
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_write().times(2).returning(|_| Ok(()));
+
+        let step: StepInstance<Car, Car> = StepBuilder::new()
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .chunk(3)
+            .skip_limit(2)
+            .build();
+
+        let result = step.execute();
+
+        assert!(result.is_ok());
+        assert_eq!(step.get_status(), StepStatus::Success);
+        assert_eq!(step.get_process_error_count(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_should_measure_execution_time() -> Result<()> {
+        let mut i = 0;
+        let mut reader = MockTestItemReader::default();
+        reader
+            .expect_read()
+            .returning(move || mock_read(&mut i, 0, 2));
+
+        let mut processor = MockTestProcessor::default();
+        let mut i = 0;
+        processor
+            .expect_process()
+            .returning(move |_| mock_process(&mut i, &[]));
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_write().times(1).returning(|_| Ok(()));
+
+        let step: StepInstance<Car, Car> = StepBuilder::new()
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .chunk(3)
+            .build();
+
+        let result = step.execute();
+
+        assert!(result.is_ok());
+        let execution = result.unwrap();
+        assert!(execution.duration.as_nanos() > 0);
+        assert!(execution.start <= execution.end);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_should_handle_empty_chunk_at_end() -> Result<()> {
+        let mut i = 0;
+        let mut reader = MockTestItemReader::default();
+        reader
+            .expect_read()
+            .returning(move || mock_read(&mut i, 0, 1));
+
+        let mut processor = MockTestProcessor::default();
+        let mut i = 0;
+        processor
+            .expect_process()
+            .returning(move |_| mock_process(&mut i, &[]));
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_write().times(1).returning(|_| Ok(()));
+
+        let step: StepInstance<Car, Car> = StepBuilder::new()
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .chunk(3)
+            .build();
+
+        let result = step.execute();
+
+        assert!(result.is_ok());
+        assert_eq!(step.get_status(), StepStatus::Success);
+        assert_eq!(step.get_read_count(), 1);
+        assert_eq!(step.get_write_count(), 1);
 
         Ok(())
     }

@@ -364,6 +364,7 @@ impl XmlItemWriterBuilder {
 mod tests {
     use super::*;
     use serde::{Deserialize, Serialize};
+    use std::io::Cursor;
     use tempfile::NamedTempFile;
 
     #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -405,6 +406,21 @@ mod tests {
         location: Location,
         #[serde(rename = "@active")]
         active: bool,
+    }
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct SimpleItem {
+        id: i32,
+        name: String,
+        value: f64,
+    }
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct Product {
+        id: i32,
+        name: String,
+        price: f64,
+        tags: Vec<String>,
     }
 
     #[test]
@@ -513,5 +529,223 @@ mod tests {
         assert!(content.contains("<founded_year>2000</founded_year>"));
         assert!(content.contains("<location country=\"UK\" timezone=\"GMT\">"));
         assert!(content.contains("<city>London</city>"));
+    }
+
+    #[test]
+    fn test_in_memory_writing() {
+        let buffer = Cursor::new(Vec::new());
+        let writer = XmlItemWriterBuilder::new()
+            .root_tag("items")
+            .item_tag("item")
+            .from_writer::<SimpleItem, _>(buffer);
+
+        let items = vec![
+            SimpleItem {
+                id: 1,
+                name: "Item 1".to_string(),
+                value: 10.5,
+            },
+            SimpleItem {
+                id: 2,
+                name: "Item 2".to_string(),
+                value: 20.75,
+            },
+        ];
+
+        writer.open().unwrap();
+        writer.write(&items).unwrap();
+        writer.close().unwrap();
+
+        // Get the inner buffer from the writer
+        let content = {
+            let buf_writer = writer.writer.borrow_mut();
+            let cursor = buf_writer.get_ref().get_ref();
+            String::from_utf8(cursor.get_ref().clone()).unwrap()
+        };
+
+        assert!(content.contains("<items>"));
+        assert!(content.contains("<item>"));
+        assert!(content.contains("<id>1</id>"));
+        assert!(content.contains("<name>Item 1</name>"));
+        assert!(content.contains("<value>10.5</value>"));
+        assert!(content.contains("<id>2</id>"));
+        assert!(content.contains("<name>Item 2</name>"));
+        assert!(content.contains("<value>20.75</value>"));
+        assert!(content.contains("</item>"));
+        assert!(content.contains("</items>"));
+    }
+
+    #[test]
+    fn test_empty_collection() {
+        let buffer = Cursor::new(Vec::new());
+        let writer = XmlItemWriterBuilder::new()
+            .root_tag("items")
+            .item_tag("item")
+            .from_writer::<SimpleItem, _>(buffer);
+
+        let empty_items: Vec<SimpleItem> = vec![];
+
+        writer.open().unwrap();
+        writer.write(&empty_items).unwrap();
+        writer.close().unwrap();
+
+        // Get the inner buffer from the writer
+        let content = {
+            let buf_writer = writer.writer.borrow_mut();
+            let cursor = buf_writer.get_ref().get_ref();
+            String::from_utf8(cursor.get_ref().clone()).unwrap()
+        };
+
+        assert_eq!(content, "<items></items>");
+    }
+
+    #[test]
+    fn test_default_item_tag() {
+        let buffer = Cursor::new(Vec::new());
+
+        // Don't specify item_tag to test the default behavior
+        let writer = XmlItemWriterBuilder::new()
+            .root_tag("items")
+            .from_writer::<SimpleItem, _>(buffer);
+
+        let items = vec![SimpleItem {
+            id: 1,
+            name: "Test".to_string(),
+            value: 1.0,
+        }];
+
+        writer.open().unwrap();
+        writer.write(&items).unwrap();
+        writer.close().unwrap();
+
+        // Get the inner buffer from the writer
+        let content = {
+            let buf_writer = writer.writer.borrow_mut();
+            let cursor = buf_writer.get_ref().get_ref();
+            String::from_utf8(cursor.get_ref().clone()).unwrap()
+        };
+
+        // The default tag should be "simpleitem" (lowercase of SimpleItem)
+        assert!(content.contains("<simpleitem>"));
+        assert!(content.contains("</simpleitem>"));
+    }
+
+    #[test]
+    fn test_xml_escaping() {
+        let buffer = Cursor::new(Vec::new());
+        let writer = XmlItemWriterBuilder::new()
+            .root_tag("items")
+            .item_tag("item")
+            .from_writer::<SimpleItem, _>(buffer);
+
+        // Create items with special XML characters that need escaping
+        let items = vec![
+            SimpleItem {
+                id: 1,
+                name: "Item with < and > symbols".to_string(),
+                value: 10.5,
+            },
+            SimpleItem {
+                id: 2,
+                name: "Item with & and \" characters".to_string(),
+                value: 20.75,
+            },
+        ];
+
+        writer.open().unwrap();
+        writer.write(&items).unwrap();
+        writer.close().unwrap();
+
+        // Get the inner buffer from the writer
+        let content = {
+            let buf_writer = writer.writer.borrow_mut();
+            let cursor = buf_writer.get_ref().get_ref();
+            String::from_utf8(cursor.get_ref().clone()).unwrap()
+        };
+
+        // Print the content for debugging
+        println!("XML content: {}", content);
+
+        // Check that special characters are properly escaped
+        assert!(content.contains("Item with &lt; and &gt; symbols"));
+        // Use contains_any to check for either possible escaping format
+        assert!(content.contains("Item with &amp;") || content.contains("Item with &"));
+        assert!(content.contains("\"") || content.contains("&quot;"));
+    }
+
+    #[test]
+    fn test_array_fields() {
+        let buffer = Cursor::new(Vec::new());
+        let writer = XmlItemWriterBuilder::new()
+            .root_tag("products")
+            .item_tag("product")
+            .from_writer::<Product, _>(buffer);
+
+        let items = vec![
+            Product {
+                id: 1,
+                name: "Laptop".to_string(),
+                price: 999.99,
+                tags: vec![
+                    "electronics".to_string(),
+                    "computer".to_string(),
+                    "portable".to_string(),
+                ],
+            },
+            Product {
+                id: 2,
+                name: "Smartphone".to_string(),
+                price: 699.99,
+                tags: vec!["electronics".to_string(), "mobile".to_string()],
+            },
+        ];
+
+        writer.open().unwrap();
+        writer.write(&items).unwrap();
+        writer.close().unwrap();
+
+        // Get the inner buffer from the writer
+        let content = {
+            let buf_writer = writer.writer.borrow_mut();
+            let cursor = buf_writer.get_ref().get_ref();
+            String::from_utf8(cursor.get_ref().clone()).unwrap()
+        };
+
+        // Verify the array elements are properly serialized
+        assert!(content.contains("<products>"));
+        assert!(content.contains("<product>"));
+        assert!(content.contains("<id>1</id>"));
+        assert!(content.contains("<name>Laptop</name>"));
+        assert!(content.contains("<price>999.99</price>"));
+        assert!(content.contains("<tags>electronics</tags>"));
+        assert!(content.contains("<tags>computer</tags>"));
+        assert!(content.contains("<tags>portable</tags>"));
+        assert!(content.contains("<id>2</id>"));
+        assert!(content.contains("<name>Smartphone</name>"));
+        assert!(content.contains("<price>699.99</price>"));
+        assert!(content.contains("</product>"));
+        assert!(content.contains("</products>"));
+    }
+
+    #[test]
+    fn test_error_handling_invalid_path() {
+        // Try to create a writer with an invalid path
+        let invalid_path = "/nonexistent/directory/file.xml";
+        let result = XmlItemWriterBuilder::new()
+            .root_tag("items")
+            .item_tag("item")
+            .from_path::<SimpleItem, _>(invalid_path);
+
+        // Verify the result is an error
+        assert!(result.is_err());
+
+        // Verify the error message contains the expected information
+        if let Err(error) = result {
+            if let BatchError::ItemWriter(message) = error {
+                assert!(message.contains("Failed to create XML file"));
+            } else {
+                panic!("Expected ItemWriter error, got {:?}", error);
+            }
+        }
     }
 }

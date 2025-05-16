@@ -410,11 +410,20 @@ impl CsvItemReaderBuilder {
 
 #[cfg(test)]
 mod tests {
-    use std::error::Error;
-
+    use super::*;
+    use crate::core::item::ItemReader;
     use csv::StringRecord;
+    use serde::Deserialize;
+    use std::error::Error;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
 
-    use crate::item::csv::csv_reader::CsvItemReaderBuilder;
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct City {
+        city: String,
+        country: String,
+        pop: u32,
+    }
 
     /// Tests basic CSV parsing functionality
     ///
@@ -443,6 +452,175 @@ mod tests {
                 vec!["Concord", "United States", "42695"],
             ]
         );
+
+        Ok(())
+    }
+
+    /// Test deserializing typed records using ItemReader trait implementation
+    #[test]
+    fn test_deserialize_typed_records() -> Result<(), Box<dyn Error>> {
+        let data = "city,country,pop
+        Boston,United States,4628910
+        Concord,United States,42695";
+
+        let reader = CsvItemReaderBuilder::new()
+            .has_headers(true)
+            .from_reader(data.as_bytes());
+
+        // Read first record
+        let record1: City = reader.read()?.unwrap();
+        assert_eq!(
+            record1,
+            City {
+                city: "Boston".to_string(),
+                country: "United States".to_string(),
+                pop: 4628910,
+            }
+        );
+
+        // Read second record
+        let record2: City = reader.read()?.unwrap();
+        assert_eq!(
+            record2,
+            City {
+                city: "Concord".to_string(),
+                country: "United States".to_string(),
+                pop: 42695,
+            }
+        );
+
+        // No more records
+        assert!(ItemReader::<City>::read(&reader)?.is_none());
+
+        Ok(())
+    }
+
+    /// Test reading from a file
+    #[test]
+    fn test_read_from_file() -> Result<(), Box<dyn Error>> {
+        // Create a temporary file
+        let mut temp_file = NamedTempFile::new()?;
+        let csv_content = "city,country,pop\nParis,France,2161000\nLyon,France,513275";
+        temp_file.write_all(csv_content.as_bytes())?;
+
+        // Create reader from file path
+        let reader = CsvItemReaderBuilder::new()
+            .has_headers(true)
+            .from_path(temp_file.path());
+
+        // Read records
+        let city1: City = reader.read()?.unwrap();
+        let city2: City = reader.read()?.unwrap();
+
+        assert_eq!(city1.city, "Paris");
+        assert_eq!(city2.city, "Lyon");
+        assert_eq!(city1.pop, 2161000);
+        assert_eq!(city2.pop, 513275);
+
+        Ok(())
+    }
+
+    /// Test different CSV formats (delimiters, terminators)
+    #[test]
+    fn test_different_csv_formats() -> Result<(), Box<dyn Error>> {
+        // Test with semicolon delimiter and LF terminator
+        let data = "city;country;pop\nBerlin;Germany;3645000\nMunich;Germany;1472000";
+
+        let reader = CsvItemReaderBuilder::new()
+            .has_headers(true)
+            .delimiter(b';')
+            .terminator(Terminator::Any(b'\n'))
+            .from_reader(data.as_bytes());
+
+        let city1: City = reader.read()?.unwrap();
+        let city2: City = reader.read()?.unwrap();
+
+        assert_eq!(city1.city, "Berlin");
+        assert_eq!(city2.city, "Munich");
+        assert_eq!(city1.country, "Germany");
+
+        Ok(())
+    }
+
+    /// Test reading without headers
+    #[test]
+    fn test_no_headers() -> Result<(), Box<dyn Error>> {
+        #[derive(Debug, Deserialize, PartialEq)]
+        struct Record {
+            field1: String,
+            field2: String,
+            field3: u32,
+        }
+
+        let data = "Tokyo,Japan,13960000\nOsaka,Japan,2691000";
+
+        let reader = CsvItemReaderBuilder::new()
+            .has_headers(false)
+            .from_reader(data.as_bytes());
+
+        let record1: Record = ItemReader::<Record>::read(&reader)?.unwrap();
+        let record2: Record = ItemReader::<Record>::read(&reader)?.unwrap();
+
+        assert_eq!(
+            record1,
+            Record {
+                field1: "Tokyo".to_string(),
+                field2: "Japan".to_string(),
+                field3: 13960000,
+            }
+        );
+
+        assert_eq!(
+            record2,
+            Record {
+                field1: "Osaka".to_string(),
+                field2: "Japan".to_string(),
+                field3: 2691000,
+            }
+        );
+
+        Ok(())
+    }
+
+    /// Test error handling for malformed CSV
+    #[test]
+    fn test_deserialization_error() {
+        // Malformed data - "not_a_number" isn't a valid u32
+        let data = "city,country,pop\nMilan,Italy,not_a_number";
+
+        let reader = CsvItemReaderBuilder::new()
+            .has_headers(true)
+            .from_reader(data.as_bytes());
+
+        // Should fail to deserialize because "not_a_number" isn't a valid u32
+        let result = ItemReader::<City>::read(&reader);
+        assert!(result.is_err());
+    }
+
+    /// Test reading an empty file
+    #[test]
+    fn test_empty_file() -> Result<(), Box<dyn Error>> {
+        let data = "";
+
+        let reader = CsvItemReaderBuilder::new()
+            .has_headers(false)
+            .from_reader(data.as_bytes());
+
+        assert!(ItemReader::<City>::read(&reader)?.is_none());
+
+        Ok(())
+    }
+
+    /// Test reading only headers with no data
+    #[test]
+    fn test_headers_only() -> Result<(), Box<dyn Error>> {
+        let data = "city,country,pop";
+
+        let reader = CsvItemReaderBuilder::new()
+            .has_headers(true)
+            .from_reader(data.as_bytes());
+
+        assert!(ItemReader::<City>::read(&reader)?.is_none());
 
         Ok(())
     }
