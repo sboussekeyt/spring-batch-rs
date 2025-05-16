@@ -12,6 +12,29 @@ pub trait RdbcRowMapper<T> {
 }
 
 /// A reader for reading items from a relational database using SQLx.
+///
+/// This reader provides an implementation of the `ItemReader` trait for database operations.
+/// It supports reading data from any SQL database supported by SQLx's `Any` database driver,
+/// with optional pagination for efficient memory usage when dealing with large datasets.
+///
+/// # Design
+///
+/// - Uses a connection pool to efficiently manage database connections
+/// - Supports optional pagination to avoid loading the entire result set into memory
+/// - Maintains an internal buffer of items and only fetches new data when necessary
+/// - Uses a row mapper to convert database rows into domain objects
+/// - Tracks the current position using an offset counter
+///
+/// # How Pagination Works
+///
+/// When `page_size` is provided:
+/// - Data is loaded in batches of `page_size` items
+/// - When all items in a batch have been read, a new batch is loaded
+/// - The `offset` is used to determine both the SQL OFFSET clause and the position within the buffer
+///
+/// When `page_size` is not provided:
+/// - All data is loaded in one query
+/// - The `offset` is only used to track the current position in the buffer
 pub struct RdbcItemReader<'a, T> {
     pool: &'a Pool<Any>,
     query: &'a str,
@@ -58,6 +81,10 @@ impl<'a, T> RdbcItemReader<'a, T> {
     }
 
     /// Reads a page of items from the database.
+    ///
+    /// This method builds a SQL query with pagination parameters (if page_size is set),
+    /// executes it against the database, and fills the internal buffer with the results.
+    /// It uses tokio's block_in_place to run the async database query in a blocking context.
     fn read_page(&self) {
         let mut query_builder = QueryBuilder::new(self.query);
 
@@ -86,29 +113,47 @@ impl<'a, T> RdbcItemReader<'a, T> {
     }
 }
 
+/// Implementation of ItemReader trait for RdbcItemReader.
+///
+/// This implementation provides a way to read items from a relational database
+/// with support for pagination. It uses an internal buffer to store the results
+/// of database queries and keeps track of the current offset to determine when
+/// a new page of data needs to be fetched.
 impl<T: DeserializeOwned + Clone> ItemReader<T> for RdbcItemReader<'_, T> {
     /// Reads the next item from the reader.
+    ///
+    /// This method manages pagination internally:
+    /// - When the current offset reaches a multiple of the page size, a new page is loaded
+    /// - Items are read sequentially from the internal buffer
+    /// - The offset is incremented after each read operation
     ///
     /// # Returns
     ///
     /// The next item, or `None` if there are no more items.
     fn read(&self) -> ItemReaderResult<T> {
+        // Calculate the index within the current page
+        // If page_size is set, we're using pagination and need to find position within current page
+        // Otherwise, we're using the absolute offset
         let index = if let Some(page_size) = self.page_size {
             self.offset.get() % page_size
         } else {
             self.offset.get()
         };
 
+        // When index is 0, we've reached the start of a new page
+        // or this is the first read operation, so we need to fetch data
         if index == 0 {
             self.read_page();
         }
 
+        // Retrieve the item at the current index from the buffer
         let buffer = self.buffer.borrow();
-
         let result = buffer.get(index as usize);
 
+        // Increment the offset for the next read operation
         self.offset.set(self.offset.get() + 1);
 
+        // Return the item, wrapped in an Option to indicate whether an item was found
         Ok(result.cloned())
     }
 }
