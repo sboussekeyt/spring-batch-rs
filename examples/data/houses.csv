@@ -1,0 +1,11 @@
+id,property_type,street,city,state,zip_code,country,price,bedrooms,bathrooms,square_meters,year_built,has_garage,has_pool,has_garden,amenities
+1,house,123 Main St,Springfield,IL,62701,USA,250000,3,2,150,1990,true,false,true,"central_heating,air_conditioning"
+2,apartment,456 Oak Ave,Chicago,IL,60601,USA,180000,2,1,80,2005,false,false,false,"elevator,security_system"
+3,house,789 Pine Rd,Peoria,IL,61602,USA,320000,4,3,200,1985,true,true,true,"central_heating,air_conditioning,fireplace"
+4,condo,321 Elm St,Springfield,IL,62702,USA,150000,1,1,60,2010,false,false,false,"security_system,storage"
+5,house,654 Maple Dr,Chicago,IL,60602,USA,450000,5,4,300,2000,true,true,true,"central_heating,air_conditioning,fireplace,security_system"
+6,house,12 Boulevard Saint-Michel,Paris,Île-de-France,75005,France,890000,3,2,130,1990,true,false,true,"central_heating,elevator"
+7,apartment,8 Place des Terreaux,Lyon,Rhône,69001,France,420000,2,2,90,2008,false,false,false,"elevator,security_system"
+8,house,25 Promenade des Anglais,Nice,Alpes-Maritimes,06000,France,750000,3,2,150,1995,true,true,true,"central_heating,air_conditioning"
+9,apartment,5 Rue de la République,Marseille,Bouches-du-Rhône,13001,France,280000,1,1,60,2015,false,false,false,"elevator,security_system"
+10,house,30 Avenue Montaigne,Paris,Île-de-France,75008,France,1500000,5,4,250,1985,true,true,true,"central_heating,fireplace,security_system" 

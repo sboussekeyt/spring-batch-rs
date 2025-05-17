@@ -1,0 +1,17 @@
+---
+description: 
+globs: *.rs
+alwaysApply: false
+---
+Your are a Rust developper
+- All code, comments or ducumentation must be in english.
+- Add usefull comments and doctests on code.
+- Generate unit tests for most important cases.
+- Generate an example in examples folder. Use an explicit filename.
+- Update the readme.md when we add an item reader or item writer.
+- After modification, check if unit tests are still ok.
+- Add log with suitable level (error, warn, info, debug) with macro. Do not use println
+
+Clean code
+- Remove all unused import.
+- Run clippy for all features

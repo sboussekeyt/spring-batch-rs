@@ -1,41 +1,69 @@
-<div align="center"> 
-  <h1>Spring-Batch for Rust</h1>
-  <h3>🐞 A toolkit for building enterprise-grade batch applications</h3>
-
-  [![crate](https://img.shields.io/crates/v/spring-batch-rs.svg)](https://crates.io/crates/spring-batch-rs)
-  [![docs](https://docs.rs/spring-batch-rs/badge.svg)](https://docs.rs/spring-batch-rs)
-  [![build status](https://github.com/sboussekeyt/spring-batch-rs/actions/workflows/test.yml/badge.svg)](https://github.com/sboussekeyt/spring-batch-rs/actions/workflows/test.yml)
-  [![Discord chat](https://img.shields.io/discord/1097536141617528966.svg?logo=discord&style=flat-square)](https://discord.gg/9FNhawNsG6)
-  [![CodeCov](https://codecov.io/gh/sboussekeyt/spring-batch-rs/branch/main/graph/badge.svg)](https://codecov.io/gh/sboussekeyt/spring-batch-rs)
-  ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
-
-</div>
-
 # Spring-Batch for Rust
-Spring Batch for Rust, offers a robust and flexible framework for the development of batch processing applications, addressing the challenges of handling large-scale data processing tasks efficiently and reliably. It provides developers a comprehensive toolkit for building enterprise-grade batch applications.
+
+> 🐞 A toolkit for building enterprise-grade batch applications
+
+[![crate](https://img.shields.io/crates/v/spring-batch-rs.svg)](https://crates.io/crates/spring-batch-rs)
+[![docs](https://docs.rs/spring-batch-rs/badge.svg)](https://docs.rs/spring-batch-rs)
+[![build status](https://github.com/sboussekeyt/spring-batch-rs/actions/workflows/test.yml/badge.svg)](https://github.com/sboussekeyt/spring-batch-rs/actions/workflows/test.yml)
+[![Discord chat](https://img.shields.io/discord/1097536141617528966.svg?logo=discord&style=flat-square)](https://discord.gg/9FNhawNsG6)
+[![CodeCov](https://codecov.io/gh/sboussekeyt/spring-batch-rs/branch/main/graph/badge.svg)](https://codecov.io/gh/sboussekeyt/spring-batch-rs)
+![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
+
+Inspired by the robust Java Spring Batch framework, **Spring Batch for Rust** brings its battle-tested concepts to the Rust ecosystem. It offers a comprehensive toolkit for developing efficient, reliable, and enterprise-grade batch applications. This framework is designed to address the challenges of handling large-scale data processing tasks, providing developers with the tools needed for complex batch operations.
+
+## Why Spring Batch for Rust ?
+
+- **Performance & Safety:** Leverage Rust's performance and memory safety for demanding batch jobs.
+- **Familiar Concepts:** If you're familiar with Spring Batch, you'll feel right at home.
+- **Extensible:** Designed with modularity in mind, allowing for custom readers, writers, and processors.
+- **Ecosystem:** Integrates with popular Rust crates for various data sources and formats.
+
+## Core Concepts
+
+Understanding these core components will help you get started:
+
+- **Job:** Represents the entire batch process. A `Job` is composed of one or more `Step`s.
+- **Step:** A domain object that encapsulates an independent, sequential phase of a batch job. Every `Job` is composed of one or more `Step`s. A `Step` typically involves reading data, processing it, and writing it out.
+- **ItemReader:** An abstraction that represents the retrieval of input for a `Step`, one item at a time.
+- **ItemProcessor:** An abstraction that represents the business logic of processing an item. The item read by the `ItemReader` is passed to the `ItemProcessor`.
+- **ItemWriter:** An abstraction that represents the output of a `Step`, one batch or chunk of items at a time.
 
 ## Features
-| **Feature**   | **Description**                                               |
-|---------------|---------------------------------------------------------------|
-| mongodb       | Enable reader and writer for Mongodb database                 |
-| rdbc-postgres | Enable rdbc reader and writer for Postgres database           |
-| rdbc-mysql    | Enable rdbc reader and writer for Mysql and MariaDb databases |
-| rdbc-sqlite   | Enable rdbc reader and writer for Sqlite database             |
-| json          | Enable json reader and writer                                 |
-| csv           | Enable csv reader and writer                                  |
-| fake          | Enable fake reader. Useful for generate fake dataset          |
-| logger        | Enable logger writer. Useful for debugging                    |
+
+The crate is modular, allowing you to enable only the features you need:
+
+| **Feature**     | **Description**                                                   |
+| --------------- | ----------------------------------------------------------------- |
+| `mongodb`       | Enables `ItemReader` and `ItemWriter` for MongoDB databases.      |
+| `rdbc-postgres` | Enables RDBC `ItemReader` and `ItemWriter` for PostgreSQL.        |
+| `rdbc-mysql`    | Enables RDBC `ItemReader` and `ItemWriter` for MySQL and MariaDB. |
+| `rdbc-sqlite`   | Enables RDBC `ItemReader` and `ItemWriter` for SQLite.            |
+| `json`          | Enables JSON `ItemReader` and `ItemWriter`.                       |
+| `csv`           | Enables CSV `ItemReader` and `ItemWriter`.                        |
+| `xml`           | Enables XML `ItemReader` and `ItemWriter`.                        |
+| `fake`          | Enables a fake `ItemReader`, useful for generating mock datasets. |
+| `logger`        | Enables a logger `ItemWriter`, useful for debugging purposes.     |
+| `full`          | Enables all available features.                                   |
 
 ## Roadmap
-+ XML reader and writer
-+ Filter items
-+ Kafka reader and writer
-+ Pulsar reader and writer
-+ Retry/Skip policies
-+ Save execution data in database
 
- ## Getting Started
- Make sure you activated the suitable features crate on Cargo.toml:
+We are actively working on enhancing `spring-batch-rs` with more features:
+
+- [ ] Item filtering capabilities
+- [ ] Kafka reader and writer
+- [ ] Parquet reader and writer
+- [ ] Advanced Retry/Skip policies for fault tolerance
+- [ ] Persist job execution metadata (e.g., in a database)
+
+## Getting Started
+
+### Prerequisites
+
+- A recent Rust toolchain installed.
+
+### 1. Add `spring-batch-rs` to your `Cargo.toml`
+
+Make sure to activate the features relevant to your needs. For example, if you need JSON and CSV support:
 
 ```toml
 [dependencies]
@@ -80,26 +108,38 @@ fn main() -> Result<(), BatchError> {
 ```
 
 ## Examples
-+ [Generate CSV file from JSON file with processor](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_csv_file_from_json_file_with_processor.rs)
-+ [Generate JSON file from CSV string with fault tolerance](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_json_file_from_csv_string_with_fault_tolerance.rs)
-+ [Generate JSON file from fake persons](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_json_file_from_fake_persons.rs)
-+ [Generate CSV file without headers from fake persons](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_csv_file_without_headers_from_fake_persons.rs)
-+ [Insert records into Mysql database](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/insert_records_into_mysql_database.rs)
-+ [Log records from Postgres database](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/log_records_from_postgres_database.rs)
-+ [Read records from MongoDb database](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/read_records_from_mongodb_database.rs)
-+ [Write records to MongoDb database](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/write_records_to_mongodb_database.rs)
+
+Explore more use cases and advanced configurations in our `examples` directory. Each example demonstrates a specific feature or scenario:
+
+- [Generate CSV file from JSON file with processor](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_csv_file_from_json_file_with_processor.rs)
+- [Generate JSON file from CSV string with fault tolerance](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_json_file_from_csv_string_with_fault_tolerance.rs)
+- [Generate JSON file from fake persons](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_json_file_from_fake_persons.rs)
+- [Generate CSV file without headers from fake persons](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/generate_csv_file_without_headers_from_fake_persons.rs)
+- [Insert records into Mysql database](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/insert_records_into_mysql_database.rs)
+- [Log records from Postgres database](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/log_records_from_postgres_database.rs)
+- [Read records from MongoDb database](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/read_records_from_mongodb_database.rs)
+- [Write records to MongoDb database](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/write_records_to_mongodb_database.rs)
+
+### Running the Examples
+
+To run an example locally:
+
+1. Clone the repository
+2. Run a specific example using `cargo run --example <example_name> --features "<feature1>,<feature2>"`.
 
 ## License
- Licensed under either of
 
--   Apache License, Version 2.0
-    ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
--   MIT license
-    ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+This project is licensed under either of:
+
+- Apache License, Version 2.0
+  ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license
+  ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 at your option.
 
 ## Contribution
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
-dual licensed as above, without any additional terms or conditions
+
+Contributions are highly welcome! Whether it's bug reports, feature requests, documentation improvements, or code contributions, please feel free to open an issue or submit a pull request.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.

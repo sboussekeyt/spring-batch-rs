@@ -16,27 +16,45 @@
   </div>
 
  # Spring-Batch for Rust
- Spring Batch for Rust, offers a robust and flexible framework for the development of batch processing applications, addressing the challenges of handling large-scale data processing tasks efficiently and reliably. It provides developers a comprehensive toolkit for building enterprise-grade batch applications.
+
+ Inspired by the robust Java Spring Batch framework, **Spring Batch for Rust** brings its battle-tested concepts to the Rust ecosystem. It offers a comprehensive toolkit for developing efficient, reliable, and enterprise-grade batch applications. This framework is designed to address the challenges of handling large-scale data processing tasks, providing developers with the tools needed for complex batch operations.
+
+ ## Core Concepts
+
+Understanding these core components will help you get started:
+
+- **Job:** Represents the entire batch process. A `Job` is composed of one or more `Step`s.
+- **Step:** A domain object that encapsulates an independent, sequential phase of a batch job. Every `Job` is composed of one or more `Step`s. A `Step` typically involves reading data, processing it, and writing it out.
+- **ItemReader:** An abstraction that represents the retrieval of input for a `Step`, one item at a time.
+- **ItemProcessor:** An abstraction that represents the business logic of processing an item. The item read by the `ItemReader` is passed to the `ItemProcessor`.
+- **ItemWriter:** An abstraction that represents the output of a `Step`, one batch or chunk of items at a time.
 
  ## Features
+
+The crate is modular, allowing you to enable only the features you need:
+
 | **Feature**   | **Description**                                               |
 |---------------|---------------------------------------------------------------|
-| mongodb       | Enable reader and writer for Mongodb database                 |
-| rdbc-postgres | Enable rdbc reader and writer for Postgres database           |
-| rdbc-mysql    | Enable rdbc reader and writer for Mysql and MariaDb databases |
-| rdbc-sqlite   | Enable rdbc reader and writer for Sqlite database             |
-| json          | Enable json reader and writer                                 |
-| csv           | Enable csv reader and writer                                  |
-| fake          | Enable fake reader. Useful for generate fake dataset          |
-| logger        | Enable logger writer. Useful for debugging                    |
+| mongodb       | Enables `ItemReader` and `ItemWriter` for MongoDB databases   |
+| rdbc-postgres | Enables RDBC `ItemReader` and `ItemWriter` for PostgreSQL     |
+| rdbc-mysql    | Enables RDBC `ItemReader` and `ItemWriter` for MySQL and MariaDB |
+| rdbc-sqlite   | Enables RDBC `ItemReader` and `ItemWriter` for SQLite         |
+| json          | Enables JSON `ItemReader` and `ItemWriter`                    |
+| csv           | Enables CSV `ItemReader` and `ItemWriter`                     |
+| xml           | Enables XML `ItemReader` and `ItemWriter`                     |
+| fake          | Enables a fake `ItemReader`, useful for generating mock datasets |
+| logger        | Enables a logger `ItemWriter`, useful for debugging purposes  |
+| full          | Enables all available features                                |
 
  ## Roadmap
- + XML reader and writer
- + SQL reader and writer
- + Kafka reader and writer
- + Pulsar reader and writer
- + Retry/Skip policies
- + Save execution data in database
+
+We are actively working on enhancing `spring-batch-rs` with more features:
+
+- [ ] Item filtering capabilities
+- [ ] Kafka reader and writer
+- [ ] Parquet reader and writer
+- [ ] Advanced Retry/Skip policies for fault tolerance
+- [ ] Persist job execution metadata (e.g., in a database)
 
  ## Getting Started
  Make sure you activated the suitable features crate on Cargo.toml:

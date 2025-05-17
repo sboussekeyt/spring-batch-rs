@@ -14,6 +14,10 @@ pub mod fake;
 /// This module provides a JSON item reader and writer implementation for Spring Batch.
 pub mod json;
 
+#[cfg(feature = "xml")]
+/// This module provides an XML item reader and writer implementation for Spring Batch.
+pub mod xml;
+
 #[cfg(feature = "rdbc-postgres")]
 /// This module provides an RDBC (PostgreSQL) item reader and writer implementation for Spring Batch.
 pub mod rdbc;
