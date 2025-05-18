@@ -132,7 +132,21 @@ impl<W: Serialize + Clone> ItemWriter<W> for RdbcItemWriter<'_, W> {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```no_run
+/// use spring_batch_rs::item::rdbc::rdbc_writer::{RdbcItemWriterBuilder, RdbcItemBinder};
+/// use sqlx::{Any, Pool, query_builder::Separated};
+///
+/// struct UserBinder;
+/// struct User;
+///
+/// impl RdbcItemBinder<User> for UserBinder {
+///     fn bind(&self, item: &User, query_builder: Separated<Any, &str>) {
+///         // Implementation here
+///     }
+/// }
+///
+/// # async fn example(pool: &Pool<Any>) {
+/// # let user_binder = UserBinder;
 /// let writer = RdbcItemWriterBuilder::new()
 ///     .pool(&pool)
 ///     .table("users")
@@ -141,6 +155,7 @@ impl<W: Serialize + Clone> ItemWriter<W> for RdbcItemWriter<'_, W> {
 ///     .add_column("email")
 ///     .item_binder(&user_binder)
 ///     .build();
+/// # }
 /// ```
 #[derive(Default)]
 pub struct RdbcItemWriterBuilder<'a, T> {
