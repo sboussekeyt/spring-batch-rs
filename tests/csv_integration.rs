@@ -83,7 +83,7 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
         .from_path(&output_path);
 
     // Build and run the job
-    let step: StepInstance<Product, Product> = StepBuilder::new()
+    let step = StepBuilder::new()
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
