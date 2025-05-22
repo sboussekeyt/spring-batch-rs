@@ -8,14 +8,14 @@ use crate::error::BatchError;
 /// - `Ok(Some(R))` when an item is successfully read
 /// - `Ok(None)` when there are no more items to read (end of data)
 /// - `Err(BatchError)` when an error occurs during reading
-pub type ItemReaderResult<R> = Result<Option<R>, BatchError>;
+pub type ItemReaderResult<I> = Result<Option<I>, BatchError>;
 
 /// Represents the result of processing an item by the processor.
 ///
 /// This type is a specialized `Result` that can be:
 /// - `Ok(W)` when an item is successfully processed
 /// - `Err(BatchError)` when an error occurs during processing
-pub type ItemProcessorResult<W> = Result<W, BatchError>;
+pub type ItemProcessorResult<O> = Result<O, BatchError>;
 
 /// Represents the result of writing items by the writer.
 ///
@@ -64,14 +64,14 @@ pub type ItemWriterResult = Result<(), BatchError>;
 ///     }
 /// }
 /// ```
-pub trait ItemReader<R> {
+pub trait ItemReader<I> {
     /// Reads an item from the reader.
     ///
     /// # Returns
     /// - `Ok(Some(item))` when an item is successfully read
     /// - `Ok(None)` when there are no more items to read (end of data)
     /// - `Err(BatchError)` when an error occurs during reading
-    fn read(&self) -> ItemReaderResult<R>;
+    fn read(&self) -> ItemReaderResult<I>;
 }
 
 /// A trait for processing items.
@@ -104,7 +104,7 @@ pub trait ItemReader<R> {
 ///     }
 /// }
 /// ```
-pub trait ItemProcessor<R, W> {
+pub trait ItemProcessor<I, O> {
     /// Processes an item and returns the processed result.
     ///
     /// # Parameters
@@ -113,7 +113,7 @@ pub trait ItemProcessor<R, W> {
     /// # Returns
     /// - `Ok(processed_item)` when the item is successfully processed
     /// - `Err(BatchError)` when an error occurs during processing
-    fn process(&self, item: &R) -> ItemProcessorResult<W>;
+    fn process(&self, item: &I) -> ItemProcessorResult<O>;
 }
 
 /// A trait for writing items.
@@ -150,7 +150,7 @@ pub trait ItemProcessor<R, W> {
 ///     }
 /// }
 /// ```
-pub trait ItemWriter<W> {
+pub trait ItemWriter<O> {
     /// Writes the given items.
     ///
     /// # Parameters
@@ -159,7 +159,7 @@ pub trait ItemWriter<W> {
     /// # Returns
     /// - `Ok(())` when items are successfully written
     /// - `Err(BatchError)` when an error occurs during writing
-    fn write(&self, items: &[W]) -> ItemWriterResult;
+    fn write(&self, items: &[O]) -> ItemWriterResult;
 
     /// Flushes any buffered data.
     ///
@@ -234,7 +234,7 @@ pub trait ItemWriter<W> {
 #[derive(Default)]
 pub struct DefaultProcessor;
 
-impl<R: Any, W: Clone + Any> ItemProcessor<R, W> for DefaultProcessor {
+impl<I: Any, O: Clone + Any> ItemProcessor<I, O> for DefaultProcessor {
     /// Processes an item by attempting to downcast it to the target type.
     ///
     /// # Parameters
@@ -243,12 +243,12 @@ impl<R: Any, W: Clone + Any> ItemProcessor<R, W> for DefaultProcessor {
     /// # Returns
     /// - `Ok(item_as_w)` when the item can be downcast to type `W`
     /// - `Err(BatchError)` when the item cannot be downcast to type `W`
-    fn process(&self, item: &R) -> ItemProcessorResult<W> {
+    fn process(&self, item: &I) -> ItemProcessorResult<O> {
         // Treat the item as Any to enable downcasting
         let value_any = item as &dyn Any;
 
         // Try to downcast to the target type
-        match value_any.downcast_ref::<W>() {
+        match value_any.downcast_ref::<O>() {
             Some(as_w) => Ok(as_w.clone()),
             None => Err(BatchError::ItemProcessor("Cannot downcast".to_string())),
         }

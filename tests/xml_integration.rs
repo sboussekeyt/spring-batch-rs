@@ -100,7 +100,7 @@ fn transform_from_xml_file_to_csv_file_without_error() {
         .from_path(&csv_path);
 
     // Build and run the job
-    let step: StepInstance<Product, Product> = StepBuilder::new()
+    let step = StepBuilder::new()
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)

@@ -50,6 +50,8 @@ pub mod job;
 /// - `StepBuilder`: Builder for creating step instances
 pub mod step;
 
+pub mod tasklet;
+
 /// Generates a random name consisting of alphanumeric characters.
 ///
 /// Used internally to create default names for jobs and steps when not explicitly provided.
