@@ -1368,6 +1368,8 @@ pub enum ChunkStatus {
 ///     StepStatus::ProcessorError => println!("Failed during processing"),
 ///     StepStatus::WriteError => println!("Failed during writing"),
 ///     StepStatus::Starting => println!("Step is starting"),
+///     StepStatus::Failed => println!("Step has failed"),
+///     StepStatus::Started => println!("Step has started"),
 /// }
 /// ```
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -2081,7 +2083,7 @@ mod tests {
             .withf(|step_execution| {
                 // Verify that the tasklet receives the correct step execution context
                 step_execution.name == "context_test"
-                    && step_execution.status == StepStatus::Starting
+                    && step_execution.status == StepStatus::Started
             })
             .returning(|_| Ok(RepeatStatus::Finished));
 
