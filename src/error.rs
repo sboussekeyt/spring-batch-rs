@@ -18,6 +18,14 @@ pub enum BatchError {
     #[error("Error occurred in the step: {0}")]
     /// Error occurred in the step.
     Step(String),
+
+    #[error("IO error: {0}")]
+    /// IO error occurred during file operations.
+    Io(#[from] std::io::Error),
+
+    #[error("Configuration error: {0}")]
+    /// Configuration error occurred.
+    Configuration(String),
 }
 
 #[cfg(test)]
