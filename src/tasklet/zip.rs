@@ -438,6 +438,10 @@ impl ZipTasklet {
 
     /// Compresses a single file into the ZIP archive.
     ///
+    /// This method handles compression level 0 specially by using the `Stored` compression method
+    /// (no compression) instead of `Deflated` with level 0, which is the correct approach for
+    /// the ZIP format specification.
+    ///
     /// # Parameters
     /// - `zip_writer`: ZIP writer instance
     /// - `file_path`: Path to the file to compress
@@ -458,9 +462,16 @@ impl ZipTasklet {
             archive_path
         );
 
-        let options = SimpleFileOptions::default()
-            .compression_method(CompressionMethod::Deflated)
-            .compression_level(Some(self.compression_level as i64));
+        let options = if self.compression_level == 0 {
+            // Use stored method (no compression) for level 0 - this is the correct approach
+            // for ZIP format as Deflated with level 0 can cause issues with some ZIP readers
+            SimpleFileOptions::default().compression_method(CompressionMethod::Stored)
+        } else {
+            // Use deflated method with specified compression level (1-9)
+            SimpleFileOptions::default()
+                .compression_method(CompressionMethod::Deflated)
+                .compression_level(Some(self.compression_level as i64))
+        };
 
         zip_writer
             .start_file(archive_path, options)

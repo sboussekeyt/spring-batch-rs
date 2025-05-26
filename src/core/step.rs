@@ -90,7 +90,7 @@
 //! ```
 
 use crate::BatchError;
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
@@ -162,18 +162,40 @@ pub struct TaskletStep<'a> {
 
 impl Step for TaskletStep<'_> {
     fn execute(&self, step_execution: &mut StepExecution) -> Result<(), BatchError> {
+        step_execution.status = StepStatus::Started;
+        let start_time = Instant::now();
+
+        info!(
+            "Start of step: {}, id: {}",
+            step_execution.name, step_execution.id
+        );
+
         loop {
             let result = self.tasklet.execute(step_execution);
             match result {
                 Ok(RepeatStatus::Continuable) => {}
                 Ok(RepeatStatus::Finished) => {
+                    step_execution.status = StepStatus::Success;
                     break;
                 }
                 Err(e) => {
+                    error!(
+                        "Error in step: {}, id: {}, error: {}",
+                        step_execution.name, step_execution.id, e
+                    );
+                    step_execution.status = StepStatus::Failed;
+                    step_execution.end_time = Some(Instant::now());
+                    step_execution.duration = Some(start_time.elapsed());
                     return Err(e);
                 }
             }
         }
+
+        // Calculate the step execution details
+        step_execution.start_time = Some(start_time);
+        step_execution.end_time = Some(Instant::now());
+        step_execution.duration = Some(start_time.elapsed());
+
         Ok(())
     }
 
@@ -1383,6 +1405,16 @@ pub enum StepStatus {
     /// This is the initial state of a step before execution begins.
     /// All steps start in this state when first created.
     Starting,
+
+    /// The step is failed.
+    ///
+    /// This is the final state of a step after execution has failed.
+    Failed,
+
+    /// The step is started.
+    ///
+    /// This is the state of a step after execution has started.
+    Started,
 }
 
 #[cfg(test)]
