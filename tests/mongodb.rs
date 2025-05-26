@@ -11,7 +11,7 @@ use spring_batch_rs::{
     core::{
         item::{ItemProcessor, ItemProcessorResult},
         job::{Job, JobBuilder},
-        step::{Step, StepBuilder, StepInstance, StepStatus},
+        step::{StepBuilder, StepStatus},
     },
     item::csv::csv_reader::CsvItemReaderBuilder,
     item::csv::csv_writer::CsvItemWriterBuilder,
@@ -51,6 +51,15 @@ impl ItemProcessor<Book, FormattedBook> for FormatBookProcessor {
         };
 
         Ok(book)
+    }
+}
+
+#[derive(Default)]
+struct PassThroughProcessor;
+
+impl ItemProcessor<FormattedBook, FormattedBook> for PassThroughProcessor {
+    fn process(&self, item: &FormattedBook) -> ItemProcessorResult<FormattedBook> {
+        Ok(item.clone())
     }
 }
 
@@ -155,21 +164,24 @@ fn read_items_from_database() -> Result<()> {
 
     let writer = CsvItemWriterBuilder::new().from_writer(tmpfile.as_file());
 
-    let step: StepInstance<Book, FormattedBook> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk(3)
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
-        .chunk(3)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
     let result = job.run();
+
+    let step_execution = job.get_step_execution("test").unwrap();
+
     assert!(result.is_ok());
-    assert!(step.get_status() == StepStatus::Success);
-    assert!(step.get_read_count() == 12);
-    assert!(step.get_write_count() == 12);
-    assert!(step.get_read_error_count() == 0);
-    assert!(step.get_write_error_count() == 0);
+    assert!(step_execution.status == StepStatus::Success);
+    assert!(step_execution.read_count == 12);
+    assert!(step_execution.write_count == 12);
+    assert!(step_execution.read_error_count == 0);
+    assert!(step_execution.write_error_count == 0);
 
     let mut tmpfile = tmpfile.reopen()?;
     let mut file_content = String::new();
@@ -217,7 +229,7 @@ fn write_items_to_database() -> Result<()> {
             Shining,Stephen King
             UN SAC DE BILLES,JOSEPH JOFFO";
 
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<FormattedBook>::new()
         .has_headers(true)
         .from_reader(csv.as_bytes());
 
@@ -226,21 +238,27 @@ fn write_items_to_database() -> Result<()> {
         .collection(&book_collection)
         .build();
 
+    let processor = PassThroughProcessor::default();
+
     // Execute process
-    let step: StepInstance<FormattedBook, FormattedBook> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk::<FormattedBook, FormattedBook>(3)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
-        .chunk(3)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
+
     let result = job.run();
     assert!(result.is_ok());
-    assert!(step.get_status() == StepStatus::Success);
-    assert!(step.get_read_count() == 2);
-    assert!(step.get_write_count() == 2);
-    assert!(step.get_read_error_count() == 0);
-    assert!(step.get_write_error_count() == 0);
+
+    let step_execution = job.get_step_execution("test").unwrap();
+    assert!(step_execution.status == StepStatus::Success);
+    assert!(step_execution.read_count == 2);
+    assert!(step_execution.write_count == 2);
+    assert!(step_execution.read_error_count == 0);
+    assert!(step_execution.write_error_count == 0);
 
     Ok(())
 }

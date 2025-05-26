@@ -70,13 +70,13 @@ use std::str;
 /// assert_eq!(persons[0].name, "Alice");
 /// assert_eq!(persons[1].name, "Bob");
 /// ```
-pub struct XmlItemReaderBuilder<T: DeserializeOwned> {
+pub struct XmlItemReaderBuilder<I: DeserializeOwned> {
     tag_name: Option<String>,
     capacity: usize,
-    _marker: PhantomData<T>,
+    _marker: PhantomData<I>,
 }
 
-impl<T: DeserializeOwned> Default for XmlItemReaderBuilder<T> {
+impl<I: DeserializeOwned> Default for XmlItemReaderBuilder<I> {
     fn default() -> Self {
         Self {
             tag_name: None,
@@ -86,7 +86,7 @@ impl<T: DeserializeOwned> Default for XmlItemReaderBuilder<T> {
     }
 }
 
-impl<T: DeserializeOwned> XmlItemReaderBuilder<T> {
+impl<I: DeserializeOwned> XmlItemReaderBuilder<I> {
     /// Creates a new XML item reader builder.
     ///
     /// By default, it will:
@@ -215,12 +215,12 @@ impl<T: DeserializeOwned> XmlItemReaderBuilder<T> {
     /// // No more persons
     /// assert!(reader.read().unwrap().is_none());
     /// ```
-    pub fn from_reader<R: Read + 'static>(self, reader: R) -> XmlItemReader<R, T> {
+    pub fn from_reader<R: Read + 'static>(self, reader: R) -> XmlItemReader<R, I> {
         let tag = match self.tag_name {
             Some(tag) => tag.into_bytes(),
             None => {
                 // Default tag name is derived from the type name
-                let type_str = type_name::<T>();
+                let type_str = type_name::<I>();
                 let tag_name = type_str.split("::").last().unwrap_or(type_str);
                 tag_name.as_bytes().to_vec()
             }
@@ -258,7 +258,7 @@ impl<T: DeserializeOwned> XmlItemReaderBuilder<T> {
     ///     println!("Read person: {} (id: {})", person.name, person.id);
     /// }
     /// ```
-    pub fn from_path<P: AsRef<Path>>(self, path: P) -> Result<XmlItemReader<File, T>, BatchError> {
+    pub fn from_path<P: AsRef<Path>>(self, path: P) -> Result<XmlItemReader<File, I>, BatchError> {
         let file_path = path.as_ref();
         let file = File::open(file_path).map_err(|e| {
             error!("Failed to open XML file {}: {}", file_path.display(), e);
@@ -334,14 +334,14 @@ impl<T: DeserializeOwned> XmlItemReaderBuilder<T> {
 /// assert_eq!(person.address.city, "Springfield");
 /// assert_eq!(person.address.country, "USA");
 /// ```
-pub struct XmlItemReader<R, T> {
+pub struct XmlItemReader<R, I> {
     reader: RefCell<XmlReader<BufReader<R>>>,
     buffer: RefCell<Vec<u8>>,
     item_tag_name: Vec<u8>,
-    _marker: PhantomData<T>,
+    _marker: PhantomData<I>,
 }
 
-impl<R: Read, T: DeserializeOwned> XmlItemReader<R, T> {
+impl<R: Read, I: DeserializeOwned> XmlItemReader<R, I> {
     /// Creates a new XML item reader with a specific tag name.
     fn with_tag<S: AsRef<[u8]>>(rdr: R, capacity: usize, tag: S) -> Self {
         let buf_reader = BufReader::with_capacity(capacity, rdr);
@@ -357,8 +357,8 @@ impl<R: Read, T: DeserializeOwned> XmlItemReader<R, T> {
     }
 }
 
-impl<R: Read, T: DeserializeOwned> ItemReader<T> for XmlItemReader<R, T> {
-    fn read(&self) -> ItemReaderResult<T> {
+impl<R: Read, I: DeserializeOwned> ItemReader<I> for XmlItemReader<R, I> {
+    fn read(&self) -> ItemReaderResult<I> {
         let mut reader = self.reader.borrow_mut();
         let mut buffer = self.buffer.borrow_mut();
 
@@ -477,7 +477,10 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for XmlItemReader<R, T> {
                                     "Failed to deserialize XML item: {} from: {}",
                                     e, xml_string
                                 );
-                                continue; // Skip this item and try the next one
+                                return Err(BatchError::ItemReader(format!(
+                                    "Failed to deserialize XML item: {} from: {}",
+                                    e, xml_string
+                                )));
                             }
                         }
                     }
@@ -928,8 +931,7 @@ mod tests {
 
         // Should return an error when trying to deserialize
         let result = reader.read();
-        assert!(result.is_ok()); // The outer result is Ok
-        assert!(result.unwrap().is_none()); // But it should have skipped the bad item
+        assert!(result.is_err()); // Should return an error for type mismatch
     }
 
     #[test]

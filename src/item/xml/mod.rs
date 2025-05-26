@@ -116,10 +116,10 @@
 ///
 /// // Create a writer with a memory buffer
 /// let buffer = Cursor::new(Vec::new());
-/// let writer = XmlItemWriterBuilder::new()
+/// let writer = XmlItemWriterBuilder::<Product>::new()
 ///     .root_tag("catalog")
 ///     .item_tag("product")
-///     .from_writer::<Product, _>(buffer);
+///     .from_writer(buffer);
 ///
 /// // Write the products to XML
 /// writer.open().unwrap();

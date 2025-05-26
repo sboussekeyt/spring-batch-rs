@@ -1,11 +1,15 @@
-use std::time::{Duration, Instant};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 use log::info;
 use uuid::Uuid;
 
-use crate::BatchError;
+use crate::{core::step::StepExecution, BatchError};
 
-use super::{build_name, step::Step};
+use super::step::Step;
 
 /// Type alias for job execution results.
 ///
@@ -99,6 +103,8 @@ pub struct JobInstance<'a> {
     name: String,
     /// Collection of steps that make up this job, in execution order
     steps: Vec<&'a dyn Step>,
+    /// Step executions using interior mutability pattern
+    executions: RefCell<HashMap<String, StepExecution>>,
 }
 
 impl Job for JobInstance<'_> {
@@ -125,12 +131,20 @@ impl Job for JobInstance<'_> {
 
         // Execute all steps in sequence
         let steps = &self.steps;
+
         for step in steps {
-            let result = step.execute();
+            let mut step_execution = StepExecution::new(step.get_name());
+
+            let result = step.execute(&mut step_execution);
+
+            // Store the execution
+            self.executions
+                .borrow_mut()
+                .insert(step.get_name().to_string(), step_execution.clone());
 
             // If a step fails, abort the job and return an error
             if result.is_err() {
-                return Err(BatchError::Step(step.get_name().to_owned()));
+                return Err(BatchError::Step(step_execution.name));
             }
         }
 
@@ -145,6 +159,38 @@ impl Job for JobInstance<'_> {
         };
 
         Ok(job_execution)
+    }
+}
+
+impl JobInstance<'_> {
+    /// Gets a step execution by name.
+    ///
+    /// This method allows retrieving the execution details of a specific step
+    /// that has been executed as part of this job.
+    ///
+    /// # Parameters
+    /// - `name`: The name of the step to retrieve execution details for
+    ///
+    /// # Returns
+    /// - `Some(StepExecution)` if a step with the given name was executed
+    /// - `None` if no step with the given name was found
+    ///
+    /// # Example
+    /// ```rust,no_run,compile_fail
+    /// let job = JobBuilder::new()
+    ///     .name("test-job".to_string())
+    ///     .start(&step)
+    ///     .build();
+    ///
+    /// let _result = job.run();
+    ///
+    /// // Get execution details for a specific step
+    /// if let Some(execution) = job.get_step_execution("step-name") {
+    ///     println!("Step duration: {:?}", execution.duration);
+    /// }
+    /// ```
+    pub fn get_step_execution(&self, name: &str) -> Option<StepExecution> {
+        self.executions.borrow().get(name).cloned()
     }
 }
 
@@ -243,8 +289,9 @@ impl<'a> JobBuilder<'a> {
     pub fn build(self) -> JobInstance<'a> {
         JobInstance {
             id: Uuid::new_v4(),
-            name: self.name.unwrap_or(build_name()),
+            name: self.name.unwrap_or(Uuid::new_v4().to_string()),
             steps: self.steps,
+            executions: RefCell::new(HashMap::new()),
         }
     }
 }
@@ -262,9 +309,11 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use crate::{
-        core::step::{StepBuilder, StepInstance},
-        item::csv::csv_writer::CsvItemWriterBuilder,
-        item::json::json_reader::JsonItemReaderBuilder,
+        core::{item::DefaultProcessor, step::StepBuilder},
+        item::{
+            csv::csv_writer::{CsvItemWriter, CsvItemWriterBuilder},
+            json::{json_reader::JsonItemReaderBuilder, JsonItemReader},
+        },
     };
 
     use super::{Job, JobBuilder};
@@ -286,22 +335,26 @@ mod tests {
 
         let file = File::open(path).expect("Unable to open file");
 
-        let reader = JsonItemReaderBuilder::new().from_reader(file);
+        let reader: JsonItemReader<Person, File> = JsonItemReaderBuilder::new().from_reader(file);
 
-        let writer = CsvItemWriterBuilder::new()
+        let writer: CsvItemWriter<Person, File> = CsvItemWriterBuilder::new()
             .has_headers(true)
             .from_path(temp_dir().join("persons.csv"));
 
-        let step: StepInstance<Person, Person> = StepBuilder::new()
-            .reader(&reader)
-            .writer(&writer)
+        let processor = DefaultProcessor::default();
+
+        let step = StepBuilder::new("test")
             .chunk(2)
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
             .build();
 
         let job = JobBuilder::new()
             .name("test".to_string())
             .start(&step)
             .build();
+
         let _result = job.run();
 
         Ok(())

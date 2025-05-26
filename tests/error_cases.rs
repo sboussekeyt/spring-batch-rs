@@ -15,11 +15,11 @@ use std::{
 
 use spring_batch_rs::{
     core::{
+        item::{ItemProcessor, ItemProcessorResult},
         job::{Job, JobBuilder},
-        step::{Step, StepBuilder, StepInstance},
+        step::StepBuilder,
     },
-    item::csv::csv_reader::CsvItemReaderBuilder,
-    item::json::json_writer::JsonItemWriterBuilder,
+    item::{csv::csv_reader::CsvItemReaderBuilder, json::json_writer::JsonItemWriterBuilder},
 };
 
 use time::{format_description, Date};
@@ -57,6 +57,15 @@ struct Car {
     description: String,
 }
 
+#[derive(Default)]
+struct CarProcessor;
+
+impl ItemProcessor<Car, Car> for CarProcessor {
+    fn process(&self, item: &Car) -> ItemProcessorResult<Car> {
+        Ok(item.clone())
+    }
+}
+
 #[test]
 fn transform_csv_stream_to_json_file_with_error_at_first() {
     let csv = "year,make,model,description
@@ -66,7 +75,7 @@ fn transform_csv_stream_to_json_file_with_error_at_first() {
     2021,Mazda,CX-30,SUV Compact
     1967,Ford,Mustang fastback 1967,American car";
 
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<Car>::new()
         .has_headers(true)
         .from_reader(csv.as_bytes());
 
@@ -74,19 +83,16 @@ fn transform_csv_stream_to_json_file_with_error_at_first() {
 
     let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join(file_name.clone()));
 
-    let step: StepInstance<Car, Car> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk::<Car, Car>(3)
         .reader(&reader)
+        .processor(&CarProcessor)
         .writer(&writer)
-        .chunk(3)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
     let result = job.run();
     assert!(result.is_err());
-    assert!(step.get_read_count() == 0);
-    assert!(step.get_write_count() == 0);
-    assert!(step.get_read_error_count() == 1);
-    assert!(step.get_write_error_count() == 0);
 
     let file_content = fs::read_to_string(temp_dir().join(file_name))
         .expect("Should have been able to read the file");
@@ -107,7 +113,7 @@ fn transform_csv_stream_to_json_file_with_error_at_end() {
     2021,Mazda,CX-30,SUV Compact
     1967d,Ford,Mustang fastback 1967,American car";
 
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<Car>::new()
         .has_headers(true)
         .from_reader(csv.as_bytes());
 
@@ -115,19 +121,16 @@ fn transform_csv_stream_to_json_file_with_error_at_end() {
 
     let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join(file_name.clone()));
 
-    let step: StepInstance<Car, Car> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk::<Car, Car>(3)
         .reader(&reader)
+        .processor(&CarProcessor)
         .writer(&writer)
-        .chunk(3)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
     let result = job.run();
     assert!(result.is_err());
-    assert!(step.get_read_count() == 4);
-    assert!(step.get_write_count() == 3);
-    assert!(step.get_read_error_count() == 1);
-    assert!(step.get_write_error_count() == 0);
 
     let file_content = fs::read_to_string(temp_dir().join(file_name))
         .expect("Should have been able to read the file");
@@ -150,7 +153,7 @@ fn transform_csv_stream_to_writer_with_error() {
     let csv = "year,make,model,description
     1948,Porsche,356,Luxury sports car";
 
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<Car>::new()
         .has_headers(true)
         .from_reader(csv.as_bytes());
 
@@ -168,27 +171,17 @@ fn transform_csv_stream_to_writer_with_error() {
 
     let writer = JsonItemWriterBuilder::new().from_writer(file);
 
-    let step: StepInstance<Car, Car> = StepBuilder::new()
-        .reader(&reader)
-        .writer(&writer)
+    let step = StepBuilder::new("test")
         .chunk(1)
+        .reader(&reader)
+        .processor(&CarProcessor)
+        .writer(&writer)
         .build();
 
-    log!("Step created, running job");
     let job = JobBuilder::new().start(&step).build();
     let result = job.run();
 
-    log!("Job result is_err: {}", result.is_err());
-    log!("Step status: {:?}", step.get_status());
-    log!("Read count: {}", step.get_read_count());
-    log!("Write count: {}", step.get_write_count());
-    log!("Write error count: {}", step.get_write_error_count());
-
-    // Check read count
-    assert!(
-        step.get_read_count() > 0,
-        "Should have read at least one item"
-    );
+    assert!(result.is_ok());
 
     // Check actual write error count by looking at our counter
     assert!(

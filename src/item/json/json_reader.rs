@@ -70,9 +70,9 @@ enum JsonParserResult {
 /// // No more products
 /// assert!(reader.read().unwrap().is_none());
 /// ```
-pub struct JsonItemReader<R, T> {
+pub struct JsonItemReader<I, R: Read> {
     /// Phantom data to handle the generic type parameter T (item type)
-    pd: PhantomData<T>,
+    pd: PhantomData<I>,
     /// Buffered reader for the input source
     reader: RefCell<BufReader<R>>,
     /// Buffer capacity in bytes
@@ -85,7 +85,7 @@ pub struct JsonItemReader<R, T> {
     object: RefCell<Vec<u8>>,
 }
 
-impl<R: Read, T: DeserializeOwned> JsonItemReader<R, T> {
+impl<I: DeserializeOwned, R: Read> JsonItemReader<I, R> {
     /// Creates a new JSON item reader with the specified input source and buffer capacity.
     fn new(rdr: R, capacity: usize) -> Self {
         let buf_reader = BufReader::with_capacity(capacity, rdr);
@@ -169,7 +169,7 @@ impl<R: Read, T: DeserializeOwned> JsonItemReader<R, T> {
     /// - `Ok(T)` - Successfully parsed an item
     /// - `Err(JsonParserResult::NotEnded)` - Need more data from the source
     /// - `Err(JsonParserResult::ParsingError)` - Failed to parse the JSON
-    fn next(&self, buffer: &[u8]) -> Result<T, JsonParserResult> {
+    fn next(&self, buffer: &[u8]) -> Result<I, JsonParserResult> {
         while self.index.get() < buffer.len() - 1 && !self.is_end_seq(buffer) {
             if self.is_new_object(buffer) {
                 self.start_new();
@@ -210,7 +210,7 @@ impl<R: Read, T: DeserializeOwned> JsonItemReader<R, T> {
     }
 }
 
-impl<R: Read, T: DeserializeOwned> ItemReader<T> for JsonItemReader<R, T> {
+impl<I: DeserializeOwned, R: Read> ItemReader<I> for JsonItemReader<I, R> {
     /// Reads the next item from the JSON stream
     ///
     /// This method reads data from the underlying input source in chunks,
@@ -221,7 +221,7 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for JsonItemReader<R, T> {
     /// - `Ok(Some(T))` - Successfully read and deserialized an item
     /// - `Ok(None)` - End of input reached, no more items
     /// - `Err(BatchError)` - Error during reading or parsing
-    fn read(&self) -> ItemReaderResult<T> {
+    fn read(&self) -> ItemReaderResult<I> {
         let mut buf_reader = self.reader.borrow_mut();
 
         loop {
@@ -233,7 +233,7 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for JsonItemReader<R, T> {
                 return Ok(None);
             }
 
-            let result: Result<T, JsonParserResult> = self.next(buffer);
+            let result: Result<I, JsonParserResult> = self.next(buffer);
 
             if let Ok(record) = result {
                 return Ok(Some(record));
@@ -299,14 +299,14 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for JsonItemReader<R, T> {
 /// The builder can also be used to read from files or any other source that implements
 /// the `Read` trait.
 #[derive(Default)]
-pub struct JsonItemReaderBuilder<T> {
+pub struct JsonItemReaderBuilder<I> {
     /// Phantom data to handle the generic type parameter T
-    _pd: PhantomData<T>,
+    _pd: PhantomData<I>,
     /// Optional buffer capacity - defaults to 8KB if not specified
     capacity: Option<usize>,
 }
 
-impl<T: DeserializeOwned> JsonItemReaderBuilder<T> {
+impl<I: DeserializeOwned> JsonItemReaderBuilder<I> {
     /// Creates a new JSON item reader builder with default settings.
     ///
     /// The default buffer capacity is 8 KB (8192 bytes).
@@ -325,7 +325,7 @@ impl<T: DeserializeOwned> JsonItemReaderBuilder<T> {
     ///
     /// let builder = JsonItemReaderBuilder::<Record>::new();
     /// ```
-    pub fn new() -> JsonItemReaderBuilder<T> {
+    pub fn new() -> JsonItemReaderBuilder<I> {
         Self {
             _pd: PhantomData,
             capacity: Some(8 * 1024),
@@ -353,7 +353,7 @@ impl<T: DeserializeOwned> JsonItemReaderBuilder<T> {
     /// let builder = JsonItemReaderBuilder::<Record>::new()
     ///     .capacity(16 * 1024);
     /// ```
-    pub fn capacity(mut self, capacity: usize) -> JsonItemReaderBuilder<T> {
+    pub fn capacity(mut self, capacity: usize) -> JsonItemReaderBuilder<I> {
         self.capacity = Some(capacity);
         self
     }
@@ -393,7 +393,7 @@ impl<T: DeserializeOwned> JsonItemReaderBuilder<T> {
     /// assert_eq!(first_order.id, "ORD-001");
     /// assert_eq!(first_order.total, 125.50);
     /// ```
-    pub fn from_reader<R: Read>(self, rdr: R) -> JsonItemReader<R, T> {
+    pub fn from_reader<R: Read>(self, rdr: R) -> JsonItemReader<I, R> {
         // Create a new JsonItemReader with the configured capacity
         JsonItemReader::new(rdr, self.capacity.unwrap())
     }

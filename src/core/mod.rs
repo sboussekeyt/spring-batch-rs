@@ -22,8 +22,7 @@
 /// - `item`: Core interfaces for reading, processing, and writing items
 /// - `job`: Job execution and management
 /// - `step`: Step definition and execution
-use rand::distr::{Alphanumeric, SampleString};
-
+///
 /// Item processing interfaces.
 ///
 /// Contains the fundamental interfaces that define the batch processing pipeline:
@@ -49,16 +48,3 @@ pub mod job;
 /// - `StepExecution`: Execution details for a step run
 /// - `StepBuilder`: Builder for creating step instances
 pub mod step;
-
-pub mod tasklet;
-
-/// Generates a random name consisting of alphanumeric characters.
-///
-/// Used internally to create default names for jobs and steps when not explicitly provided.
-///
-/// # Returns
-///
-/// A `String` containing the generated random name of 8 characters.
-fn build_name() -> String {
-    Alphanumeric.sample_string(&mut rand::rng(), 8).clone()
-}

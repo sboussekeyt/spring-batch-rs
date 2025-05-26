@@ -5,7 +5,7 @@ use mongodb::{
 };
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
-    core::step::{Step, StepBuilder, StepInstance},
+    core::step::{Step, StepBuilder, StepExecution},
     item::csv::csv_reader::CsvItemReaderBuilder,
     item::mongodb::{mongodb_reader::WithObjectId, mongodb_writer::MongodbItemWriterBuilder},
 };
@@ -44,7 +44,7 @@ fn main() -> Result<()> {
             Shining,Stephen King
             UN SAC DE BILLES,JOSEPH JOFFO";
 
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<FormattedBook>::new()
         .has_headers(true)
         .from_reader(csv.as_bytes());
 
@@ -54,13 +54,15 @@ fn main() -> Result<()> {
         .build();
 
     // Execute process
-    let step: StepInstance<FormattedBook, FormattedBook> = StepBuilder::new()
+    let step = StepBuilder::new("write_to_mongodb")
+        .chunk::<FormattedBook, FormattedBook>(3)
         .reader(&reader)
         .writer(&writer)
-        .chunk(3)
         .build();
 
-    let _result = step.execute();
+    let mut step_execution = StepExecution::new("write_to_mongodb");
+
+    let _result = step.execute(&mut step_execution);
 
     Ok(())
 }

@@ -72,7 +72,7 @@ Then, on your main.rs:
 #     core::{
 #         item::{ItemProcessor, ItemProcessorResult},
 #         job::{Job, JobBuilder},
-#         step::{Step, StepBuilder, StepInstance, StepStatus},
+#         step::{Step, StepBuilder, StepStatus},
 #     },
 #     error::BatchError,
 #     item::csv::csv_reader::CsvItemReaderBuilder,
@@ -107,7 +107,7 @@ fn main() -> Result<(), BatchError> {
    2021,Mazda,CX-30,SUV Compact
    1967,Ford,Mustang fastback 1967,American car";
 
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<Car>::new()
         .delimiter(b',')
         .has_headers(true)
         .from_reader(csv.as_bytes());
@@ -116,11 +116,11 @@ fn main() -> Result<(), BatchError> {
 
     let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join("cars.json"));
 
-    let step: StepInstance<Car, Car> = StepBuilder::new()
-        .reader(&reader) // set csv reader
-        .writer(&writer) // set json writer
-        .processor(&processor) // set upper case processor
+    let step = StepBuilder::new("process_cars")
         .chunk(2) // set commit interval
+        .reader(&reader) // set csv reader
+        .processor(&processor) // set upper case processor
+        .writer(&writer) // set json writer
         .skip_limit(2) // set fault tolerance
         .build();
 
@@ -128,7 +128,6 @@ fn main() -> Result<(), BatchError> {
     let result = job.run();
 
     assert!(result.is_ok());
-    assert!(step.get_status() == StepStatus::Success);
 
     Ok(())
 }

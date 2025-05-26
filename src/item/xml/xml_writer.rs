@@ -31,10 +31,10 @@ use std::path::Path;
 ///
 /// // Create a writer that writes to a memory buffer
 /// let buffer = Cursor::new(Vec::new());
-/// let writer = XmlItemWriterBuilder::new()
+/// let writer = XmlItemWriterBuilder::<Person>::new()
 ///     .root_tag("people")
 ///     .item_tag("person")
-///     .from_writer::<Person, _>(buffer);
+///     .from_writer(buffer);
 ///
 /// // Create some data to write
 /// let persons = vec![
@@ -66,10 +66,10 @@ use std::path::Path;
 ///
 /// // Create a temporary file
 /// let temp_file = NamedTempFile::new().unwrap();
-/// let writer = XmlItemWriterBuilder::new()
+/// let writer = XmlItemWriterBuilder::<Person>::new()
 ///     .root_tag("people")
 ///     .item_tag("person")
-///     .from_path::<Person, _>(temp_file.path())
+///     .from_path(temp_file.path())
 ///     .unwrap();
 ///
 /// // Create some data to write
@@ -95,18 +95,18 @@ use std::path::Path;
 /// //   </person>
 /// // </people>
 /// ```
-pub struct XmlItemWriter<T, W: Write = File> {
+pub struct XmlItemWriter<O, W: Write = File> {
     writer: RefCell<Writer<BufWriter<W>>>,
     item_tag: String,
     root_tag: String,
-    _phantom: PhantomData<T>,
+    _phantom: PhantomData<O>,
 }
 
-impl<T, W: Write> ItemWriter<T> for XmlItemWriter<T, W>
+impl<O, W: Write> ItemWriter<O> for XmlItemWriter<O, W>
 where
-    T: Serialize,
+    O: Serialize,
 {
-    fn write(&self, items: &[T]) -> ItemWriterResult {
+    fn write(&self, items: &[O]) -> ItemWriterResult {
         for item in items {
             self.writer
                 .borrow_mut()
@@ -180,10 +180,10 @@ where
 /// let buffer = Cursor::new(Vec::new());
 ///
 /// // Create a writer using the builder pattern
-/// let writer = XmlItemWriterBuilder::new()
+/// let writer = XmlItemWriterBuilder::<Person>::new()
 ///     .root_tag("directory")
 ///     .item_tag("person")
-///     .from_writer::<Person, _>(buffer);
+///     .from_writer(buffer);
 ///
 /// // Create a person with nested address
 /// let person = Person {
@@ -203,12 +203,13 @@ where
 /// writer.close().unwrap();
 /// ```
 #[derive(Default)]
-pub struct XmlItemWriterBuilder {
+pub struct XmlItemWriterBuilder<O> {
     root_tag: String,
     item_tag: Option<String>,
+    _pd: PhantomData<O>,
 }
 
-impl XmlItemWriterBuilder {
+impl<O> XmlItemWriterBuilder<O> {
     /// Creates a new `XmlItemWriterBuilder` with default values.
     ///
     /// The default root tag is "root" and the default item tag is derived from
@@ -218,13 +219,20 @@ impl XmlItemWriterBuilder {
     ///
     /// ```
     /// use spring_batch_rs::item::xml::xml_writer::XmlItemWriterBuilder;
+    /// use serde::Serialize;
     ///
-    /// let builder = XmlItemWriterBuilder::new();
+    /// #[derive(Serialize)]
+    /// struct Record {
+    ///     field: String,
+    /// }
+    ///
+    /// let builder = XmlItemWriterBuilder::<Record>::new();
     /// ```
     pub fn new() -> Self {
         Self {
             root_tag: "root".to_string(),
             item_tag: None,
+            _pd: PhantomData,
         }
     }
 
@@ -236,8 +244,14 @@ impl XmlItemWriterBuilder {
     ///
     /// ```
     /// use spring_batch_rs::item::xml::xml_writer::XmlItemWriterBuilder;
+    /// use serde::Serialize;
     ///
-    /// let builder = XmlItemWriterBuilder::new()
+    /// #[derive(Serialize)]
+    /// struct Person {
+    ///     name: String,
+    /// }
+    ///
+    /// let builder = XmlItemWriterBuilder::<Person>::new()
     ///     .root_tag("people");
     /// ```
     pub fn root_tag(mut self, root_tag: &str) -> Self {
@@ -254,8 +268,14 @@ impl XmlItemWriterBuilder {
     ///
     /// ```
     /// use spring_batch_rs::item::xml::xml_writer::XmlItemWriterBuilder;
+    /// use serde::Serialize;
     ///
-    /// let builder = XmlItemWriterBuilder::new()
+    /// #[derive(Serialize)]
+    /// struct Person {
+    ///     name: String,
+    /// }
+    ///
+    /// let builder = XmlItemWriterBuilder::<Person>::new()
     ///     .root_tag("people")
     ///     .item_tag("person");
     /// ```
@@ -281,21 +301,18 @@ impl XmlItemWriterBuilder {
     ///
     /// // Create a temporary file for testing
     /// let temp_file = NamedTempFile::new().unwrap();
-    /// let writer = XmlItemWriterBuilder::new()
+    /// let writer = XmlItemWriterBuilder::<Person>::new()
     ///     .root_tag("people")
     ///     .item_tag("person")
-    ///     .from_path::<Person, _>(temp_file.path())
+    ///     .from_path(temp_file.path())
     ///     .unwrap();
     /// ```
-    pub fn from_path<T: Serialize, P: AsRef<Path>>(
-        self,
-        path: P,
-    ) -> Result<XmlItemWriter<T>, BatchError> {
+    pub fn from_path<P: AsRef<Path>>(self, path: P) -> Result<XmlItemWriter<O>, BatchError> {
         let file = File::create(path)
             .map_err(|e| BatchError::ItemWriter(format!("Failed to create XML file: {}", e)))?;
         let writer = Writer::new(BufWriter::new(file));
         let item_tag = self.item_tag.unwrap_or_else(|| {
-            std::any::type_name::<T>()
+            std::any::type_name::<O>()
                 .split("::")
                 .last()
                 .unwrap_or("item")
@@ -331,20 +348,20 @@ impl XmlItemWriterBuilder {
     ///
     /// // Create a writer that writes to an in-memory buffer
     /// let buffer = Cursor::new(Vec::new());
-    /// let writer = XmlItemWriterBuilder::new()
+    /// let writer = XmlItemWriterBuilder::<Person>::new()
     ///     .root_tag("people")
     ///     .item_tag("person")
-    ///     .from_writer::<Person, _>(buffer);
+    ///     .from_writer(buffer);
     ///
     /// // Now we can use the writer to write XML data
     /// writer.open().unwrap();
     /// writer.write(&[Person { name: "Alice".to_string(), age: 30 }]).unwrap();
     /// writer.close().unwrap();
     /// ```
-    pub fn from_writer<T: Serialize, W: Write>(self, wtr: W) -> XmlItemWriter<T, W> {
+    pub fn from_writer<W: Write>(self, wtr: W) -> XmlItemWriter<O, W> {
         let writer = Writer::new(BufWriter::new(wtr));
         let item_tag = self.item_tag.unwrap_or_else(|| {
-            std::any::type_name::<T>()
+            std::any::type_name::<O>()
                 .split("::")
                 .last()
                 .unwrap_or("item")
@@ -426,10 +443,10 @@ mod tests {
     #[test]
     fn test_xml_writer_builder() {
         let temp_file = NamedTempFile::new().unwrap();
-        let writer = XmlItemWriterBuilder::new()
+        let writer = XmlItemWriterBuilder::<Company>::new()
             .root_tag("companies")
             .item_tag("company")
-            .from_path::<Company, _>(temp_file.path())
+            .from_path(temp_file.path())
             .unwrap();
 
         let items = vec![
@@ -534,10 +551,10 @@ mod tests {
     #[test]
     fn test_in_memory_writing() {
         let buffer = Cursor::new(Vec::new());
-        let writer = XmlItemWriterBuilder::new()
+        let writer = XmlItemWriterBuilder::<SimpleItem>::new()
             .root_tag("items")
             .item_tag("item")
-            .from_writer::<SimpleItem, _>(buffer);
+            .from_writer(buffer);
 
         let items = vec![
             SimpleItem {
@@ -578,10 +595,10 @@ mod tests {
     #[test]
     fn test_empty_collection() {
         let buffer = Cursor::new(Vec::new());
-        let writer = XmlItemWriterBuilder::new()
+        let writer = XmlItemWriterBuilder::<SimpleItem>::new()
             .root_tag("items")
             .item_tag("item")
-            .from_writer::<SimpleItem, _>(buffer);
+            .from_writer(buffer);
 
         let empty_items: Vec<SimpleItem> = vec![];
 
@@ -604,9 +621,9 @@ mod tests {
         let buffer = Cursor::new(Vec::new());
 
         // Don't specify item_tag to test the default behavior
-        let writer = XmlItemWriterBuilder::new()
+        let writer = XmlItemWriterBuilder::<SimpleItem>::new()
             .root_tag("items")
-            .from_writer::<SimpleItem, _>(buffer);
+            .from_writer(buffer);
 
         let items = vec![SimpleItem {
             id: 1,
@@ -633,10 +650,10 @@ mod tests {
     #[test]
     fn test_xml_escaping() {
         let buffer = Cursor::new(Vec::new());
-        let writer = XmlItemWriterBuilder::new()
+        let writer = XmlItemWriterBuilder::<SimpleItem>::new()
             .root_tag("items")
             .item_tag("item")
-            .from_writer::<SimpleItem, _>(buffer);
+            .from_writer(buffer);
 
         // Create items with special XML characters that need escaping
         let items = vec![
@@ -676,10 +693,10 @@ mod tests {
     #[test]
     fn test_array_fields() {
         let buffer = Cursor::new(Vec::new());
-        let writer = XmlItemWriterBuilder::new()
+        let writer = XmlItemWriterBuilder::<Product>::new()
             .root_tag("products")
             .item_tag("product")
-            .from_writer::<Product, _>(buffer);
+            .from_writer(buffer);
 
         let items = vec![
             Product {
@@ -731,10 +748,10 @@ mod tests {
     fn test_error_handling_invalid_path() {
         // Try to create a writer with an invalid path
         let invalid_path = "/nonexistent/directory/file.xml";
-        let result = XmlItemWriterBuilder::new()
+        let result = XmlItemWriterBuilder::<SimpleItem>::new()
             .root_tag("items")
             .item_tag("item")
-            .from_path::<SimpleItem, _>(invalid_path);
+            .from_path(invalid_path);
 
         // Verify the result is an error
         assert!(result.is_err());

@@ -2,6 +2,7 @@ use std::{
     cell::{Cell, RefCell},
     fs::File,
     io::{BufWriter, Write},
+    marker::PhantomData,
     path::Path,
 };
 
@@ -49,16 +50,17 @@ use crate::{
 /// writer_ref.write(&products).unwrap();
 /// writer_ref.close().unwrap();
 /// ```
-pub struct JsonItemWriter<T: Write> {
+pub struct JsonItemWriter<O, W: Write> {
     /// The buffered writer for the output stream
-    stream: RefCell<BufWriter<T>>,
+    stream: RefCell<BufWriter<W>>,
     /// Whether to use pretty formatting (indentation and newlines)
     use_pretty_formatter: bool,
     /// Tracks whether we're writing the first element (to handle commas between items)
     is_first_element: Cell<bool>,
+    _phantom: PhantomData<O>,
 }
 
-impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
+impl<O: serde::Serialize, W: Write> ItemWriter<O> for JsonItemWriter<O, W> {
     /// Writes a batch of items to the JSON output.
     ///
     /// This method serializes each item to JSON, adds commas between items,
@@ -71,7 +73,7 @@ impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
     /// # Returns
     /// - `Ok(())` if successful
     /// - `Err(BatchError)` if writing fails
-    fn write(&self, items: &[R]) -> ItemWriterResult {
+    fn write(&self, items: &[O]) -> ItemWriterResult {
         let mut json_chunk = String::new();
 
         for item in items.iter() {
@@ -318,7 +320,7 @@ impl JsonItemWriterBuilder {
     /// writer_ref.write(&records).unwrap();
     /// writer_ref.close().unwrap();
     /// ```
-    pub fn from_path<P: AsRef<Path>>(self, path: P) -> JsonItemWriter<File> {
+    pub fn from_path<O, W: AsRef<Path>>(self, path: W) -> JsonItemWriter<O, File> {
         let file = File::create(path).expect("Unable to open file");
 
         let buf_writer = BufWriter::new(file);
@@ -327,6 +329,7 @@ impl JsonItemWriterBuilder {
             stream: RefCell::new(buf_writer),
             use_pretty_formatter: self.pretty_formatter,
             is_first_element: Cell::new(true),
+            _phantom: PhantomData,
         }
     }
 
@@ -371,13 +374,14 @@ impl JsonItemWriterBuilder {
     /// writer_ref.write(&events).unwrap();
     /// writer_ref.close().unwrap();
     /// ```
-    pub fn from_writer<W: Write>(self, wtr: W) -> JsonItemWriter<W> {
+    pub fn from_writer<O, W: Write>(self, wtr: W) -> JsonItemWriter<O, W> {
         let buf_writer = BufWriter::new(wtr);
 
         JsonItemWriter {
             stream: RefCell::new(buf_writer),
             use_pretty_formatter: self.pretty_formatter,
             is_first_element: Cell::new(true),
+            _phantom: PhantomData,
         }
     }
 }

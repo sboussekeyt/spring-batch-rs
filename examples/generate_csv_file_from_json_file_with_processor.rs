@@ -5,7 +5,7 @@ use spring_batch_rs::{
     core::{
         item::{ItemProcessor, ItemProcessorResult},
         job::{Job, JobBuilder},
-        step::{StepBuilder, StepInstance},
+        step::StepBuilder,
     },
     item::csv::csv_writer::CsvItemWriterBuilder,
     item::json::json_reader::JsonItemReaderBuilder,
@@ -67,11 +67,11 @@ fn main() -> Result<()> {
         .has_headers(true)
         .from_path(temp_dir().join("persons.csv"));
 
-    let step: StepInstance<Person, Person> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk::<Person, Person>(2)
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
-        .chunk(2)
         .build();
 
     let job = JobBuilder::new().start(&step).build();

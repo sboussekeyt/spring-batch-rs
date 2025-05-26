@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
-    core::step::{Step, StepBuilder, StepInstance},
+    core::step::{Step, StepBuilder, StepExecution},
     item::csv::csv_reader::CsvItemReaderBuilder,
     item::rdbc::rdbc_writer::{RdbcItemBinder, RdbcItemWriterBuilder},
 };
@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
             2021,Mazda,CX-30,SUV Compact
             1967,Ford,Mustang fastback 1967,American car";
 
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<Car>::new()
         .has_headers(true)
         .from_reader(csv.as_bytes());
 
@@ -59,13 +59,14 @@ async fn main() -> Result<()> {
         .build();
 
     // Execute process
-    let step: StepInstance<Car, Car> = StepBuilder::new()
+    let step = StepBuilder::new("insert_into_mysql")
+        .chunk::<Car, Car>(3)
         .reader(&reader)
         .writer(&writer)
-        .chunk(3)
         .build();
 
-    let _result = step.execute();
+    let mut step_execution = StepExecution::new("insert_into_mysql");
+    let _result = step.execute(&mut step_execution);
 
     Ok(())
 }
