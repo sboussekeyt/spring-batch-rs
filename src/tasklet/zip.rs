@@ -16,14 +16,23 @@
 //! ### Basic ZIP Creation
 //!
 //! ```rust
-//! use spring_batch_rs::core::step::{StepBuilder, StepExecution};
+//! use spring_batch_rs::core::step::{StepBuilder, StepExecution, Step};
 //! use spring_batch_rs::tasklet::zip::ZipTaskletBuilder;
 //! use std::path::Path;
+//! use std::fs;
+//! use std::env::temp_dir;
 //!
 //! # fn example() -> Result<(), spring_batch_rs::BatchError> {
+//! // Create test data directory and file
+//! let temp_data_dir = temp_dir().join("test_data_zip");
+//! fs::create_dir_all(&temp_data_dir).unwrap();
+//! fs::write(temp_data_dir.join("test.txt"), "test content").unwrap();
+//!
+//! let archive_path = temp_dir().join("archive_test.zip");
+//!
 //! let zip_tasklet = ZipTaskletBuilder::new()
-//!     .source_path("./data")
-//!     .target_path("./archive.zip")
+//!     .source_path(&temp_data_dir)
+//!     .target_path(&archive_path)
 //!     .compression_level(6)
 //!     .build()?;
 //!
@@ -33,6 +42,10 @@
 //!
 //! let mut step_execution = StepExecution::new("zip-files");
 //! step.execute(&mut step_execution)?;
+//!
+//! // Cleanup test files
+//! fs::remove_file(&archive_path).ok();
+//! fs::remove_dir_all(&temp_data_dir).ok();
 //! # Ok(())
 //! # }
 //! ```
@@ -74,20 +87,33 @@ use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 /// # Examples
 ///
 /// ```rust
-/// use spring_batch_rs::core::step::{StepExecution, RepeatStatus};
+/// use spring_batch_rs::core::step::{StepExecution, RepeatStatus, Tasklet};
 /// use spring_batch_rs::tasklet::zip::ZipTasklet;
 /// use spring_batch_rs::BatchError;
 /// use std::path::Path;
+/// use std::fs;
+/// use std::env::temp_dir;
 ///
 /// # fn example() -> Result<(), BatchError> {
+/// // Create test data directory and file
+/// let temp_source_dir = temp_dir().join("test_source");
+/// fs::create_dir_all(&temp_source_dir).unwrap();
+/// fs::write(temp_source_dir.join("test.txt"), "test content").unwrap();
+///
+/// let archive_path = temp_dir().join("test_archive.zip");
+///
 /// let tasklet = ZipTasklet::new(
-///     Path::new("./source"),
-///     Path::new("./archive.zip"),
+///     &temp_source_dir,
+///     &archive_path,
 /// )?;
 ///
-/// let mut step_execution = StepExecution::new("zip-step");
+/// let step_execution = StepExecution::new("zip-step");
 /// let result = tasklet.execute(&step_execution)?;
 /// assert_eq!(result, RepeatStatus::Finished);
+///
+/// // Cleanup test files
+/// fs::remove_file(&archive_path).ok();
+/// fs::remove_dir_all(&temp_source_dir).ok();
 /// # Ok(())
 /// # }
 /// ```
@@ -122,12 +148,24 @@ impl ZipTasklet {
     /// ```rust
     /// use spring_batch_rs::tasklet::zip::ZipTasklet;
     /// use std::path::Path;
+    /// use std::fs;
+    /// use std::env::temp_dir;
     ///
     /// # fn example() -> Result<(), spring_batch_rs::BatchError> {
+    /// // Create test data directory
+    /// let temp_data_dir = temp_dir().join("test_data_new");
+    /// fs::create_dir_all(&temp_data_dir).unwrap();
+    /// fs::write(temp_data_dir.join("test.txt"), "test content").unwrap();
+    ///
+    /// let backup_path = temp_dir().join("backup.zip");
+    ///
     /// let tasklet = ZipTasklet::new(
-    ///     Path::new("./data"),
-    ///     Path::new("./backup.zip"),
+    ///     &temp_data_dir,
+    ///     &backup_path,
     /// )?;
+    ///
+    /// // Cleanup test files
+    /// fs::remove_dir_all(&temp_data_dir).ok();
     /// # Ok(())
     /// # }
     /// ```
@@ -175,13 +213,25 @@ impl ZipTasklet {
     /// ```rust
     /// use spring_batch_rs::tasklet::zip::ZipTasklet;
     /// use std::path::Path;
+    /// use std::fs;
+    /// use std::env::temp_dir;
     ///
     /// # fn example() -> Result<(), spring_batch_rs::BatchError> {
+    /// // Create test data directory
+    /// let temp_data_dir = temp_dir().join("test_data_compression");
+    /// fs::create_dir_all(&temp_data_dir).unwrap();
+    /// fs::write(temp_data_dir.join("test.txt"), "test content").unwrap();
+    ///
+    /// let backup_path = temp_dir().join("backup_compression.zip");
+    ///
     /// let mut tasklet = ZipTasklet::new(
-    ///     Path::new("./data"),
-    ///     Path::new("./backup.zip"),
+    ///     &temp_data_dir,
+    ///     &backup_path,
     /// )?;
     /// tasklet.set_compression_level(9); // Maximum compression
+    ///
+    /// // Cleanup test files
+    /// fs::remove_dir_all(&temp_data_dir).ok();
     /// # Ok(())
     /// # }
     /// ```
@@ -199,13 +249,25 @@ impl ZipTasklet {
     /// ```rust
     /// use spring_batch_rs::tasklet::zip::ZipTasklet;
     /// use std::path::Path;
+    /// use std::fs;
+    /// use std::env::temp_dir;
     ///
     /// # fn example() -> Result<(), spring_batch_rs::BatchError> {
+    /// // Create test logs directory
+    /// let temp_logs_dir = temp_dir().join("test_logs");
+    /// fs::create_dir_all(&temp_logs_dir).unwrap();
+    /// fs::write(temp_logs_dir.join("app.log"), "log content").unwrap();
+    ///
+    /// let logs_zip_path = temp_dir().join("logs.zip");
+    ///
     /// let mut tasklet = ZipTasklet::new(
-    ///     Path::new("./logs"),
-    ///     Path::new("./logs.zip"),
+    ///     &temp_logs_dir,
+    ///     &logs_zip_path,
     /// )?;
     /// tasklet.set_include_pattern("*.log");
+    ///
+    /// // Cleanup test files
+    /// fs::remove_dir_all(&temp_logs_dir).ok();
     /// # Ok(())
     /// # }
     /// ```
@@ -223,13 +285,25 @@ impl ZipTasklet {
     /// ```rust
     /// use spring_batch_rs::tasklet::zip::ZipTasklet;
     /// use std::path::Path;
+    /// use std::fs;
+    /// use std::env::temp_dir;
     ///
     /// # fn example() -> Result<(), spring_batch_rs::BatchError> {
+    /// // Create test project directory
+    /// let temp_project_dir = temp_dir().join("test_project");
+    /// fs::create_dir_all(&temp_project_dir).unwrap();
+    /// fs::write(temp_project_dir.join("src.rs"), "source code").unwrap();
+    ///
+    /// let project_zip_path = temp_dir().join("project.zip");
+    ///
     /// let mut tasklet = ZipTasklet::new(
-    ///     Path::new("./project"),
-    ///     Path::new("./project.zip"),
+    ///     &temp_project_dir,
+    ///     &project_zip_path,
     /// )?;
     /// tasklet.set_exclude_pattern("target/**");
+    ///
+    /// // Cleanup test files
+    /// fs::remove_dir_all(&temp_project_dir).ok();
     /// # Ok(())
     /// # }
     /// ```
@@ -247,13 +321,25 @@ impl ZipTasklet {
     /// ```rust
     /// use spring_batch_rs::tasklet::zip::ZipTasklet;
     /// use std::path::Path;
+    /// use std::fs;
+    /// use std::env::temp_dir;
     ///
     /// # fn example() -> Result<(), spring_batch_rs::BatchError> {
+    /// // Create test data directory
+    /// let temp_data_dir = temp_dir().join("test_data_flat");
+    /// fs::create_dir_all(&temp_data_dir).unwrap();
+    /// fs::write(temp_data_dir.join("test.txt"), "test content").unwrap();
+    ///
+    /// let flat_zip_path = temp_dir().join("flat.zip");
+    ///
     /// let mut tasklet = ZipTasklet::new(
-    ///     Path::new("./data"),
-    ///     Path::new("./flat.zip"),
+    ///     &temp_data_dir,
+    ///     &flat_zip_path,
     /// )?;
     /// tasklet.set_preserve_structure(false); // Flatten all files
+    ///
+    /// // Cleanup test files
+    /// fs::remove_dir_all(&temp_data_dir).ok();
     /// # Ok(())
     /// # }
     /// ```
@@ -378,7 +464,7 @@ impl ZipTasklet {
 
         zip_writer
             .start_file(archive_path, options)
-            .map_err(|e| BatchError::Io(io::Error::new(io::ErrorKind::Other, e)))?;
+            .map_err(|e| BatchError::Io(io::Error::other(e)))?;
 
         let file_content = fs::read(file_path).map_err(BatchError::Io)?;
         zip_writer
@@ -515,7 +601,7 @@ impl Tasklet for ZipTasklet {
         // Finalize the ZIP file
         zip_writer
             .finish()
-            .map_err(|e| BatchError::Io(io::Error::new(io::ErrorKind::Other, e)))?;
+            .map_err(|e| BatchError::Io(io::Error::other(e)))?;
 
         info!(
             "ZIP compression completed successfully. {} files compressed to {}",
@@ -709,12 +795,24 @@ impl ZipTaskletBuilder {
     ///
     /// ```rust
     /// use spring_batch_rs::tasklet::zip::ZipTaskletBuilder;
+    /// use std::fs;
+    /// use std::env::temp_dir;
     ///
     /// # fn example() -> Result<(), spring_batch_rs::BatchError> {
+    /// // Create test data directory
+    /// let temp_data_dir = temp_dir().join("test_data_builder");
+    /// fs::create_dir_all(&temp_data_dir).unwrap();
+    /// fs::write(temp_data_dir.join("test.txt"), "test content").unwrap();
+    ///
+    /// let archive_path = temp_dir().join("archive_builder.zip");
+    ///
     /// let tasklet = ZipTaskletBuilder::new()
-    ///     .source_path("./data")
-    ///     .target_path("./archive.zip")
+    ///     .source_path(&temp_data_dir)
+    ///     .target_path(&archive_path)
     ///     .build()?;
+    ///
+    /// // Cleanup test files
+    /// fs::remove_dir_all(&temp_data_dir).ok();
     /// # Ok(())
     /// # }
     /// ```

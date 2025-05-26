@@ -79,13 +79,14 @@ Implement the `Tasklet` trait to create your own custom operations:
 ```rust
 use spring_batch_rs::core::step::{Tasklet, StepExecution, RepeatStatus};
 use spring_batch_rs::BatchError;
+use log::info;
 
 struct MyCustomTasklet;
 
 impl Tasklet for MyCustomTasklet {
     fn execute(&self, step_execution: &StepExecution) -> Result<RepeatStatus, BatchError> {
         // Your custom logic here
-        println!("Executing custom tasklet for step: {}", step_execution.name);
+        info!("Executing custom tasklet for step: {}", step_execution.name);
         Ok(RepeatStatus::Finished)
     }
 }
@@ -192,6 +193,9 @@ For operations that don't fit the chunk-oriented processing model, you can use t
 # };
 # #[cfg(feature = "zip")]
 # use spring_batch_rs::tasklet::zip::ZipTaskletBuilder;
+# use log::info;
+# use std::fs;
+# use std::env::temp_dir;
 
 // Custom tasklet example
 struct FileCleanupTasklet {
@@ -201,7 +205,7 @@ struct FileCleanupTasklet {
 impl Tasklet for FileCleanupTasklet {
     fn execute(&self, _step_execution: &StepExecution) -> Result<RepeatStatus, BatchError> {
         // Perform file cleanup logic here
-        println!("Cleaning up directory: {}", self.directory);
+        info!("Cleaning up directory: {}", self.directory);
         Ok(RepeatStatus::Finished)
     }
 }
@@ -219,10 +223,17 @@ fn main() -> Result<(), BatchError> {
 
     #[cfg(feature = "zip")]
     {
+        // Create test data directory and file for the example
+        let temp_data_dir = temp_dir().join("test_data");
+        fs::create_dir_all(&temp_data_dir).unwrap();
+        fs::write(temp_data_dir.join("test.txt"), "test content").unwrap();
+
+        let archive_path = temp_dir().join("archive.zip");
+
         // Create a ZIP compression tasklet (requires 'zip' feature)
         let zip_tasklet = ZipTaskletBuilder::new()
-            .source_path("./data")
-            .target_path("./archive.zip")
+            .source_path(&temp_data_dir)
+            .target_path(&archive_path)
             .compression_level(6)
             .build()?;
 
@@ -238,6 +249,10 @@ fn main() -> Result<(), BatchError> {
 
         let result = job.run();
         assert!(result.is_ok());
+
+        // Cleanup test files
+        fs::remove_file(&archive_path).ok();
+        fs::remove_dir_all(&temp_data_dir).ok();
     }
 
     #[cfg(not(feature = "zip"))]
