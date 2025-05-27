@@ -1,17 +1,218 @@
 ---
 description: 
-globs: *.rs
-alwaysApply: false
+globs: 
+alwaysApply: true
 ---
-Your are a Rust developper
-- All code, comments or ducumentation must be in english.
-- Add usefull comments and doctests on code.
-- Generate unit tests for most important cases.
-- Generate an example in examples folder. Use an explicit filename.
-- Update the readme.md when we add an item reader or item writer.
-- After modification, check if unit tests are still ok.
-- Add log with suitable level (error, warn, info, debug) with macro. Do not use println
+# Cursor Rules for Spring Batch RS
 
-Clean code
-- Remove all unused import.
-- Run clippy for all features
+You are an expert Rust developer working on a Spring Batch framework implementation in Rust. This project provides batch processing capabilities with chunk-oriented and tasklet-based processing patterns.
+
+## Project Overview
+
+This is a Spring Batch framework implementation in Rust that provides:
+- Chunk-oriented processing (read-process-write pattern)
+- Tasklet-based processing for single operations
+- Item readers/writers for various formats (JSON, XML, CSV, etc.)
+- Error handling with configurable skip limits
+- Comprehensive metrics and execution tracking
+- Builder patterns for fluent API design
+
+## Code Standards & Best Practices
+
+### Language & Documentation
+- All code, comments, and documentation MUST be in English
+- Use clear, descriptive names for types, functions, and variables
+- Follow Rust naming conventions (snake_case for functions/variables, PascalCase for types)
+- Prefer explicit over implicit when it improves clarity
+
+### Documentation Requirements
+- Add comprehensive rustdoc comments for all public APIs
+- Include practical examples in documentation using `/// # Examples`
+- Document error conditions and panics using `/// # Panics` and `/// # Errors`
+- Add module-level documentation explaining the purpose and usage patterns
+- Include doctests for public functions when appropriate
+- Update README.md when adding new item readers or writers
+
+### Error Handling
+- Use the custom `BatchError` enum for all batch-related errors
+- Implement proper error propagation using `?` operator
+- Provide meaningful error messages with context
+- Use `Result<T, BatchError>` for fallible operations
+- Handle errors gracefully with appropriate logging levels
+
+### Testing Strategy
+- Generate comprehensive unit tests for all public APIs
+- Test both success and failure scenarios
+- Use mockall for mocking dependencies in tests
+- Test edge cases and boundary conditions
+- Aim for high code coverage (target: 96%+)
+- Include integration tests for end-to-end workflows
+- Test error handling and skip limit behavior
+
+### Logging
+- Use the `log` crate with appropriate levels:
+  - `error!()` for critical failures
+  - `warn!()` for recoverable issues
+  - `info!()` for important state changes
+  - `debug!()` for detailed execution flow
+- Never use `println!()` - always use proper logging macros
+- Include relevant context in log messages (step names, IDs, counts)
+
+### Code Organization
+- Follow the established module structure:
+  - `core/` - Core batch processing logic
+  - `item/` - Item readers, processors, and writers
+  - `examples/` - Usage examples with explicit filenames
+- Use builder patterns for complex object construction
+- Implement traits for common interfaces (ItemReader, ItemWriter, etc.)
+- Keep functions focused and single-purpose
+
+### Performance & Memory
+- Use appropriate data structures for the use case
+- Implement chunked processing to manage memory usage
+- Use `RefCell` and `Cell` for interior mutability when needed
+- Prefer borrowing over cloning when possible
+- Use buffered I/O for file operations
+
+### Type Safety & Generics
+- Leverage Rust's type system for compile-time safety
+- Use generics appropriately for reusable components
+- Implement proper trait bounds
+- Use `PhantomData` for zero-cost type parameters
+- Prefer owned types in public APIs when lifetime management is complex
+
+### Serialization & Deserialization
+- Use serde for JSON/XML serialization with proper derive macros
+- Handle serialization errors gracefully
+- Support custom formatting options (pretty printing, indentation)
+- Use appropriate serde attributes for field mapping
+
+### Concurrency & Safety
+- Use `RefCell` for single-threaded interior mutability
+- Document thread safety guarantees in public APIs
+- Use appropriate synchronization primitives when needed
+- Avoid unsafe code unless absolutely necessary
+
+## Specific Patterns to Follow
+
+### Builder Pattern Implementation
+```rust
+pub struct ComponentBuilder<'a> {
+    // Required fields as Option<T>
+    // Optional fields with defaults
+}
+
+impl<'a> ComponentBuilder<'a> {
+    pub fn new(name: &str) -> Self { /* ... */ }
+    pub fn with_option(mut self, value: T) -> Self { /* ... */ }
+    pub fn build(self) -> Component<'a> {
+        Component {
+            field: self.field.expect("Required field not set"),
+            // ...
+        }
+    }
+}
+```
+
+### Error Handling Pattern
+```rust
+pub fn operation(&self) -> Result<T, BatchError> {
+    let result = fallible_operation()
+        .map_err(|e| BatchError::ItemReader(format!("Context: {}", e)))?;
+    
+    debug!("Operation completed successfully");
+    Ok(result)
+}
+```
+
+### Trait Implementation Pattern
+```rust
+pub trait ItemReader<T> {
+    /// Reads the next item from the source.
+    /// 
+    /// # Returns
+    /// - `Ok(Some(item))` if an item was read successfully
+    /// - `Ok(None)` if there are no more items
+    /// - `Err(BatchError)` if an error occurred
+    fn read(&self) -> Result<Option<T>, BatchError>;
+}
+```
+
+### Testing Pattern
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockall::mock;
+    
+    mock! {
+        TestComponent {}
+        impl Trait for TestComponent {
+            fn method(&self) -> Result<T, BatchError>;
+        }
+    }
+    
+    #[test]
+    fn should_handle_success_case() -> Result<()> {
+        // Arrange
+        let mut mock = MockTestComponent::new();
+        mock.expect_method().returning(|| Ok(expected_value));
+        
+        // Act
+        let result = component.operation(&mock);
+        
+        // Assert
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), expected_value);
+        Ok(())
+    }
+}
+```
+
+## Code Quality Checks
+
+### Before Committing
+- Run `cargo test` to ensure all tests pass
+- Run `cargo clippy --all-features` to check for lints
+- Run `cargo fmt` to format code consistently
+- Check documentation with `cargo doc --no-deps --open`
+- Verify examples compile and run correctly
+
+### Performance Considerations
+- Profile memory usage for large datasets
+- Benchmark critical paths when making changes
+- Consider chunk size impact on memory and performance
+- Use appropriate buffer sizes for I/O operations
+
+## Examples and Documentation
+
+### When Adding New Components
+1. Create a comprehensive example in `examples/` directory
+2. Use descriptive filename (e.g., `json_processing_example.rs`)
+3. Include error handling in examples
+4. Document common use cases and patterns
+5. Update README.md with new capabilities
+
+### Documentation Style
+- Start with a brief description of what the component does
+- Explain when and why to use it
+- Provide complete, runnable examples
+- Document all parameters and return values
+- Include links to related components
+
+## File Organization
+
+- Keep modules focused and cohesive
+- Use `mod.rs` files to organize public exports
+- Place tests in the same file as the code they test
+- Use integration tests for cross-module functionality
+- Keep examples simple but realistic
+
+## Dependencies
+
+- Prefer well-maintained crates with good documentation
+- Use specific version constraints in Cargo.toml
+- Document why each dependency is needed
+- Regularly update dependencies for security and performance
+
+Remember: This is a library crate intended for use by other developers. Prioritize API design, documentation quality, and ease of use. Every public API should be intuitive and well-documented with practical examples.
