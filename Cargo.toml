@@ -1,6 +1,6 @@
 [package]
 name = "spring-batch-rs"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 authors = ["Simon Boussekeyt <sboussekeyt@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -37,10 +37,11 @@ tokio = { version = "1.45", features = ["full"] }
 sqlx = { version = "0.8", optional = true, features = ["runtime-tokio"] }
 anyhow = { version = "1.0" }
 mongodb = { version = "3.2", optional = true, features = ["sync"] }
-bson = { version = "2.14", optional = true, default-features = false }
-uuid = { version = "1.16", features = ["v4"] }
+bson = { version = "2.15", optional = true, default-features = false }
+uuid = { version = "1.17", features = ["v4"] }
 quick-xml = { version = "0.37", features = ["serialize"], optional = true }
 tempfile = { version = "3.20", optional = true }
+zip = { version = "4.0", optional = true }
 
 [dev-dependencies]
 spring-batch-rs = { path = ".", features = ["tests-cfg"] }
@@ -64,12 +65,14 @@ full = [
   "rdbc-mysql",
   "rdbc-sqlite",
   "mongodb",
-  "xml"
+  "xml",
+  "zip"
 ]
 
 csv = ["dep:csv", "dep:tempfile"]
 json = []
 xml = ["dep:quick-xml", "dep:tempfile"]
+zip = ["dep:zip"]
 rdbc-postgres = ["sqlx/postgres", "rdbc"]
 rdbc-mysql = ["sqlx/mysql", "rdbc"]
 rdbc-sqlite = ["sqlx/sqlite", "rdbc"]
@@ -113,3 +116,7 @@ required-features = ["mongodb", "csv"]
 [[example]]
 name = "generate_json_file_from_xml_file"
 required-features = ["xml", "json"]
+
+[[example]]
+name = "zip_files_tasklet"
+required-features = ["zip"]

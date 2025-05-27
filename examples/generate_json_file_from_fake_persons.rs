@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::env::temp_dir;
 
 use spring_batch_rs::{
-    core::step::{Step, StepBuilder, StepInstance},
+    core::step::{Step, StepBuilder, StepExecution},
     item::{
         fake::person_reader::{Person, PersonReaderBuilder},
         json::json_writer::JsonItemWriterBuilder,
@@ -18,13 +18,14 @@ fn main() -> Result<()> {
         .pretty_formatter(false)
         .from_path(path);
 
-    let step: StepInstance<Person, Person> = StepBuilder::new()
+    let step = StepBuilder::new("generate_fake_persons")
+        .chunk::<Person, Person>(10)
         .reader(&reader)
         .writer(&writer)
-        .chunk(10)
         .build();
 
-    let _result = step.execute();
+    let mut step_execution = StepExecution::new("generate_fake_persons");
+    let _result = step.execute(&mut step_execution);
 
     Ok(())
 }

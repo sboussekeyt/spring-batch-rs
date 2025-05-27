@@ -70,13 +70,13 @@ use std::str;
 /// assert_eq!(persons[0].name, "Alice");
 /// assert_eq!(persons[1].name, "Bob");
 /// ```
-pub struct XmlItemReaderBuilder<T: DeserializeOwned> {
+pub struct XmlItemReaderBuilder<I: DeserializeOwned> {
     tag_name: Option<String>,
     capacity: usize,
-    _marker: PhantomData<T>,
+    _marker: PhantomData<I>,
 }
 
-impl<T: DeserializeOwned> Default for XmlItemReaderBuilder<T> {
+impl<I: DeserializeOwned> Default for XmlItemReaderBuilder<I> {
     fn default() -> Self {
         Self {
             tag_name: None,
@@ -86,7 +86,7 @@ impl<T: DeserializeOwned> Default for XmlItemReaderBuilder<T> {
     }
 }
 
-impl<T: DeserializeOwned> XmlItemReaderBuilder<T> {
+impl<I: DeserializeOwned> XmlItemReaderBuilder<I> {
     /// Creates a new XML item reader builder.
     ///
     /// By default, it will:
@@ -215,12 +215,12 @@ impl<T: DeserializeOwned> XmlItemReaderBuilder<T> {
     /// // No more persons
     /// assert!(reader.read().unwrap().is_none());
     /// ```
-    pub fn from_reader<R: Read + 'static>(self, reader: R) -> XmlItemReader<R, T> {
+    pub fn from_reader<R: Read + 'static>(self, reader: R) -> XmlItemReader<R, I> {
         let tag = match self.tag_name {
             Some(tag) => tag.into_bytes(),
             None => {
                 // Default tag name is derived from the type name
-                let type_str = type_name::<T>();
+                let type_str = type_name::<I>();
                 let tag_name = type_str.split("::").last().unwrap_or(type_str);
                 tag_name.as_bytes().to_vec()
             }
@@ -258,7 +258,7 @@ impl<T: DeserializeOwned> XmlItemReaderBuilder<T> {
     ///     println!("Read person: {} (id: {})", person.name, person.id);
     /// }
     /// ```
-    pub fn from_path<P: AsRef<Path>>(self, path: P) -> Result<XmlItemReader<File, T>, BatchError> {
+    pub fn from_path<P: AsRef<Path>>(self, path: P) -> Result<XmlItemReader<File, I>, BatchError> {
         let file_path = path.as_ref();
         let file = File::open(file_path).map_err(|e| {
             error!("Failed to open XML file {}: {}", file_path.display(), e);
@@ -334,14 +334,14 @@ impl<T: DeserializeOwned> XmlItemReaderBuilder<T> {
 /// assert_eq!(person.address.city, "Springfield");
 /// assert_eq!(person.address.country, "USA");
 /// ```
-pub struct XmlItemReader<R, T> {
+pub struct XmlItemReader<R, I> {
     reader: RefCell<XmlReader<BufReader<R>>>,
     buffer: RefCell<Vec<u8>>,
     item_tag_name: Vec<u8>,
-    _marker: PhantomData<T>,
+    _marker: PhantomData<I>,
 }
 
-impl<R: Read, T: DeserializeOwned> XmlItemReader<R, T> {
+impl<R: Read, I: DeserializeOwned> XmlItemReader<R, I> {
     /// Creates a new XML item reader with a specific tag name.
     fn with_tag<S: AsRef<[u8]>>(rdr: R, capacity: usize, tag: S) -> Self {
         let buf_reader = BufReader::with_capacity(capacity, rdr);
@@ -357,8 +357,8 @@ impl<R: Read, T: DeserializeOwned> XmlItemReader<R, T> {
     }
 }
 
-impl<R: Read, T: DeserializeOwned> ItemReader<T> for XmlItemReader<R, T> {
-    fn read(&self) -> ItemReaderResult<T> {
+impl<R: Read, I: DeserializeOwned> ItemReader<I> for XmlItemReader<R, I> {
+    fn read(&self) -> ItemReaderResult<I> {
         let mut reader = self.reader.borrow_mut();
         let mut buffer = self.buffer.borrow_mut();
 
@@ -477,7 +477,10 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for XmlItemReader<R, T> {
                                     "Failed to deserialize XML item: {} from: {}",
                                     e, xml_string
                                 );
-                                continue; // Skip this item and try the next one
+                                return Err(BatchError::ItemReader(format!(
+                                    "Failed to deserialize XML item: {} from: {}",
+                                    e, xml_string
+                                )));
                             }
                         }
                     }
@@ -496,7 +499,7 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for XmlItemReader<R, T> {
 mod tests {
     use super::*;
     use serde::{Deserialize, Serialize};
-    use std::io::Write;
+    use std::io::{Cursor, Write};
     use tempfile::NamedTempFile;
 
     // This tells serde to deserialize from the XML tag "TestItem"
@@ -928,8 +931,7 @@ mod tests {
 
         // Should return an error when trying to deserialize
         let result = reader.read();
-        assert!(result.is_ok()); // The outer result is Ok
-        assert!(result.unwrap().is_none()); // But it should have skipped the bad item
+        assert!(result.is_err()); // Should return an error for type mismatch
     }
 
     #[test]
@@ -983,5 +985,212 @@ mod tests {
         assert_eq!(item.value, 100);
 
         assert!(reader.read().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_xml_reader_with_invalid_xml() {
+        let invalid_xml = r#"
+        <items>
+            <item>
+                <name>Invalid Item</name>
+                <value>123
+            </item>
+        </items>
+        "#;
+
+        let cursor = Cursor::new(invalid_xml);
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("item")
+            .from_reader(cursor);
+
+        // Should handle malformed XML gracefully
+        let result = reader.read();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_xml_reader_with_empty_file() {
+        let empty_xml = "";
+        let cursor = Cursor::new(empty_xml);
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("item")
+            .from_reader(cursor);
+
+        let result = reader.read();
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_xml_reader_with_no_matching_tags() {
+        let xml_data = r#"
+        <root>
+            <other>
+                <name>Not an item</name>
+                <value>123</value>
+            </other>
+        </root>
+        "#;
+
+        let cursor = Cursor::new(xml_data);
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("item")
+            .from_reader(cursor);
+
+        let result = reader.read();
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_xml_reader_builder_with_custom_capacity() {
+        let xml_data = r#"
+        <items>
+            <item>
+                <name>Test Item</name>
+                <value>123</value>
+            </item>
+        </items>
+        "#;
+
+        let cursor = Cursor::new(xml_data);
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("item")
+            .capacity(2048)
+            .from_reader(cursor);
+
+        let result = reader.read();
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_some());
+    }
+
+    #[test]
+    fn test_xml_reader_with_nested_elements() {
+        #[derive(Debug, Deserialize, PartialEq)]
+        struct NestedItem {
+            name: String,
+            value: i32,
+        }
+
+        let xml_data = r#"
+        <items>
+            <nested>
+                <name>Nested Item</name>
+                <value>456</value>
+            </nested>
+        </items>
+        "#;
+
+        let cursor = Cursor::new(xml_data);
+        let reader = XmlItemReaderBuilder::<NestedItem>::new()
+            .tag("nested")
+            .from_reader(cursor);
+
+        let result = reader.read();
+        assert!(result.is_ok());
+        let item = result.unwrap().unwrap();
+        assert_eq!(item.name, "Nested Item");
+        assert_eq!(item.value, 456);
+    }
+
+    #[test]
+    fn test_xml_reader_with_multiple_reads() {
+        let xml_data = r#"
+        <items>
+            <item>
+                <name>First Item</name>
+                <value>100</value>
+            </item>
+            <item>
+                <name>Second Item</name>
+                <value>200</value>
+            </item>
+            <item>
+                <name>Third Item</name>
+                <value>300</value>
+            </item>
+        </items>
+        "#;
+
+        let cursor = Cursor::new(xml_data);
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("item")
+            .from_reader(cursor);
+
+        // Read all items
+        let mut items = Vec::new();
+        while let Some(item) = reader.read().unwrap() {
+            items.push(item);
+        }
+
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].name, "First Item");
+        assert_eq!(items[1].name, "Second Item");
+        assert_eq!(items[2].name, "Third Item");
+    }
+
+    #[test]
+    fn test_xml_reader_with_whitespace_handling() {
+        let xml_data = r#"
+        <items>
+            <item>
+                <name>Whitespace Item</name>
+                <value>789</value>
+            </item>
+        </items>
+        "#;
+
+        let cursor = Cursor::new(xml_data);
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("item")
+            .from_reader(cursor);
+
+        let result = reader.read();
+        assert!(result.is_ok());
+        let item = result.unwrap().unwrap();
+        assert_eq!(item.name, "Whitespace Item");
+        assert_eq!(item.value, 789);
+    }
+
+    #[test]
+    fn test_xml_reader_from_path_error_handling() {
+        let result = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("item")
+            .from_path("/nonexistent/path/file.xml");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_xml_reader_with_special_characters() {
+        let xml_data = r#"
+        <items>
+            <item>
+                <name>Special &amp; Characters &lt;&gt;</name>
+                <value>999</value>
+            </item>
+        </items>
+        "#;
+
+        let cursor = Cursor::new(xml_data);
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("item")
+            .from_reader(cursor);
+
+        let result = reader.read();
+        assert!(result.is_ok());
+        let item = result.unwrap().unwrap();
+        assert_eq!(item.name, "Special & Characters <>");
+        assert_eq!(item.value, 999);
+    }
+
+    #[test]
+    fn test_xml_reader_builder_default() {
+        let builder1 = XmlItemReaderBuilder::<TestItem>::new();
+        let builder2 = XmlItemReaderBuilder::<TestItem>::default();
+
+        // Both should have the same default values
+        assert_eq!(builder1.capacity, builder2.capacity);
+        assert_eq!(builder1.tag_name, builder2.tag_name);
     }
 }

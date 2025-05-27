@@ -2,3 +2,5 @@
 /.idea
 *.iml
 .DS_Store
+src/item/xml/xml_reader.rs
+coverage/

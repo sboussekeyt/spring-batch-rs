@@ -1,6 +1,6 @@
 use csv::{ReaderBuilder, StringRecordsIntoIter, Terminator, Trim};
 use serde::de::DeserializeOwned;
-use std::{cell::RefCell, fs::File, io::Read, path::Path};
+use std::{cell::RefCell, fs::File, io::Read, marker::PhantomData, path::Path};
 
 use crate::{
     core::item::{ItemReader, ItemReaderResult},
@@ -45,7 +45,7 @@ use crate::{
 /// ";
 ///
 /// // Build a reader
-/// let reader = CsvItemReaderBuilder::new()
+/// let reader = CsvItemReaderBuilder::<Record>::new()
 ///     .has_headers(true)
 ///     .from_reader(data.as_bytes());
 ///
@@ -62,7 +62,7 @@ use crate::{
 /// // No more records - explicitly use Record type again
 /// assert!(ItemReader::<Record>::read(&reader).unwrap().is_none());
 /// ```
-pub struct CsvItemReader<R> {
+pub struct CsvItemReader<R: Read> {
     /// Iterator over the CSV records
     ///
     /// Uses `RefCell` to provide interior mutability so we can iterate
@@ -71,7 +71,7 @@ pub struct CsvItemReader<R> {
     records: RefCell<StringRecordsIntoIter<R>>,
 }
 
-impl<R: Read, T: DeserializeOwned> ItemReader<T> for CsvItemReader<R> {
+impl<I: DeserializeOwned, R: Read> ItemReader<I> for CsvItemReader<R> {
     /// Reads the next item from the CSV file.
     ///
     /// This method reads and deserializes the next row from the CSV source.
@@ -103,7 +103,7 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for CsvItemReader<R> {
     /// }
     ///
     /// let data = "name,age\nAlice,30\nBob,25";
-    /// let reader = CsvItemReaderBuilder::new()
+    /// let reader = CsvItemReaderBuilder::<Person>::new()
     ///     .has_headers(true)
     ///     .from_reader(data.as_bytes());
     ///
@@ -117,13 +117,13 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for CsvItemReader<R> {
     /// assert_eq!(people[0].name, "Alice");
     /// assert_eq!(people[0].age, 30);
     /// ```
-    fn read(&self) -> ItemReaderResult<T> {
+    fn read(&self) -> ItemReaderResult<I> {
         // Try to get the next CSV record from the iterator
         if let Some(result) = self.records.borrow_mut().next() {
             match result {
                 Ok(string_record) => {
                     // Attempt to deserialize the record to type T
-                    let result: Result<T, _> = string_record.deserialize(None);
+                    let result: Result<I, _> = string_record.deserialize(None);
 
                     match result {
                         Ok(record) => Ok(Some(record)),
@@ -165,24 +165,31 @@ impl<R: Read, T: DeserializeOwned> ItemReader<T> for CsvItemReader<R> {
 /// use serde::Deserialize;
 /// use csv::Terminator;
 ///
+/// #[derive(Deserialize)]
+/// struct Person {
+///     name: String,
+///     age: u8,
+/// }
+///
 /// // Custom CSV configuration
-/// let reader = CsvItemReaderBuilder::new()
+/// let reader = CsvItemReaderBuilder::<Person>::new()
 ///     .delimiter(b';')  // Use semicolon as delimiter
 ///     .terminator(Terminator::Any(b'\n'))  // Unix line endings
 ///     .has_headers(true)  // First row contains headers
 ///     .from_reader("name;age\nAlice;30".as_bytes());
 /// ```
 #[derive(Default)]
-pub struct CsvItemReaderBuilder {
+pub struct CsvItemReaderBuilder<I> {
     /// The delimiter character (default: comma ',')
     delimiter: u8,
     /// The line terminator (default: CRLF)
     terminator: Terminator,
     /// Whether the CSV has headers (default: false)
     has_headers: bool,
+    _pd: PhantomData<I>,
 }
 
-impl CsvItemReaderBuilder {
+impl<I> CsvItemReaderBuilder<I> {
     /// Creates a new `CsvItemReaderBuilder` with default configuration.
     ///
     /// Default settings:
@@ -194,14 +201,21 @@ impl CsvItemReaderBuilder {
     ///
     /// ```
     /// use spring_batch_rs::item::csv::csv_reader::CsvItemReaderBuilder;
+    /// use serde::Deserialize;
     ///
-    /// let builder = CsvItemReaderBuilder::new();
+    /// #[derive(Deserialize)]
+    /// struct Record {
+    ///     field: String,
+    /// }
+    ///
+    /// let builder = CsvItemReaderBuilder::<Record>::new();
     /// ```
     pub fn new() -> Self {
         Self {
             delimiter: b',',
             terminator: Terminator::CRLF,
             has_headers: false,
+            _pd: PhantomData,
         }
     }
 
@@ -214,13 +228,19 @@ impl CsvItemReaderBuilder {
     ///
     /// ```
     /// use spring_batch_rs::item::csv::csv_reader::CsvItemReaderBuilder;
+    /// use serde::Deserialize;
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Record {
+    ///     field: String,
+    /// }
     ///
     /// // Use tab as delimiter
-    /// let builder = CsvItemReaderBuilder::new()
+    /// let builder = CsvItemReaderBuilder::<Record>::new()
     ///     .delimiter(b'\t');
     ///
     /// // Use semicolon as delimiter
-    /// let builder = CsvItemReaderBuilder::new()
+    /// let builder = CsvItemReaderBuilder::<Record>::new()
     ///     .delimiter(b';');
     /// ```
     pub fn delimiter(mut self, delimiter: u8) -> Self {
@@ -243,9 +263,15 @@ impl CsvItemReaderBuilder {
     /// ```
     /// use spring_batch_rs::item::csv::csv_reader::CsvItemReaderBuilder;
     /// use csv::Terminator;
+    /// use serde::Deserialize;
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Record {
+    ///     field: String,
+    /// }
     ///
     /// // Use Unix-style line endings (LF)
-    /// let builder = CsvItemReaderBuilder::new()
+    /// let builder = CsvItemReaderBuilder::<Record>::new()
     ///     .terminator(Terminator::Any(b'\n'));
     /// ```
     pub fn terminator(mut self, terminator: Terminator) -> Self {
@@ -271,13 +297,19 @@ impl CsvItemReaderBuilder {
     ///
     /// ```
     /// use spring_batch_rs::item::csv::csv_reader::CsvItemReaderBuilder;
+    /// use serde::Deserialize;
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Record {
+    ///     field: String,
+    /// }
     ///
     /// // Enable headers (first row is column names)
-    /// let builder = CsvItemReaderBuilder::new()
+    /// let builder = CsvItemReaderBuilder::<Record>::new()
     ///     .has_headers(true);
     ///
     /// // Disable headers (all rows are data)
-    /// let builder = CsvItemReaderBuilder::new()
+    /// let builder = CsvItemReaderBuilder::<Record>::new()
     ///     .has_headers(false);
     /// ```
     pub fn has_headers(mut self, yes: bool) -> Self {
@@ -318,13 +350,13 @@ impl CsvItemReaderBuilder {
     ///
     /// // Read from a string
     /// let data = "id,name\n1,Alice\n2,Bob";
-    /// let reader = CsvItemReaderBuilder::new()
+    /// let reader = CsvItemReaderBuilder::<Record>::new()
     ///     .has_headers(true)
     ///     .from_reader(data.as_bytes());
     ///
     /// // Or read from a Cursor
     /// let cursor = Cursor::new("id,name\n1,Alice\n2,Bob");
-    /// let reader = CsvItemReaderBuilder::new()
+    /// let reader = CsvItemReaderBuilder::<Record>::new()
     ///     .has_headers(true)
     ///     .from_reader(cursor);
     /// ```
@@ -377,7 +409,7 @@ impl CsvItemReaderBuilder {
     /// }
     ///
     /// // Read from a file
-    /// let reader = CsvItemReaderBuilder::new()
+    /// let reader = CsvItemReaderBuilder::<Record>::new()
     ///     .has_headers(true)
     ///     .from_path("data.csv");
     ///
@@ -435,7 +467,7 @@ mod tests {
         Boston,United States,4628910
         Concord,United States,42695";
 
-        let reader = CsvItemReaderBuilder::new()
+        let reader = CsvItemReaderBuilder::<City>::new()
             .has_headers(true)
             .delimiter(b',')
             .from_reader(data.as_bytes());
@@ -463,7 +495,7 @@ mod tests {
         Boston,United States,4628910
         Concord,United States,42695";
 
-        let reader = CsvItemReaderBuilder::new()
+        let reader = CsvItemReaderBuilder::<City>::new()
             .has_headers(true)
             .from_reader(data.as_bytes());
 
@@ -504,7 +536,7 @@ mod tests {
         temp_file.write_all(csv_content.as_bytes())?;
 
         // Create reader from file path
-        let reader = CsvItemReaderBuilder::new()
+        let reader = CsvItemReaderBuilder::<City>::new()
             .has_headers(true)
             .from_path(temp_file.path());
 
@@ -526,7 +558,7 @@ mod tests {
         // Test with semicolon delimiter and LF terminator
         let data = "city;country;pop\nBerlin;Germany;3645000\nMunich;Germany;1472000";
 
-        let reader = CsvItemReaderBuilder::new()
+        let reader = CsvItemReaderBuilder::<City>::new()
             .has_headers(true)
             .delimiter(b';')
             .terminator(Terminator::Any(b'\n'))
@@ -554,7 +586,7 @@ mod tests {
 
         let data = "Tokyo,Japan,13960000\nOsaka,Japan,2691000";
 
-        let reader = CsvItemReaderBuilder::new()
+        let reader = CsvItemReaderBuilder::<Record>::new()
             .has_headers(false)
             .from_reader(data.as_bytes());
 
@@ -588,7 +620,7 @@ mod tests {
         // Malformed data - "not_a_number" isn't a valid u32
         let data = "city,country,pop\nMilan,Italy,not_a_number";
 
-        let reader = CsvItemReaderBuilder::new()
+        let reader = CsvItemReaderBuilder::<City>::new()
             .has_headers(true)
             .from_reader(data.as_bytes());
 
@@ -602,7 +634,7 @@ mod tests {
     fn test_empty_file() -> Result<(), Box<dyn Error>> {
         let data = "";
 
-        let reader = CsvItemReaderBuilder::new()
+        let reader = CsvItemReaderBuilder::<City>::new()
             .has_headers(false)
             .from_reader(data.as_bytes());
 
@@ -616,7 +648,7 @@ mod tests {
     fn test_headers_only() -> Result<(), Box<dyn Error>> {
         let data = "city,country,pop";
 
-        let reader = CsvItemReaderBuilder::new()
+        let reader = CsvItemReaderBuilder::<City>::new()
             .has_headers(true)
             .from_reader(data.as_bytes());
 

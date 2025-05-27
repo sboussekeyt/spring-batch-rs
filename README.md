@@ -23,10 +23,11 @@ Inspired by the robust Java Spring Batch framework, **Spring Batch for Rust** br
 Understanding these core components will help you get started:
 
 - **Job:** Represents the entire batch process. A `Job` is composed of one or more `Step`s.
-- **Step:** A domain object that encapsulates an independent, sequential phase of a batch job. Every `Job` is composed of one or more `Step`s. A `Step` typically involves reading data, processing it, and writing it out.
+- **Step:** A domain object that encapsulates an independent, sequential phase of a batch job. Every `Job` is composed of one or more `Step`s. A `Step` can either process data in chunks (chunk-oriented processing) or execute a single task (tasklet).
 - **ItemReader:** An abstraction that represents the retrieval of input for a `Step`, one item at a time.
 - **ItemProcessor:** An abstraction that represents the business logic of processing an item. The item read by the `ItemReader` is passed to the `ItemProcessor`.
 - **ItemWriter:** An abstraction that represents the output of a `Step`, one batch or chunk of items at a time.
+- **Tasklet:** An abstraction that represents a single task or operation that can be executed as part of a step. Tasklets are useful for operations that don't fit the chunk-oriented processing model, such as file operations, database maintenance, or custom business logic.
 
 ## Features
 
@@ -41,9 +42,55 @@ The crate is modular, allowing you to enable only the features you need:
 | `json`          | Enables JSON `ItemReader` and `ItemWriter`.                       |
 | `csv`           | Enables CSV `ItemReader` and `ItemWriter`.                        |
 | `xml`           | Enables XML `ItemReader` and `ItemWriter`.                        |
+| `zip`           | Enables ZIP compression `Tasklet` for file archiving.             |
 | `fake`          | Enables a fake `ItemReader`, useful for generating mock datasets. |
 | `logger`        | Enables a logger `ItemWriter`, useful for debugging purposes.     |
 | `full`          | Enables all available features.                                   |
+
+## Processing Models
+
+Spring Batch for Rust supports two main processing models:
+
+### Chunk-Oriented Processing
+
+This is the traditional batch processing model where data is read, processed, and written in configurable chunks. It's ideal for:
+
+- Processing large datasets
+- ETL operations
+- Data transformations
+- Scenarios where you need transaction boundaries and fault tolerance
+
+### Tasklet Processing
+
+Tasklets provide a simple interface for executing single tasks that don't fit the chunk-oriented model. They're perfect for:
+
+- File operations (compression, cleanup, archiving)
+- Database maintenance tasks
+- System administration operations
+- Custom business logic that operates on entire datasets
+
+#### Built-in Tasklets
+
+- **ZipTasklet**: Compress files and directories into ZIP archives with configurable compression levels and file filtering
+
+#### Creating Custom Tasklets
+
+Implement the `Tasklet` trait to create your own custom operations:
+
+```rust
+use spring_batch_rs::core::step::{Tasklet, StepExecution, RepeatStatus};
+use spring_batch_rs::BatchError;
+
+struct MyCustomTasklet;
+
+impl Tasklet for MyCustomTasklet {
+    fn execute(&self, step_execution: &StepExecution) -> Result<RepeatStatus, BatchError> {
+        // Your custom logic here
+        println!("Executing custom tasklet for step: {}", step_execution.name);
+        Ok(RepeatStatus::Finished)
+    }
+}
+```
 
 ## Roadmap
 
@@ -67,12 +114,14 @@ Make sure to activate the features relevant to your needs. For example, if you n
 
 ```toml
 [dependencies]
-spring-batch-rs = { version = "<version>", features = ["<full|json|csv|fake|logger>"] }
+spring-batch-rs = { version = "<version>", features = ["<full|json|csv|xml|zip|logger>"] }
 ```
 
 Then, on your main.rs:
 
-```rust,no_run
+### Chunk-Oriented Processing Example
+
+```rust
 fn main() -> Result<(), BatchError> {
     let csv = "year,make,model,description
    1948,Porsche,356,Luxury sports car
@@ -89,11 +138,11 @@ fn main() -> Result<(), BatchError> {
 
     let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join("cars.json"));
 
-    let step: Step<Car, Car> = StepBuilder::new()
+    let step: Step<Car, Car> = StepBuilder::new("my_step")
+        .chunk::<Car, Car>(2) // set commit interval
         .reader(&reader) // set csv reader
-        .writer(&writer) // set json writer
         .processor(&processor) // set upper case processor
-        .chunk(2) // set commit interval
+        .writer(&writer) // set json writer
         .skip_limit(2) // set fault tolerance
         .build();
 
@@ -101,7 +150,68 @@ fn main() -> Result<(), BatchError> {
     let result = job.run();
 
     assert!(result.is_ok());
-    assert!(step.get_status() == StepStatus::Success);
+
+    Ok(())
+}
+```
+
+### Tasklet Processing Example
+
+For operations that don't fit the chunk-oriented processing model, you can use tasklets:
+
+```rust
+use spring_batch_rs::{
+    core::{
+        job::{Job, JobBuilder},
+        step::{StepBuilder, StepExecution, RepeatStatus, Tasklet},
+    },
+    tasklet::zip::ZipTaskletBuilder,
+    BatchError,
+};
+
+// Custom tasklet example
+struct FileCleanupTasklet {
+    directory: String,
+}
+
+impl Tasklet for FileCleanupTasklet {
+    fn execute(&self, _step_execution: &StepExecution) -> Result<RepeatStatus, BatchError> {
+        // Perform file cleanup logic here
+        println!("Cleaning up directory: {}", self.directory);
+        Ok(RepeatStatus::Finished)
+    }
+}
+
+fn main() -> Result<(), BatchError> {
+    // Create a cleanup tasklet
+    let cleanup_tasklet = FileCleanupTasklet {
+        directory: "/tmp/batch_files".to_string(),
+    };
+
+    // Create a ZIP compression tasklet (requires 'zip' feature)
+    let zip_tasklet = ZipTaskletBuilder::new()
+        .source_path("./data")
+        .target_path("./archive.zip")
+        .compression_level(6)
+        .build()?;
+
+    // Create steps using tasklets
+    let cleanup_step = StepBuilder::new("cleanup")
+        .tasklet(&cleanup_tasklet)
+        .build();
+
+    let zip_step = StepBuilder::new("compress")
+        .tasklet(&zip_tasklet)
+        .build();
+
+    // Create and run job with multiple steps
+    let job = JobBuilder::new()
+        .start(Box::new(&cleanup_step))
+        .next(Box::new(&zip_step))
+        .build();
+
+    let result = job.run();
+    assert!(result.is_ok());
 
     Ok(())
 }
@@ -119,6 +229,7 @@ Explore more use cases and advanced configurations in our `examples` directory. 
 - [Log records from Postgres database](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/log_records_from_postgres_database.rs)
 - [Read records from MongoDb database](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/read_records_from_mongodb_database.rs)
 - [Write records to MongoDb database](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/write_records_to_mongodb_database.rs)
+- [ZIP files using tasklet](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/zip_files_tasklet.rs)
 
 ### Running the Examples
 

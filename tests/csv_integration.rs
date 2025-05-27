@@ -12,12 +12,12 @@ use spring_batch_rs::{
     core::{
         item::{ItemProcessor, ItemProcessorResult},
         job::{Job, JobBuilder},
-        step::{Step, StepBuilder, StepInstance, StepStatus},
+        step::{StepBuilder, StepStatus},
     },
-    item::csv::csv_reader::CsvItemReaderBuilder,
-    item::csv::csv_writer::CsvItemWriterBuilder,
-    item::xml::xml_reader::XmlItemReaderBuilder,
-    item::xml::xml_writer::XmlItemWriterBuilder,
+    item::{
+        csv::{csv_reader::CsvItemReaderBuilder, csv_writer::CsvItemWriterBuilder},
+        xml::{xml_reader::XmlItemReaderBuilder, xml_writer::XmlItemWriterBuilder},
+    },
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -68,7 +68,7 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
     let file = File::open(&input_path).expect("Unable to open CSV file");
 
     // Create CSV reader
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<Product>::new()
         .has_headers(true)
         .from_reader(file);
 
@@ -83,11 +83,11 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
         .from_path(&output_path);
 
     // Build and run the job
-    let step: StepInstance<Product, Product> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk::<Product, Product>(2)
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
-        .chunk(2)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
@@ -95,11 +95,6 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
 
     // Verify job results
     assert!(result.is_ok());
-    assert_eq!(step.get_status(), StepStatus::Success);
-    assert_eq!(step.get_read_count(), 3);
-    assert_eq!(step.get_write_count(), 3);
-    assert_eq!(step.get_read_error_count(), 0);
-    assert_eq!(step.get_write_error_count(), 0);
 
     // Read and verify the CSV content
     let csv_content =
@@ -148,21 +143,25 @@ P003,Smart Watch,149.99,"Fitness tracker",true"#;
 
     // Create a reader with skip limit to handle errors
     let file = File::open(&csv_path).expect("Unable to open CSV file");
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<Product>::new()
         .has_headers(true)
         .from_reader(file);
 
     // Create a simple memory buffer writer to capture output
     let buffer = Cursor::new(Vec::new());
-    let writer = CsvItemWriterBuilder::new()
+    let writer = CsvItemWriterBuilder::<Product>::new()
         .has_headers(true)
         .from_writer(buffer);
 
+    // Create processor to transform products
+    let processor = ProductProcessor::default();
+
     // Build step with skip limit of 1 (to tolerate one error)
-    let step: StepInstance<Product, Product> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk::<Product, Product>(1)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
-        .chunk(1)
         .skip_limit(1) // Allow one error to be skipped
         .build();
 
@@ -171,11 +170,15 @@ P003,Smart Watch,149.99,"Fitness tracker",true"#;
 
     // Verify job completed successfully despite the errors
     assert!(result.is_ok());
-    assert_eq!(step.get_status(), StepStatus::Success);
 
-    // Some valid products should be processed
-    assert!(step.get_read_count() > 0);
-    assert!(step.get_write_count() > 0);
+    let step_execution = job.get_step_execution("test").unwrap();
+
+    assert!(step_execution.status == StepStatus::Success);
+    assert!(step_execution.read_count == 2);
+    assert!(step_execution.write_count == 2);
+    assert!(step_execution.process_count == 2);
+    assert!(step_execution.read_error_count == 1);
+    assert!(step_execution.write_error_count == 0);
 
     // Clean up
     fs::remove_file(&csv_path).ok();
@@ -196,22 +199,26 @@ P003,Smart Watch,149.99,"Fitness tracker",true"#;
     let file = File::open(&input_path).expect("Unable to open CSV file");
 
     // Create CSV reader
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<Product>::new()
         .has_headers(true)
         .from_reader(file);
 
+    // Create processor to transform products
+    let processor = ProductProcessor::default();
+
     // Create CSV writer with semicolon delimiter
     let output_path = temp_dir().join(format!("output_{}.csv", file_name));
-    let writer = CsvItemWriterBuilder::new()
+    let writer = CsvItemWriterBuilder::<Product>::new()
         .has_headers(true)
         .delimiter(b';')
         .from_path(&output_path);
 
     // Build and run the job
-    let step: StepInstance<Product, Product> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk::<Product, Product>(2)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
-        .chunk(2)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
@@ -219,7 +226,15 @@ P003,Smart Watch,149.99,"Fitness tracker",true"#;
 
     // Verify job results
     assert!(result.is_ok());
-    assert_eq!(step.get_status(), StepStatus::Success);
+
+    let step_execution = job.get_step_execution("test").unwrap();
+
+    assert!(step_execution.status == StepStatus::Success);
+    assert!(step_execution.read_count == 3);
+    assert!(step_execution.write_count == 3);
+    assert!(step_execution.process_count == 3);
+    assert!(step_execution.read_error_count == 0);
+    assert!(step_execution.write_error_count == 0);
 
     // Read and verify the CSV content
     let csv_content =
@@ -250,7 +265,7 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
     let file = File::open(&input_path).expect("Unable to open CSV file");
 
     // Create CSV reader
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<Product>::new()
         .has_headers(true)
         .from_reader(file);
 
@@ -259,18 +274,18 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
 
     // Create XML writer
     let output_path = temp_dir().join(format!("output_{}.xml", file_name));
-    let writer = XmlItemWriterBuilder::new()
+    let writer = XmlItemWriterBuilder::<Product>::new()
         .root_tag("products")
         .item_tag("product")
-        .from_path::<Product, _>(&output_path)
+        .from_path(&output_path)
         .expect("Failed to create XML writer");
 
     // Build and run the job
-    let step: StepInstance<Product, Product> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk(2)
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
-        .chunk(2)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
@@ -278,9 +293,6 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
 
     // Verify job results
     assert!(result.is_ok());
-    assert_eq!(step.get_status(), StepStatus::Success);
-    assert_eq!(step.get_read_count(), 3);
-    assert_eq!(step.get_write_count(), 3);
 
     // Read and verify the XML content
     let xml_content =
@@ -345,17 +357,17 @@ fn transform_from_xml_to_csv() {
 
     // Create CSV writer
     let output_path = temp_dir().join(format!("output_{}.csv", file_name));
-    let writer = CsvItemWriterBuilder::new()
+    let writer = CsvItemWriterBuilder::<Product>::new()
         .has_headers(true)
         .delimiter(b',')
         .from_path(&output_path);
 
     // Build and run the job
-    let step: StepInstance<Product, Product> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk(2)
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
-        .chunk(2)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
@@ -363,10 +375,6 @@ fn transform_from_xml_to_csv() {
 
     // Verify job results
     assert!(result.is_ok());
-    assert_eq!(step.get_status(), StepStatus::Success);
-    assert_eq!(step.get_read_count(), 3);
-    assert_eq!(step.get_write_count(), 3);
-
     // Read and verify the CSV content
     let csv_content =
         read_to_string(&output_path).expect("Should have been able to read the CSV file");
@@ -398,23 +406,23 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
 
     // Step 1: CSV to XML
     let file = File::open(&csv_path).expect("Unable to open CSV file");
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<Product>::new()
         .has_headers(true)
         .from_reader(file);
 
     let xml_path = temp_dir().join(format!("intermediate_{}.xml", file_name));
-    let writer = XmlItemWriterBuilder::new()
+    let writer = XmlItemWriterBuilder::<Product>::new()
         .root_tag("products")
         .item_tag("product")
-        .from_path::<Product, _>(&xml_path)
+        .from_path(&xml_path)
         .expect("Failed to create XML writer");
 
     let processor1 = ProductProcessor::default();
-    let step1: StepInstance<Product, Product> = StepBuilder::new()
+    let step1 = StepBuilder::new("test")
+        .chunk::<Product, Product>(2)
         .reader(&reader)
         .processor(&processor1)
         .writer(&writer)
-        .chunk(2)
         .build();
 
     let job1 = JobBuilder::new().start(&step1).build();
@@ -434,11 +442,11 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
         .from_path(&final_csv_path);
 
     let processor2 = ProductProcessor::default();
-    let step2: StepInstance<Product, Product> = StepBuilder::new()
+    let step2 = StepBuilder::new("test")
+        .chunk::<Product, Product>(2)
         .reader(&reader)
         .processor(&processor2)
         .writer(&writer)
-        .chunk(2)
         .build();
 
     let job2 = JobBuilder::new().start(&step2).build();

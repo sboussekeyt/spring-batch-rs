@@ -3,14 +3,16 @@ use std::{io::Read, path::Path};
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::{
+        item::{ItemProcessor, ItemProcessorResult},
         job::{Job, JobBuilder},
-        step::{Step, StepBuilder, StepInstance, StepStatus},
+        step::{StepBuilder, StepStatus},
     },
-    item::csv::csv_reader::CsvItemReaderBuilder,
-    item::csv::csv_writer::CsvItemWriterBuilder,
-    item::rdbc::{
-        rdbc_reader::{RdbcItemReaderBuilder, RdbcRowMapper},
-        rdbc_writer::{RdbcItemBinder, RdbcItemWriterBuilder},
+    item::{
+        csv::{csv_reader::CsvItemReaderBuilder, csv_writer::CsvItemWriterBuilder},
+        rdbc::{
+            rdbc_reader::{RdbcItemReaderBuilder, RdbcRowMapper},
+            rdbc_writer::{RdbcItemBinder, RdbcItemWriterBuilder},
+        },
     },
 };
 use sqlx::{
@@ -41,6 +43,15 @@ impl RdbcRowMapper<Person> for PersonRowMapper {
             first_name,
             last_name,
         }
+    }
+}
+
+#[derive(Default)]
+struct PersonPassThroughProcessor;
+
+impl ItemProcessor<Person, Person> for PersonPassThroughProcessor {
+    fn process(&self, item: &Person) -> ItemProcessorResult<Person> {
+        Ok(item.clone())
     }
 }
 
@@ -83,21 +94,27 @@ async fn read_items_from_database() -> Result<(), sqlx::Error> {
         .has_headers(true)
         .from_writer(tmpfile.as_file());
 
+    let processor = PersonPassThroughProcessor::default();
+
     // Execute process
-    let step: StepInstance<Person, Person> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk::<Person, Person>(3)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
-        .chunk(3)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
     let result = job.run();
     assert!(result.is_ok());
-    assert!(step.get_status() == StepStatus::Success);
-    assert!(step.get_read_count() == 18);
-    assert!(step.get_write_count() == 18);
-    assert!(step.get_read_error_count() == 0);
-    assert!(step.get_write_error_count() == 0);
+
+    let step_execution = job.get_step_execution("test").unwrap();
+
+    assert!(step_execution.status == StepStatus::Success);
+    assert!(step_execution.read_count == 18);
+    assert!(step_execution.write_count == 18);
+    assert!(step_execution.read_error_count == 0);
+    assert!(step_execution.write_error_count == 0);
 
     let mut tmpfile = tmpfile.reopen()?;
     let mut file_content = String::new();
@@ -152,6 +169,15 @@ struct Car {
     description: String,
 }
 
+#[derive(Default)]
+struct PassThroughProcessor;
+
+impl ItemProcessor<Car, Car> for PassThroughProcessor {
+    fn process(&self, item: &Car) -> ItemProcessorResult<Car> {
+        Ok(item.clone())
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn write_items_to_database() -> Result<(), sqlx::Error> {
     // Prepare reader
@@ -162,7 +188,7 @@ async fn write_items_to_database() -> Result<(), sqlx::Error> {
             2021,Mazda,CX-30,SUV Compact
             1967,Ford,Mustang fastback 1967,American car";
 
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<Car>::new()
         .has_headers(true)
         .from_reader(csv.as_bytes());
 
@@ -200,21 +226,27 @@ async fn write_items_to_database() -> Result<(), sqlx::Error> {
         .item_binder(&item_binder)
         .build();
 
+    let processor = PassThroughProcessor::default();
+
     // Execute process
-    let step: StepInstance<Car, Car> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk::<Car, Car>(3)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
-        .chunk(3)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
     let result = job.run();
     assert!(result.is_ok());
-    assert!(step.get_status() == StepStatus::Success);
-    assert!(step.get_read_count() == 5);
-    assert!(step.get_write_count() == 5);
-    assert!(step.get_read_error_count() == 0);
-    assert!(step.get_write_error_count() == 0);
+
+    let step_execution = job.get_step_execution("test").unwrap();
+
+    assert!(step_execution.status == StepStatus::Success);
+    assert!(step_execution.read_count == 5);
+    assert!(step_execution.write_count == 5);
+    assert!(step_execution.read_error_count == 0);
+    assert!(step_execution.write_error_count == 0);
 
     let car_results = sqlx::query_as::<_, Car>("SELECT year, make, model, description FROM cars")
         .fetch_all(&pool)

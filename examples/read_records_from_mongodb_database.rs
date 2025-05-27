@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::{
         item::{ItemProcessor, ItemProcessorResult},
-        step::{Step, StepBuilder, StepInstance},
+        step::{Step, StepBuilder, StepExecution},
     },
     item::csv::csv_writer::CsvItemWriterBuilder,
     item::mongodb::mongodb_reader::{MongodbItemReaderBuilder, WithObjectId},
@@ -73,16 +73,17 @@ fn main() -> Result<()> {
     // Prepare writer
     let tmpfile = NamedTempFile::new()?;
 
-    let writer = CsvItemWriterBuilder::new().from_writer(tmpfile.as_file());
+    let writer = CsvItemWriterBuilder::<FormattedBook>::new().from_writer(tmpfile.as_file());
 
-    let step: StepInstance<Book, FormattedBook> = StepBuilder::new()
+    let step = StepBuilder::new("read_from_mongodb")
+        .chunk::<Book, FormattedBook>(3)
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
-        .chunk(3)
         .build();
 
-    let _result = step.execute();
+    let mut step_execution = StepExecution::new("read_from_mongodb");
+    let _result = step.execute(&mut step_execution);
 
     Ok(())
 }

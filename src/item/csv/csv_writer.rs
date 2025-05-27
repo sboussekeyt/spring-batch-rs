@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fs::File, io::Write, path::Path};
+use std::{cell::RefCell, fs::File, io::Write, marker::PhantomData, path::Path};
 
 use csv::{Writer, WriterBuilder};
 use serde::Serialize;
@@ -68,15 +68,16 @@ use crate::{
 /// assert!(csv_content.contains("1,Alice"));
 /// assert!(csv_content.contains("2,Bob"));
 /// ```
-pub struct CsvItemWriter<T: Write> {
+pub struct CsvItemWriter<O, W: Write> {
     /// The underlying CSV writer
     ///
     /// Uses `RefCell` to allow interior mutability while conforming to the
     /// `ItemWriter` trait's immutable self reference in its methods.
-    writer: RefCell<Writer<T>>,
+    writer: RefCell<Writer<W>>,
+    _phantom: PhantomData<O>,
 }
 
-impl<T: Write, R: Serialize> ItemWriter<R> for CsvItemWriter<T> {
+impl<O: Serialize, W: Write> ItemWriter<O> for CsvItemWriter<O, W> {
     /// Writes a batch of items to CSV.
     ///
     /// This method serializes each item in the provided slice to CSV format
@@ -129,7 +130,7 @@ impl<T: Write, R: Serialize> ItemWriter<R> for CsvItemWriter<T> {
     ///     ItemWriter::<Person>::flush(&writer).unwrap();
     /// }
     /// ```
-    fn write(&self, items: &[R]) -> ItemWriterResult {
+    fn write(&self, items: &[O]) -> ItemWriterResult {
         for item in items.iter() {
             // Try to serialize each item to CSV format
             let result = self.writer.borrow_mut().serialize(item);
@@ -234,20 +235,21 @@ impl<T: Write, R: Serialize> ItemWriter<R> for CsvItemWriter<T> {
 ///
 /// // Create a CSV writer with custom settings
 /// let mut buffer = Vec::new();
-/// let writer = CsvItemWriterBuilder::new()
+/// let writer = CsvItemWriterBuilder::<Record>::new()
 ///     .delimiter(b';')  // Use semicolon as delimiter
 ///     .has_headers(true)  // Include headers in output
 ///     .from_writer(&mut buffer);
 /// ```
 #[derive(Default)]
-pub struct CsvItemWriterBuilder {
+pub struct CsvItemWriterBuilder<O> {
     /// The delimiter character (default: comma ',')
     delimiter: u8,
     /// Whether to include headers in the output (default: false)
     has_headers: bool,
+    _pd: PhantomData<O>,
 }
 
-impl CsvItemWriterBuilder {
+impl<O> CsvItemWriterBuilder<O> {
     /// Creates a new `CsvItemWriterBuilder` with default configuration.
     ///
     /// Default settings:
@@ -258,13 +260,20 @@ impl CsvItemWriterBuilder {
     ///
     /// ```
     /// use spring_batch_rs::item::csv::csv_writer::CsvItemWriterBuilder;
+    /// use serde::Serialize;
     ///
-    /// let builder = CsvItemWriterBuilder::new();
+    /// #[derive(Serialize)]
+    /// struct Record {
+    ///     field: String,
+    /// }
+    ///
+    /// let builder = CsvItemWriterBuilder::<Record>::new();
     /// ```
     pub fn new() -> Self {
         Self {
             delimiter: b',',
             has_headers: false,
+            _pd: PhantomData,
         }
     }
 
@@ -284,13 +293,19 @@ impl CsvItemWriterBuilder {
     ///
     /// ```
     /// use spring_batch_rs::item::csv::csv_writer::CsvItemWriterBuilder;
+    /// use serde::Serialize;
+    ///
+    /// #[derive(Serialize)]
+    /// struct Record {
+    ///     field: String,
+    /// }
     ///
     /// // Use tab as delimiter
-    /// let builder = CsvItemWriterBuilder::new()
+    /// let builder = CsvItemWriterBuilder::<Record>::new()
     ///     .delimiter(b'\t');
     ///
     /// // Use semicolon as delimiter
-    /// let builder = CsvItemWriterBuilder::new()
+    /// let builder = CsvItemWriterBuilder::<Record>::new()
     ///     .delimiter(b';');
     /// ```
     pub fn delimiter(mut self, delimiter: u8) -> Self {
@@ -317,13 +332,19 @@ impl CsvItemWriterBuilder {
     ///
     /// ```
     /// use spring_batch_rs::item::csv::csv_writer::CsvItemWriterBuilder;
+    /// use serde::Serialize;
+    ///
+    /// #[derive(Serialize)]
+    /// struct Record {
+    ///     field: String,
+    /// }
     ///
     /// // Include headers (field names as first row)
-    /// let builder = CsvItemWriterBuilder::new()
+    /// let builder = CsvItemWriterBuilder::<Record>::new()
     ///     .has_headers(true);
     ///
     /// // Exclude headers (data only)
-    /// let builder = CsvItemWriterBuilder::new()
+    /// let builder = CsvItemWriterBuilder::<Record>::new()
     ///     .has_headers(false);
     /// ```
     pub fn has_headers(mut self, yes: bool) -> Self {
@@ -363,7 +384,7 @@ impl CsvItemWriterBuilder {
     /// }
     ///
     /// // Create a writer to a file
-    /// let writer = CsvItemWriterBuilder::new()
+    /// let writer = CsvItemWriterBuilder::<Record>::new()
     ///     .has_headers(true)
     ///     .from_path("output.csv");
     ///
@@ -376,7 +397,7 @@ impl CsvItemWriterBuilder {
     /// writer.write(&records).unwrap();
     /// ItemWriter::<Record>::flush(&writer).unwrap();
     /// ```
-    pub fn from_path<R: AsRef<Path>>(self, path: R) -> CsvItemWriter<File> {
+    pub fn from_path<W: AsRef<Path>>(self, path: W) -> CsvItemWriter<O, File> {
         // Configure and create the CSV writer
         let writer = WriterBuilder::new()
             .flexible(false) // Use strict formatting to detect serialization issues
@@ -388,6 +409,7 @@ impl CsvItemWriterBuilder {
         // If it fails, we want to fail fast
         CsvItemWriter {
             writer: RefCell::new(writer.unwrap()),
+            _phantom: PhantomData,
         }
     }
 
@@ -440,7 +462,7 @@ impl CsvItemWriterBuilder {
     /// // Write to a vector buffer in a separate scope
     /// let mut buffer = Vec::new();
     /// {
-    ///     let writer = CsvItemWriterBuilder::new()
+    ///     let writer = CsvItemWriterBuilder::<Row>::new()
     ///         .has_headers(true)
     ///         .from_writer(&mut buffer);
     ///
@@ -454,7 +476,7 @@ impl CsvItemWriterBuilder {
     /// assert!(output.contains("city,country,popcount"));
     /// assert!(output.contains("Boston,United States,4628910"));
     /// ```
-    pub fn from_writer<W: Write>(self, wtr: W) -> CsvItemWriter<W> {
+    pub fn from_writer<W: Write>(self, wtr: W) -> CsvItemWriter<O, W> {
         // Configure and create the CSV writer
         let wtr = WriterBuilder::new()
             .flexible(false) // Use strict formatting to detect serialization issues
@@ -464,6 +486,7 @@ impl CsvItemWriterBuilder {
 
         CsvItemWriter {
             writer: RefCell::new(wtr),
+            _phantom: PhantomData,
         }
     }
 }

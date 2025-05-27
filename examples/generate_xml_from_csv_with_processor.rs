@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::{
         item::{ItemProcessor, ItemReader},
-        job::{Job, JobBuilder},
-        step::{StepBuilder, StepInstance},
+        step::{Step, StepBuilder, StepExecution},
     },
     item::{
         csv::csv_reader::CsvItemReaderBuilder,
@@ -141,7 +140,7 @@ fn main() -> Result<(), BatchError> {
     info!("Writing XML to {}", xml_output_path.display());
 
     // Create the CSV reader
-    let csv_reader = CsvItemReaderBuilder::new()
+    let csv_reader = CsvItemReaderBuilder::<CsvHouse>::new()
         .has_headers(true)
         .delimiter(b',')
         .from_path("examples/data/houses.csv");
@@ -159,28 +158,25 @@ fn main() -> Result<(), BatchError> {
     let xml_writer = XmlItemWriterBuilder::new()
         .root_tag("houses")
         .item_tag("house")
-        .from_path::<XmlHouse, _>(&xml_output_path)?;
+        .from_path(&xml_output_path)?;
 
     // Create a processor to convert CSV to XML format
     let processor = HouseProcessor;
 
     // Create and run the step, transforming CsvHouse to XmlHouse
-    let step: StepInstance<CsvHouse, XmlHouse> = StepBuilder::new()
-        .name("csv-to-xml".to_string())
+    let step = StepBuilder::new("csv-to-xml")
+        .chunk::<CsvHouse, XmlHouse>(3)
         .reader(&csv_reader)
         .processor(&processor)
         .writer(&xml_writer)
-        .chunk(3)
         .build();
 
-    let job = JobBuilder::new()
-        .name("csv-to-xml-job".to_string())
-        .start(&step)
-        .build();
+    let mut step_execution = StepExecution::new("csv-to-xml");
+    let result = step.execute(&mut step_execution);
 
-    match job.run() {
+    match result {
         Ok(_) => {
-            info!("Job completed successfully");
+            info!("Step completed successfully");
 
             // Read the XML file for verification
             if !xml_output_path.exists() {
@@ -207,7 +203,7 @@ fn main() -> Result<(), BatchError> {
             Ok(())
         }
         Err(e) => {
-            error!("Job failed: {:?}", e);
+            error!("Step failed: {:?}", e);
             Err(e)
         }
     }

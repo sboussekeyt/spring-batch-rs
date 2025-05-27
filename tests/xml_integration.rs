@@ -12,7 +12,7 @@ use spring_batch_rs::{
     core::{
         item::{ItemProcessor, ItemProcessorResult},
         job::{Job, JobBuilder},
-        step::{Step, StepBuilder, StepInstance, StepStatus},
+        step::{StepBuilder, StepStatus},
     },
     error::BatchError,
     item::csv::csv_reader::CsvItemReaderBuilder,
@@ -100,11 +100,11 @@ fn transform_from_xml_file_to_csv_file_without_error() {
         .from_path(&csv_path);
 
     // Build and run the job
-    let step: StepInstance<Product, Product> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk::<Product, Product>(2)
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
-        .chunk(2)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
@@ -112,11 +112,14 @@ fn transform_from_xml_file_to_csv_file_without_error() {
 
     // Verify job results
     assert!(result.is_ok());
-    assert_eq!(step.get_status(), StepStatus::Success);
-    assert_eq!(step.get_read_count(), 3);
-    assert_eq!(step.get_write_count(), 3);
-    assert_eq!(step.get_read_error_count(), 0);
-    assert_eq!(step.get_write_error_count(), 0);
+
+    let step_execution = job.get_step_execution("test").unwrap();
+
+    assert!(step_execution.status == StepStatus::Success);
+    assert!(step_execution.read_count == 3);
+    assert!(step_execution.write_count == 3);
+    assert!(step_execution.read_error_count == 0);
+    assert!(step_execution.write_error_count == 0);
 
     // Read and verify the CSV content
     let csv_content =
@@ -220,7 +223,7 @@ P003,SKU789,Headphones,129.99,Japan,AudioInc,1978,Electronics,false,Audio,true,f
     }
 
     // Create a CSV reader without headers (we'll manually process columns)
-    let reader = CsvItemReaderBuilder::new()
+    let reader = CsvItemReaderBuilder::<Vec<String>>::new()
         .has_headers(true)
         .from_reader(file);
 
@@ -229,17 +232,17 @@ P003,SKU789,Headphones,129.99,Japan,AudioInc,1978,Electronics,false,Audio,true,f
     let writer = XmlItemWriterBuilder::new()
         .root_tag("products")
         .item_tag("product")
-        .from_path::<EnhancedProduct, _>(&xml_path)
+        .from_path(&xml_path)
         .expect("Failed to create XML writer");
 
     let processor = CsvToEnhancedProductProcessor;
 
     // Build and run the job
-    let step: StepInstance<Vec<String>, EnhancedProduct> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk::<Vec<String>, EnhancedProduct>(2)
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
-        .chunk(2)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
@@ -247,9 +250,14 @@ P003,SKU789,Headphones,129.99,Japan,AudioInc,1978,Electronics,false,Audio,true,f
 
     // Verify job results
     assert!(result.is_ok());
-    assert_eq!(step.get_status(), StepStatus::Success);
-    assert_eq!(step.get_read_count(), 3);
-    assert_eq!(step.get_write_count(), 3);
+
+    let step_execution = job.get_step_execution("test").unwrap();
+
+    assert!(step_execution.status == StepStatus::Success);
+    assert!(step_execution.read_count == 3);
+    assert!(step_execution.write_count == 3);
+    assert!(step_execution.read_error_count == 0);
+    assert!(step_execution.write_error_count == 0);
 
     // Read and verify the XML content
     let mut xml_content = String::new();
@@ -312,13 +320,16 @@ fn test_xml_reader_with_error_handling() {
     let writer = XmlItemWriterBuilder::new()
         .root_tag("filtered_catalog")
         .item_tag("product")
-        .from_writer::<Product, _>(buffer);
+        .from_writer(buffer);
+
+    let processor = ProductProcessor::default();
 
     // Build step with skip limit of 1 (to tolerate one error)
-    let step: StepInstance<Product, Product> = StepBuilder::new()
+    let step = StepBuilder::new("test")
+        .chunk::<Product, Product>(2)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
-        .chunk(1)
         .skip_limit(1) // Allow one error to be skipped
         .build();
 
@@ -327,11 +338,14 @@ fn test_xml_reader_with_error_handling() {
 
     // Verify job completed successfully despite the errors that might be present
     assert!(result.is_ok());
-    assert_eq!(step.get_status(), StepStatus::Success);
 
-    // Some valid products should be processed
-    assert!(step.get_read_count() > 0);
-    assert!(step.get_write_count() > 0);
+    let step_execution = job.get_step_execution("test").unwrap();
+
+    assert!(step_execution.status == StepStatus::Success);
+    assert!(step_execution.read_count == 2);
+    assert!(step_execution.write_count == 2);
+    assert!(step_execution.read_error_count == 1);
+    assert!(step_execution.write_error_count == 0);
 
     // Note: The XML reader might handle missing fields differently,
     // so we can't reliably assert error counts

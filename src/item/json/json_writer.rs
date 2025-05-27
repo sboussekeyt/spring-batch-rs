@@ -2,6 +2,7 @@ use std::{
     cell::{Cell, RefCell},
     fs::File,
     io::{BufWriter, Write},
+    marker::PhantomData,
     path::Path,
 };
 
@@ -49,16 +50,19 @@ use crate::{
 /// writer_ref.write(&products).unwrap();
 /// writer_ref.close().unwrap();
 /// ```
-pub struct JsonItemWriter<T: Write> {
+pub struct JsonItemWriter<O, W: Write> {
     /// The buffered writer for the output stream
-    stream: RefCell<BufWriter<T>>,
+    stream: RefCell<BufWriter<W>>,
     /// Whether to use pretty formatting (indentation and newlines)
     use_pretty_formatter: bool,
+    /// Custom indentation to use when pretty formatting
+    indent: Box<[u8]>,
     /// Tracks whether we're writing the first element (to handle commas between items)
     is_first_element: Cell<bool>,
+    _phantom: PhantomData<O>,
 }
 
-impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
+impl<O: serde::Serialize, W: Write> ItemWriter<O> for JsonItemWriter<O, W> {
     /// Writes a batch of items to the JSON output.
     ///
     /// This method serializes each item to JSON, adds commas between items,
@@ -71,7 +75,7 @@ impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
     /// # Returns
     /// - `Ok(())` if successful
     /// - `Err(BatchError)` if writing fails
-    fn write(&self, items: &[R]) -> ItemWriterResult {
+    fn write(&self, items: &[O]) -> ItemWriterResult {
         let mut json_chunk = String::new();
 
         for item in items.iter() {
@@ -82,12 +86,25 @@ impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
             }
 
             let result = if self.use_pretty_formatter {
-                serde_json::to_string_pretty(item)
+                // Use custom indentation if pretty formatting is enabled
+                let mut buf = Vec::new();
+                let formatter = serde_json::ser::PrettyFormatter::with_indent(&self.indent);
+                let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
+                match item.serialize(&mut ser) {
+                    Ok(_) => match String::from_utf8(buf) {
+                        Ok(s) => Ok(s),
+                        Err(e) => Err(BatchError::ItemWriter(e.to_string())),
+                    },
+                    Err(e) => Err(BatchError::ItemWriter(e.to_string())),
+                }
             } else {
-                serde_json::to_string(item)
+                serde_json::to_string(item).map_err(|e| BatchError::ItemWriter(e.to_string()))
             };
 
-            json_chunk.push_str(&result.unwrap());
+            match result {
+                Ok(json_str) => json_chunk.push_str(&json_str),
+                Err(e) => return Err(e),
+            }
 
             if self.use_pretty_formatter {
                 json_chunk.push('\n');
@@ -202,12 +219,17 @@ impl<T: Write, R: serde::Serialize> ItemWriter<R> for JsonItemWriter<T> {
 /// writer_ref.write(&[person]).unwrap();
 /// writer_ref.close().unwrap();
 /// ```
-#[derive(Default)]
 pub struct JsonItemWriterBuilder {
     /// Indentation to use when pretty-printing (default is two spaces)
     indent: Box<[u8]>,
     /// Whether to use pretty formatting with indentation and newlines
     pretty_formatter: bool,
+}
+
+impl Default for JsonItemWriterBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl JsonItemWriterBuilder {
@@ -318,7 +340,7 @@ impl JsonItemWriterBuilder {
     /// writer_ref.write(&records).unwrap();
     /// writer_ref.close().unwrap();
     /// ```
-    pub fn from_path<P: AsRef<Path>>(self, path: P) -> JsonItemWriter<File> {
+    pub fn from_path<O, W: AsRef<Path>>(self, path: W) -> JsonItemWriter<O, File> {
         let file = File::create(path).expect("Unable to open file");
 
         let buf_writer = BufWriter::new(file);
@@ -326,7 +348,9 @@ impl JsonItemWriterBuilder {
         JsonItemWriter {
             stream: RefCell::new(buf_writer),
             use_pretty_formatter: self.pretty_formatter,
+            indent: self.indent.clone(),
             is_first_element: Cell::new(true),
+            _phantom: PhantomData,
         }
     }
 
@@ -371,13 +395,180 @@ impl JsonItemWriterBuilder {
     /// writer_ref.write(&events).unwrap();
     /// writer_ref.close().unwrap();
     /// ```
-    pub fn from_writer<W: Write>(self, wtr: W) -> JsonItemWriter<W> {
+    pub fn from_writer<O, W: Write>(self, wtr: W) -> JsonItemWriter<O, W> {
         let buf_writer = BufWriter::new(wtr);
 
         JsonItemWriter {
             stream: RefCell::new(buf_writer),
             use_pretty_formatter: self.pretty_formatter,
+            indent: self.indent,
             is_first_element: Cell::new(true),
+            _phantom: PhantomData,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::item::ItemWriter;
+    use serde::Serialize;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[derive(Serialize, Debug, PartialEq)]
+    struct TestItem {
+        id: u32,
+        name: String,
+        value: f64,
+    }
+
+    #[test]
+    fn json_writer_builder_should_create_with_defaults() {
+        let builder = JsonItemWriterBuilder::new();
+        assert!(!builder.pretty_formatter);
+        assert_eq!(builder.indent, b"  ".to_vec().into_boxed_slice());
+    }
+
+    #[test]
+    fn json_writer_builder_should_set_pretty_formatter() {
+        let builder = JsonItemWriterBuilder::new().pretty_formatter(true);
+        assert!(builder.pretty_formatter);
+    }
+
+    #[test]
+    fn json_writer_builder_should_set_custom_indent() {
+        let custom_indent = b"    ";
+        let builder = JsonItemWriterBuilder::new().indent(custom_indent);
+        assert_eq!(builder.indent, custom_indent.to_vec().into_boxed_slice());
+    }
+
+    #[test]
+    fn json_writer_builder_should_implement_default() {
+        let builder1 = JsonItemWriterBuilder::new();
+        let builder2 = JsonItemWriterBuilder::default();
+
+        assert_eq!(builder1.pretty_formatter, builder2.pretty_formatter);
+        // Both should have the same default indent
+        assert_eq!(builder1.indent, builder2.indent);
+    }
+
+    #[test]
+    fn json_writer_from_path_should_create_file_writer() {
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("test_output.json");
+
+        let writer: JsonItemWriter<TestItem, File> =
+            JsonItemWriterBuilder::new().from_path(&file_path);
+
+        let item = TestItem {
+            id: 1,
+            name: "test".to_string(),
+            value: 42.5,
+        };
+
+        writer.open().unwrap();
+        writer.write(&[item]).unwrap();
+        writer.close().unwrap();
+
+        // Verify file was created and contains expected content
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert!(content.contains(r#"{"id":1,"name":"test","value":42.5}"#));
+    }
+
+    #[test]
+    fn json_writer_should_handle_custom_indent() {
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("indent_test.json");
+
+        let writer = JsonItemWriterBuilder::new()
+            .pretty_formatter(true)
+            .indent(b"\t")
+            .from_path(&file_path);
+
+        let item = TestItem {
+            id: 1,
+            name: "test".to_string(),
+            value: 42.5,
+        };
+
+        writer.open().unwrap();
+        writer.write(&[item]).unwrap();
+        writer.close().unwrap();
+
+        let content = fs::read_to_string(&file_path).unwrap();
+        // Check that the content uses tab indentation in pretty format
+        // The JSON should contain tab characters for indentation
+        assert!(content.contains('\t'));
+    }
+
+    #[test]
+    fn json_writer_should_handle_pretty_formatting() {
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("pretty_test.json");
+
+        let writer = JsonItemWriterBuilder::new()
+            .pretty_formatter(true)
+            .from_path(&file_path);
+
+        let item = TestItem {
+            id: 1,
+            name: "test".to_string(),
+            value: 42.5,
+        };
+
+        writer.open().unwrap();
+        writer.write(&[item]).unwrap();
+        writer.close().unwrap();
+
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert!(content.contains("[\n"));
+        assert!(content.contains("\n]\n"));
+        assert!(content.contains("  \"id\": 1"));
+    }
+
+    #[test]
+    fn json_writer_should_handle_empty_items() {
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("empty_test.json");
+
+        let writer = JsonItemWriterBuilder::new().from_path(&file_path);
+        let empty_items: Vec<TestItem> = vec![];
+
+        writer.open().unwrap();
+        writer.write(&empty_items).unwrap();
+        writer.close().unwrap();
+
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, "[]\n");
+    }
+
+    #[test]
+    fn json_writer_should_handle_multiple_writes() {
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("multi_test.json");
+
+        let writer = JsonItemWriterBuilder::new().from_path(&file_path);
+
+        let item1 = TestItem {
+            id: 1,
+            name: "first".to_string(),
+            value: 10.0,
+        };
+        let item2 = TestItem {
+            id: 2,
+            name: "second".to_string(),
+            value: 20.0,
+        };
+
+        writer.open().unwrap();
+        writer.write(&[item1]).unwrap();
+        writer.write(&[item2]).unwrap();
+        writer.close().unwrap();
+
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert!(content.contains(r#"{"id":1,"name":"first","value":10.0}"#));
+        assert!(content.contains(r#"{"id":2,"name":"second","value":20.0}"#));
+        assert!(content.contains(','));
     }
 }

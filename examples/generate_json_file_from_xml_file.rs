@@ -1,10 +1,6 @@
-use log::error;
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
-    core::{
-        job::{Job, JobBuilder},
-        step::{StepBuilder, StepInstance},
-    },
+    core::step::{Step, StepBuilder, StepExecution},
     error::BatchError,
     item::{json::json_writer::JsonItemWriterBuilder, xml::XmlItemReaderBuilder},
 };
@@ -72,23 +68,14 @@ fn main() -> Result<(), BatchError> {
         .from_path(&output_path);
 
     // Create and run the step
-    let step: StepInstance<Vehicle, Vehicle> = StepBuilder::new()
-        .name("xml_to_json_complex_vehicles".to_string())
+    let step = StepBuilder::new("xml_to_json_complex_vehicles")
+        .chunk::<Vehicle, Vehicle>(2) // Process 2 vehicles at a time
         .reader(&reader)
         .writer(&writer)
-        .chunk(2) // Process 2 vehicles at a time
         .build();
 
-    let job = JobBuilder::new()
-        .name("generate_json_from_complex_xml".to_string())
-        .start(&step)
-        .build();
-
-    let job_result = job.run();
-
-    if let Err(e) = &job_result {
-        error!("Job failed: {:?}", e.to_string());
-    }
+    let mut step_execution = StepExecution::new("xml_to_json_complex_vehicles");
+    let _result = step.execute(&mut step_execution);
 
     println!("Generated JSON output at: {}", output_path.display());
     // Optionally print content for quick verification, though it might be large
@@ -97,5 +84,5 @@ fn main() -> Result<(), BatchError> {
         Err(e) => eprintln!("Failed to read output file: {}", e),
     }
 
-    job_result.map(|_| ()) // Map Ok(JobExecution) to Ok(())
+    Ok(())
 }

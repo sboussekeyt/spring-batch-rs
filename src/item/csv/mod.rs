@@ -63,7 +63,7 @@
 /// ";
 ///
 /// // Create a reader from our CSV
-/// let reader = CsvItemReaderBuilder::new()
+/// let reader = CsvItemReaderBuilder::<City>::new()
 ///     .has_headers(true)
 ///     .delimiter(b',')
 ///     .from_reader(csv_data.as_bytes());
@@ -117,7 +117,7 @@
 /// // Create a writer with a vector buffer (could also use a file)
 /// let mut buffer = Vec::new();
 /// {
-///     let writer = CsvItemWriterBuilder::new()
+///     let writer = CsvItemWriterBuilder::<Person>::new()
 ///         .has_headers(true)
 ///         .delimiter(b',')
 ///         .from_writer(&mut buffer);
@@ -146,7 +146,7 @@
 /// use spring_batch_rs::item::csv::csv_reader::CsvItemReaderBuilder;
 /// use spring_batch_rs::item::csv::csv_writer::CsvItemWriterBuilder;
 /// use spring_batch_rs::core::item::{ItemReader, ItemWriter};
-/// use spring_batch_rs::core::step::{StepBuilder, StepInstance};
+/// use spring_batch_rs::core::step::StepBuilder;
 /// use spring_batch_rs::core::job::{JobBuilder, Job};
 /// use serde::{Deserialize, Serialize};
 /// use std::fs::File;
@@ -166,16 +166,18 @@
 /// // 3. Build and run the job
 ///
 /// // Example (not actually executed in doctest):
-/// // let reader = CsvItemReaderBuilder::new()
+/// // let reader = CsvItemReaderBuilder::<Record>::new()
 /// //     .has_headers(true)
 /// //     .from_path("input.csv");
 /// //
-/// // let writer = CsvItemWriterBuilder::new()
+/// // let writer = CsvItemWriterBuilder::<Record>::new()
 /// //     .has_headers(true)
 /// //     .from_path("output.csv");
 /// //
-/// // let step: StepInstance<Record, Record> = StepBuilder::new()
+/// // let step = StepBuilder::new("step")
+/// //     .chunk(10)
 /// //     .reader(&reader)
+/// //     .processor(&processor)
 /// //     .writer(&writer)
 /// //     .build();
 /// //
