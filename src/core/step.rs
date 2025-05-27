@@ -2807,4 +2807,379 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn step_should_handle_tasklet_step_timing() -> Result<()> {
+        let mut tasklet = MockTestTasklet::default();
+        tasklet
+            .expect_execute()
+            .times(1)
+            .returning(|_| Ok(RepeatStatus::Finished));
+
+        let step = StepBuilder::new("timing_test").tasklet(&tasklet).build();
+
+        let mut step_execution = StepExecution::new(&step.name);
+
+        let result = step.execute(&mut step_execution);
+
+        assert!(result.is_ok());
+        assert!(step_execution.start_time.is_some());
+        assert!(step_execution.end_time.is_some());
+        assert!(step_execution.duration.is_some());
+        assert!(step_execution.duration.unwrap().as_nanos() > 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_should_handle_tasklet_step_status_transitions() -> Result<()> {
+        let mut tasklet = MockTestTasklet::default();
+        tasklet
+            .expect_execute()
+            .times(1)
+            .returning(|step_execution| {
+                // Verify the step status is Started when tasklet is called
+                assert_eq!(step_execution.status, StepStatus::Started);
+                Ok(RepeatStatus::Finished)
+            });
+
+        let step = StepBuilder::new("status_test").tasklet(&tasklet).build();
+
+        let mut step_execution = StepExecution::new(&step.name);
+        assert_eq!(step_execution.status, StepStatus::Starting);
+
+        let result = step.execute(&mut step_execution);
+
+        assert!(result.is_ok());
+        assert_eq!(step_execution.status, StepStatus::Success);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_should_handle_tasklet_step_failed_status() -> Result<()> {
+        let mut tasklet = MockTestTasklet::default();
+        tasklet
+            .expect_execute()
+            .times(1)
+            .returning(|_| Err(BatchError::Step("tasklet failure".to_string())));
+
+        let step = StepBuilder::new("failed_test").tasklet(&tasklet).build();
+
+        let mut step_execution = StepExecution::new(&step.name);
+
+        let result = step.execute(&mut step_execution);
+
+        assert!(result.is_err());
+        assert_eq!(step_execution.status, StepStatus::Failed);
+        assert!(step_execution.end_time.is_some());
+        assert!(step_execution.duration.is_some());
+
+        Ok(())
+    }
+
+    #[test]
+    fn chunk_oriented_step_builder_should_panic_without_reader() {
+        let mut processor = MockTestProcessor::default();
+        processor.expect_process().never();
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_open().never();
+
+        let result = std::panic::catch_unwind(|| {
+            ChunkOrientedStepBuilder::new("test")
+                .processor(&processor)
+                .writer(&writer)
+                .build()
+        });
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn chunk_oriented_step_builder_should_panic_without_processor() {
+        let mut reader = MockTestItemReader::default();
+        reader.expect_read().never();
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_open().never();
+
+        let result = std::panic::catch_unwind(|| {
+            ChunkOrientedStepBuilder::new("test")
+                .reader(&reader)
+                .writer(&writer)
+                .build()
+        });
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn chunk_oriented_step_builder_should_panic_without_writer() {
+        let mut reader = MockTestItemReader::default();
+        reader.expect_read().never();
+
+        let mut processor = MockTestProcessor::default();
+        processor.expect_process().never();
+
+        let result = std::panic::catch_unwind(|| {
+            ChunkOrientedStepBuilder::new("test")
+                .reader(&reader)
+                .processor(&processor)
+                .build()
+        });
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn step_should_handle_read_chunk_with_full_chunk() -> Result<()> {
+        let mut i = 0;
+        let mut reader = MockTestItemReader::default();
+        reader
+            .expect_read()
+            .returning(move || mock_read(&mut i, 0, 4)); // 4 items total
+
+        let mut processor = MockTestProcessor::default();
+        let mut i = 0;
+        processor
+            .expect_process()
+            .returning(move |_| mock_process(&mut i, &[]));
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_open().times(1).returning(|| Ok(()));
+        writer.expect_write().times(2).returning(|items| {
+            // First chunk has 3 items, second chunk has 1 item
+            assert!(items.len() <= 3);
+            Ok(())
+        });
+        writer.expect_flush().times(2).returning(|| Ok(()));
+        writer.expect_close().times(1).returning(|| Ok(()));
+
+        let step = StepBuilder::new("test")
+            .chunk(3)
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .build();
+
+        let mut step_execution = StepExecution::new(&step.name);
+
+        let result = step.execute(&mut step_execution);
+
+        assert!(result.is_ok());
+        assert_eq!(step_execution.status, StepStatus::Success);
+        assert_eq!(step_execution.read_count, 4);
+        assert_eq!(step_execution.write_count, 4);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_should_handle_process_chunk_with_all_errors() -> Result<()> {
+        let mut i = 0;
+        let mut reader = MockTestItemReader::default();
+        reader
+            .expect_read()
+            .returning(move || mock_read(&mut i, 0, 3));
+
+        let mut processor = MockTestProcessor::default();
+        let mut i = 0;
+        processor
+            .expect_process()
+            .returning(move |_| mock_process(&mut i, &[1, 2, 3])); // All items fail
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_open().times(1).returning(|| Ok(()));
+        writer.expect_write().never(); // No items to write since all fail processing
+        writer.expect_close().times(1).returning(|| Ok(()));
+
+        let step = StepBuilder::new("test")
+            .chunk(3)
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .skip_limit(5) // Allow all errors
+            .build();
+
+        let mut step_execution = StepExecution::new(&step.name);
+
+        let result = step.execute(&mut step_execution);
+
+        assert!(result.is_ok());
+        assert_eq!(step_execution.status, StepStatus::Success);
+        assert_eq!(step_execution.process_error_count, 3);
+        assert_eq!(step_execution.write_count, 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_should_handle_write_chunk_with_empty_items() -> Result<()> {
+        let mut reader = MockTestItemReader::default();
+        reader.expect_read().return_once(|| Ok(None));
+
+        let mut processor = MockTestProcessor::default();
+        processor.expect_process().never();
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_open().times(1).returning(|| Ok(()));
+        writer.expect_write().never(); // No items to write
+        writer.expect_close().times(1).returning(|| Ok(()));
+
+        let step = StepBuilder::new("test")
+            .chunk(3)
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .build();
+
+        let mut step_execution = StepExecution::new(&step.name);
+
+        let result = step.execute(&mut step_execution);
+
+        assert!(result.is_ok());
+        assert_eq!(step_execution.status, StepStatus::Success);
+        assert_eq!(step_execution.read_count, 0);
+        assert_eq!(step_execution.write_count, 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_should_handle_is_skip_limit_reached_boundary_conditions() -> Result<()> {
+        let mut i = 0;
+        let mut reader = MockTestItemReader::default();
+        reader
+            .expect_read()
+            .returning(move || mock_read(&mut i, 0, 4));
+
+        let mut processor = MockTestProcessor::default();
+        let mut i = 0;
+        processor
+            .expect_process()
+            .returning(move |_| mock_process(&mut i, &[1, 2])); // 2 errors
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_open().times(1).returning(|| Ok(()));
+        writer.expect_write().times(2).returning(|_| Ok(()));
+        writer.expect_flush().times(2).returning(|| Ok(()));
+        writer.expect_close().times(1).returning(|| Ok(()));
+
+        let step = StepBuilder::new("test")
+            .chunk(3)
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .skip_limit(2) // Exactly at the limit
+            .build();
+
+        let mut step_execution = StepExecution::new(&step.name);
+
+        let result = step.execute(&mut step_execution);
+
+        assert!(result.is_ok());
+        assert_eq!(step_execution.status, StepStatus::Success);
+        assert_eq!(step_execution.process_error_count, 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_should_handle_manage_error_with_various_errors() -> Result<()> {
+        let mut reader = MockTestItemReader::default();
+        reader.expect_read().return_once(|| Ok(None));
+
+        let mut processor = MockTestProcessor::default();
+        processor.expect_process().never();
+
+        let mut writer = MockTestItemWriter::default();
+        writer
+            .expect_open()
+            .times(1)
+            .returning(|| Err(BatchError::ItemWriter("open error".to_string())));
+        writer.expect_write().never();
+        writer
+            .expect_close()
+            .times(1)
+            .returning(|| Err(BatchError::ItemWriter("close error".to_string())));
+
+        let step = StepBuilder::new("test")
+            .chunk(3)
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .build();
+
+        let mut step_execution = StepExecution::new(&step.name);
+
+        let result = step.execute(&mut step_execution);
+
+        // Should still succeed as open/close errors are managed
+        assert!(result.is_ok());
+        assert_eq!(step_execution.status, StepStatus::Success);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_execution_should_have_unique_ids() -> Result<()> {
+        let step_execution1 = StepExecution::new("test1");
+        let step_execution2 = StepExecution::new("test2");
+
+        assert_ne!(step_execution1.id, step_execution2.id);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_execution_should_clone_with_same_values() -> Result<()> {
+        let mut step_execution = StepExecution::new("test_step");
+        step_execution.read_count = 10;
+        step_execution.write_count = 8;
+        step_execution.status = StepStatus::Success;
+
+        let cloned_execution = step_execution.clone();
+
+        assert_eq!(step_execution.id, cloned_execution.id);
+        assert_eq!(step_execution.name, cloned_execution.name);
+        assert_eq!(step_execution.status, cloned_execution.status);
+        assert_eq!(step_execution.read_count, cloned_execution.read_count);
+        assert_eq!(step_execution.write_count, cloned_execution.write_count);
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_status_should_support_copy_trait() {
+        let status1 = StepStatus::Success;
+        let status2 = status1; // This should work because StepStatus implements Copy
+
+        assert_eq!(status1, status2);
+        assert_eq!(status1, StepStatus::Success); // Original should still be usable
+    }
+
+    #[test]
+    fn step_status_should_support_debug_trait() {
+        let status = StepStatus::ProcessorError;
+        let debug_string = format!("{:?}", status);
+
+        assert!(debug_string.contains("ProcessorError"));
+    }
+
+    #[test]
+    fn chunk_status_should_support_debug_trait() {
+        let status = ChunkStatus::Full;
+        let debug_string = format!("{:?}", status);
+
+        assert!(debug_string.contains("Full"));
+    }
+
+    #[test]
+    fn repeat_status_should_support_debug_trait() {
+        let status = RepeatStatus::Continuable;
+        let debug_string = format!("{:?}", status);
+
+        assert!(debug_string.contains("Continuable"));
+    }
 }
