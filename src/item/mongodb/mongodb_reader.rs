@@ -24,7 +24,7 @@ pub struct MongodbItemReader<'a, R: Send + Sync> {
     offset: Cell<usize>,
 }
 
-impl<R: DeserializeOwned + WithObjectId + Send + Sync> MongodbItemReader<'_, R> {
+impl<I: DeserializeOwned + WithObjectId + Send + Sync> MongodbItemReader<'_, I> {
     /// Reads a page of items from the MongoDB collection and stores them in the buffer.
     fn read_page(&self) {
         self.buffer.borrow_mut().clear();
@@ -56,15 +56,15 @@ impl<R: DeserializeOwned + WithObjectId + Send + Sync> MongodbItemReader<'_, R> 
     }
 }
 
-impl<R: DeserializeOwned + Clone + WithObjectId + Send + Sync> ItemReader<R>
-    for MongodbItemReader<'_, R>
+impl<I: DeserializeOwned + Clone + WithObjectId + Send + Sync> ItemReader<I>
+    for MongodbItemReader<'_, I>
 {
     /// Reads the next item from the MongoDB collection.
     ///
     /// Returns `Ok(Some(item))` if an item is read successfully,
     /// `Ok(None)` if there are no more items to read,
     /// or an error if reading the item fails.
-    fn read(&self) -> ItemReaderResult<R> {
+    fn read(&self) -> ItemReaderResult<I> {
         let index = if let Some(page_size) = self.page_size {
             self.offset.get() % (page_size as usize)
         } else {
@@ -90,13 +90,13 @@ impl<R: DeserializeOwned + Clone + WithObjectId + Send + Sync> ItemReader<R>
 }
 
 #[derive(Default)]
-pub struct MongodbItemReaderBuilder<'a, R: Send + Sync> {
-    collection: Option<&'a Collection<R>>,
+pub struct MongodbItemReaderBuilder<'a, I: Send + Sync> {
+    collection: Option<&'a Collection<I>>,
     filter: Option<Document>,
     page_size: Option<i64>,
 }
 
-impl<'a, R: Send + Sync> MongodbItemReaderBuilder<'a, R> {
+impl<'a, I: Send + Sync> MongodbItemReaderBuilder<'a, I> {
     /// Creates a new `MongodbItemReaderBuilder`.
     pub fn new() -> Self {
         Self {
@@ -107,31 +107,26 @@ impl<'a, R: Send + Sync> MongodbItemReaderBuilder<'a, R> {
     }
 
     /// Sets the MongoDB collection to read from.
-    pub fn collection(mut self, collection: &'a Collection<R>) -> MongodbItemReaderBuilder<'a, R> {
+    pub fn collection(mut self, collection: &'a Collection<I>) -> MongodbItemReaderBuilder<'a, I> {
         self.collection = Some(collection);
         self
     }
 
     /// Sets the filter to apply when reading items from the collection.
-    pub fn filter(mut self, filter: Document) -> MongodbItemReaderBuilder<'a, R> {
+    pub fn filter(mut self, filter: Document) -> MongodbItemReaderBuilder<'a, I> {
         self.filter = Some(filter);
         self
     }
 
     /// Sets the page size for reading items.
-    pub fn page_size(mut self, page_size: i64) -> MongodbItemReaderBuilder<'a, R> {
+    pub fn page_size(mut self, page_size: i64) -> MongodbItemReaderBuilder<'a, I> {
         self.page_size = Some(page_size);
         self
     }
 
     /// Builds the `MongodbItemReader` with the configured options.
-    pub fn build(&self) -> MongodbItemReader<'a, R> {
-        let buffer: Vec<R> = if let Some(page_size) = self.page_size {
-            let buffer_size = page_size.try_into().unwrap_or(1);
-            Vec::with_capacity(buffer_size)
-        } else {
-            Vec::new()
-        };
+    pub fn build(&self) -> MongodbItemReader<'a, I> {
+        let buffer: Vec<I> = Vec::new();
 
         let filter = if let Some(filter) = self.filter.to_owned() {
             filter

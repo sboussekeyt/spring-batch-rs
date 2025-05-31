@@ -10,14 +10,14 @@ const BIND_LIMIT: usize = 65535;
 ///
 /// This trait is responsible for taking a single item and binding its properties
 /// to a SQL query as parameters in the appropriate order.
-pub trait RdbcItemBinder<T> {
+pub trait RdbcItemBinder<O> {
     /// Binds the properties of an item to a separated query builder.
     ///
     /// # Arguments
     ///
     /// * `item` - The item whose properties should be bound.
     /// * `query_builder` - The separated query builder to bind parameters to.
-    fn bind(&self, item: &T, query_builder: Separated<Any, &str>);
+    fn bind(&self, item: &O, query_builder: Separated<Any, &str>);
 }
 
 /// A writer for inserting items into a relational database using SQLx.
@@ -37,14 +37,14 @@ pub trait RdbcItemBinder<T> {
 /// - Currently has a parameter limit of 65,535 (MySQL's limit)
 /// - Performs insert operations but does not support update or upsert operations
 /// - Does not handle database-specific SQL syntax differences (relies on SQLx's Any driver)
-pub struct RdbcItemWriter<'a, W> {
+pub struct RdbcItemWriter<'a, O> {
     pool: &'a Pool<Any>,
     table: &'a str,
     columns: Vec<&'a str>,
-    item_binder: &'a dyn RdbcItemBinder<W>,
+    item_binder: &'a dyn RdbcItemBinder<O>,
 }
 
-impl<'a, W> RdbcItemWriter<'a, W> {
+impl<'a, O> RdbcItemWriter<'a, O> {
     /// Creates a new instance of `RdbcItemWriter`.
     ///
     /// # Arguments
@@ -61,7 +61,7 @@ impl<'a, W> RdbcItemWriter<'a, W> {
         pool: &'a Pool<Any>,
         table: &'a str,
         columns: Vec<&'a str>,
-        item_binder: &'a dyn RdbcItemBinder<W>,
+        item_binder: &'a dyn RdbcItemBinder<O>,
     ) -> Self {
         Self {
             pool,
@@ -72,7 +72,7 @@ impl<'a, W> RdbcItemWriter<'a, W> {
     }
 }
 
-impl<W: Serialize + Clone> ItemWriter<W> for RdbcItemWriter<'_, W> {
+impl<O: Serialize + Clone> ItemWriter<O> for RdbcItemWriter<'_, O> {
     /// Writes the items to the database.
     ///
     /// This method constructs an INSERT statement with the following format:
@@ -93,7 +93,7 @@ impl<W: Serialize + Clone> ItemWriter<W> for RdbcItemWriter<'_, W> {
     /// # Returns
     ///
     /// An `ItemWriterResult` indicating the result of the write operation.
-    fn write(&self, items: &[W]) -> ItemWriterResult {
+    fn write(&self, items: &[O]) -> ItemWriterResult {
         // Build the base INSERT statement with table and column names
         let mut query_builder = QueryBuilder::new("INSERT INTO ");
 
@@ -158,14 +158,14 @@ impl<W: Serialize + Clone> ItemWriter<W> for RdbcItemWriter<'_, W> {
 /// # }
 /// ```
 #[derive(Default)]
-pub struct RdbcItemWriterBuilder<'a, T> {
+pub struct RdbcItemWriterBuilder<'a, O> {
     pool: Option<&'a Pool<Any>>,
     table: Option<&'a str>,
     columns: Vec<&'a str>,
-    item_binder: Option<&'a dyn RdbcItemBinder<T>>,
+    item_binder: Option<&'a dyn RdbcItemBinder<O>>,
 }
 
-impl<'a, T> RdbcItemWriterBuilder<'a, T> {
+impl<'a, O> RdbcItemWriterBuilder<'a, O> {
     /// Creates a new instance of `RdbcItemWriterBuilder`.
     ///
     /// Initializes an empty builder with no configuration. All required
@@ -230,7 +230,7 @@ impl<'a, T> RdbcItemWriterBuilder<'a, T> {
     /// # Returns
     ///
     /// The updated `RdbcItemWriterBuilder` instance.
-    pub fn item_binder(mut self, item_binder: &'a dyn RdbcItemBinder<T>) -> Self {
+    pub fn item_binder(mut self, item_binder: &'a dyn RdbcItemBinder<O>) -> Self {
         self.item_binder = Some(item_binder);
         self
     }
@@ -268,7 +268,7 @@ impl<'a, T> RdbcItemWriterBuilder<'a, T> {
     /// # Returns
     ///
     /// An instance of `RdbcItemWriter`.
-    pub fn build(self) -> RdbcItemWriter<'a, T> {
+    pub fn build(self) -> RdbcItemWriter<'a, O> {
         if self.table.is_none() {
             panic!("Table name is mandatory");
         }
