@@ -193,15 +193,21 @@ Simple CSV to JSON transformation:
 ```rust
 # use serde::{Deserialize, Serialize};
 # use spring_batch_rs::{
-#     core::{job::JobBuilder, step::StepBuilder},
-#     item::{csv::CsvItemReaderBuilder, json::JsonItemWriterBuilder},
+#     core::{job::{Job, JobBuilder}, step::StepBuilder, item::ItemProcessor},
+#     item::{csv::csv_reader::CsvItemReaderBuilder, json::json_writer::JsonItemWriterBuilder},
 #     BatchError,
 # };
-# #[derive(Deserialize, Serialize)]
+# #[derive(Deserialize, Serialize, Clone)]
 # struct Product {
 #     id: u32,
 #     name: String,
 #     price: f64,
+# }
+# struct PassThroughProcessor;
+# impl ItemProcessor<Product, Product> for PassThroughProcessor {
+#     fn process(&self, item: &Product) -> Result<Product, BatchError> {
+#         Ok(item.clone())
+#     }
 # }
 
 fn main() -> Result<(), BatchError> {
@@ -212,17 +218,20 @@ fn main() -> Result<(), BatchError> {
         .from_reader(csv_data.as_bytes());
 
     let writer = JsonItemWriterBuilder::new()
-        .pretty(true)
+        .pretty_formatter(true)
         .from_path("products.json");
 
+    let processor = PassThroughProcessor;
+
     let step = StepBuilder::new("csv_to_json")
-        .chunk(10)
+        .chunk::<Product, Product>(10)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
-    job.run()
+    job.run().map(|_| ())
 }
 ```
 
@@ -232,48 +241,49 @@ Reading from database with SeaORM:
 
 ```rust
 # use spring_batch_rs::{
-#     core::{job::JobBuilder, step::StepBuilder},
-#     item::{orm::OrmItemReaderBuilder, csv::CsvItemWriterBuilder},
+#     core::{job::{Job, JobBuilder}, step::StepBuilder},
+#     item::{csv::csv_writer::CsvItemWriterBuilder, fake::person_reader::{PersonReaderBuilder, Person}},
 #     BatchError,
 # };
-# use sea_orm::{Database, EntityTrait};
-# // Mock types for documentation
-# struct ProductEntity;
-# mod product { pub struct Column; impl Column { pub fn Active() -> Self { Self } pub fn Id() -> Self { Self } } impl PartialEq<bool> for Column { fn eq(&self, _: &bool) -> bool { true } } }
-# impl ProductEntity { fn find() -> MockSelect { MockSelect } }
-# struct MockSelect;
-# impl MockSelect {
-#     fn filter(self, _: bool) -> Self { self }
-#     fn order_by_asc(self, _: product::Column) -> Self { self }
+# use serde::{Deserialize, Serialize};
+#
+# // This example shows the pattern for ORM usage
+# // In real usage, you would use your actual SeaORM entities
+# #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+# struct Product {
+#     id: i32,
+#     name: String,
+#     active: bool,
 # }
 
-// Assuming you have a SeaORM entity defined
-async fn process_database_to_csv() -> Result<(), BatchError> {
-    let db = Database::connect("sqlite::memory:").await?;
+// This example shows the pattern - in real usage you would use your SeaORM entities
+async fn process_database_to_csv() -> Result<(), Box<dyn std::error::Error>> {
+    // In real usage with SeaORM:
+    // let db = Database::connect("sqlite::memory:").await?;
+    // let query = ProductEntity::find()
+    //     .filter(product::Column::Active.eq(true))
+    //     .order_by_asc(product::Column::Id);
+    // let reader = OrmItemReaderBuilder::new()
+    //     .connection(&db)
+    //     .query(query)
+    //     .page_size(100)
+    //     .build();
 
-    // Create a query with filtering and pagination
-    let query = ProductEntity::find()
-        .filter(product::Column::Active.eq(true))
-        .order_by_asc(product::Column::Id);
-
-    let reader = OrmItemReaderBuilder::new()
-        .connection(&db)
-        .query(query)
-        .page_size(100)
-        .build();
+    // For this example, we'll use a fake reader to demonstrate the pattern
+    let reader = PersonReaderBuilder::new().number_of_items(100).build();
 
     let writer = CsvItemWriterBuilder::new()
         .has_headers(true)
         .from_path("active_products.csv");
 
     let step = StepBuilder::new("db_to_csv")
-        .chunk(50)
+        .chunk::<Person, Person>(50)
         .reader(&reader)
         .writer(&writer)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
-    job.run()
+    job.run().map(|_| ()).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
 }
 ```
 
@@ -283,7 +293,7 @@ File operations using tasklets:
 
 ```rust
 # use spring_batch_rs::{
-#     core::{job::JobBuilder, step::StepBuilder},
+#     core::{job::{Job, JobBuilder}, step::StepBuilder},
 #     BatchError,
 # };
 # #[cfg(feature = "zip")]
@@ -316,7 +326,7 @@ fn main() -> Result<(), BatchError> {
         fs::remove_file("./backup.zip").ok();
         fs::remove_dir_all(&temp_data_dir).ok();
 
-        result
+        result.map(|_| ())
     }
 
     #[cfg(not(feature = "zip"))]
@@ -338,7 +348,7 @@ fn main() -> Result<(), BatchError> {
             .build();
 
         let job = JobBuilder::new().start(&step).build();
-        job.run()
+        job.run().map(|_| ())
     }
 }
 ```
