@@ -126,7 +126,13 @@ impl<'a, I: Send + Sync> MongodbItemReaderBuilder<'a, I> {
 
     /// Builds the `MongodbItemReader` with the configured options.
     pub fn build(&self) -> MongodbItemReader<'a, I> {
-        let buffer: Vec<I> = Vec::new();
+        let buffer: Vec<I> = if let Some(page_size) = self.page_size {
+            let buffer_size = page_size.try_into().unwrap_or(1); // Or a more robust default/error handling for conversion
+            Vec::with_capacity(buffer_size)
+        } else {
+            Vec::new()
+        };
+
 
         let filter = if let Some(filter) = self.filter.to_owned() {
             filter
