@@ -133,7 +133,6 @@ impl<'a, I: Send + Sync> MongodbItemReaderBuilder<'a, I> {
             Vec::new()
         };
 
-
         let filter = if let Some(filter) = self.filter.to_owned() {
             filter
         } else {
