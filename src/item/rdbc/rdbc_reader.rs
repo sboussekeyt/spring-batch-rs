@@ -6,9 +6,9 @@ use sqlx::{any::AnyRow, Any, Pool, QueryBuilder};
 use crate::core::item::{ItemReader, ItemReaderResult};
 
 /// Trait for mapping a database row to a specific type.
-pub trait RdbcRowMapper<T> {
+pub trait RdbcRowMapper<I> {
     /// Maps a database row to the specified type.
-    fn map_row(&self, row: &AnyRow) -> T;
+    fn map_row(&self, row: &AnyRow) -> I;
 }
 
 /// A reader for reading items from a relational database using SQLx.
@@ -35,16 +35,16 @@ pub trait RdbcRowMapper<T> {
 /// When `page_size` is not provided:
 /// - All data is loaded in one query
 /// - The `offset` is only used to track the current position in the buffer
-pub struct RdbcItemReader<'a, T> {
+pub struct RdbcItemReader<'a, I> {
     pool: &'a Pool<Any>,
     query: &'a str,
     page_size: Option<i32>,
     offset: Cell<i32>,
-    row_mapper: &'a dyn RdbcRowMapper<T>,
-    buffer: RefCell<Vec<T>>,
+    row_mapper: &'a dyn RdbcRowMapper<I>,
+    buffer: RefCell<Vec<I>>,
 }
 
-impl<'a, T> RdbcItemReader<'a, T> {
+impl<'a, I> RdbcItemReader<'a, I> {
     /// Creates a new `RdbcItemReader`.
     ///
     /// # Arguments
@@ -61,7 +61,7 @@ impl<'a, T> RdbcItemReader<'a, T> {
         pool: &'a Pool<Any>,
         query: &'a str,
         page_size: Option<i32>,
-        row_mapper: &'a dyn RdbcRowMapper<T>,
+        row_mapper: &'a dyn RdbcRowMapper<I>,
     ) -> Self {
         let buffer = if let Some(page_size) = page_size {
             let buffer_size = page_size.try_into().unwrap_or(1);
@@ -119,7 +119,7 @@ impl<'a, T> RdbcItemReader<'a, T> {
 /// with support for pagination. It uses an internal buffer to store the results
 /// of database queries and keeps track of the current offset to determine when
 /// a new page of data needs to be fetched.
-impl<T: DeserializeOwned + Clone> ItemReader<T> for RdbcItemReader<'_, T> {
+impl<I: DeserializeOwned + Clone> ItemReader<I> for RdbcItemReader<'_, I> {
     /// Reads the next item from the reader.
     ///
     /// This method manages pagination internally:
@@ -130,7 +130,7 @@ impl<T: DeserializeOwned + Clone> ItemReader<T> for RdbcItemReader<'_, T> {
     /// # Returns
     ///
     /// The next item, or `None` if there are no more items.
-    fn read(&self) -> ItemReaderResult<T> {
+    fn read(&self) -> ItemReaderResult<I> {
         // Calculate the index within the current page
         // If page_size is set, we're using pagination and need to find position within current page
         // Otherwise, we're using the absolute offset
@@ -160,14 +160,14 @@ impl<T: DeserializeOwned + Clone> ItemReader<T> for RdbcItemReader<'_, T> {
 
 /// Builder for creating an `RdbcItemReader`.
 #[derive(Default)]
-pub struct RdbcItemReaderBuilder<'a, T> {
+pub struct RdbcItemReaderBuilder<'a, I> {
     pool: Option<&'a Pool<Any>>,
     query: Option<&'a str>,
     page_size: Option<i32>,
-    row_mapper: Option<&'a dyn RdbcRowMapper<T>>,
+    row_mapper: Option<&'a dyn RdbcRowMapper<I>>,
 }
 
-impl<'a, T> RdbcItemReaderBuilder<'a, T> {
+impl<'a, I> RdbcItemReaderBuilder<'a, I> {
     /// Creates a new `RdbcItemReaderBuilder`.
     pub fn new() -> Self {
         Self {
@@ -229,7 +229,7 @@ impl<'a, T> RdbcItemReaderBuilder<'a, T> {
     /// # Returns
     ///
     /// The updated `RdbcItemReaderBuilder` instance.
-    pub fn row_mapper(mut self, row_mapper: &'a dyn RdbcRowMapper<T>) -> Self {
+    pub fn row_mapper(mut self, row_mapper: &'a dyn RdbcRowMapper<I>) -> Self {
         self.row_mapper = Some(row_mapper);
         self
     }
@@ -239,7 +239,7 @@ impl<'a, T> RdbcItemReaderBuilder<'a, T> {
     /// # Returns
     ///
     /// The built `RdbcItemReader` instance.
-    pub fn build(self) -> RdbcItemReader<'a, T> {
+    pub fn build(self) -> RdbcItemReader<'a, I> {
         RdbcItemReader::new(
             self.pool.unwrap(),
             self.query.unwrap(),

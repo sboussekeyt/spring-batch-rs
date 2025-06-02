@@ -42,6 +42,7 @@ uuid = { version = "1.17", features = ["v4"] }
 quick-xml = { version = "0.37", features = ["serialize"], optional = true }
 tempfile = { version = "3.20", optional = true }
 zip = { version = "4.0", optional = true }
+sea-orm = { version = "1.1", features = [ "sqlx-postgres", "sqlx-mysql", "sqlx-sqlite", "runtime-tokio-native-tls", "macros", "mock" ], optional = true }
 
 [dev-dependencies]
 spring-batch-rs = { path = ".", features = ["tests-cfg"] }
@@ -66,7 +67,8 @@ full = [
   "rdbc-sqlite",
   "mongodb",
   "xml",
-  "zip"
+  "zip",
+  "orm"
 ]
 
 csv = ["dep:csv", "dep:tempfile"]
@@ -80,6 +82,7 @@ mongodb = ["mongodb/sync", "bson"]
 fake = ["dep:fake", "dep:time"]
 logger = []
 rdbc = []
+orm = ["dep:sea-orm"]
 
 [[example]]
 name = "generate_csv_file_from_json_file_with_processor"
@@ -120,3 +123,7 @@ required-features = ["xml", "json"]
 [[example]]
 name = "zip_files_tasklet"
 required-features = ["zip"]
+
+[[example]]
+name = "orm_reader_example"
+required-features = ["orm"]

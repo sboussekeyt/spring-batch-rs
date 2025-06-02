@@ -6,11 +6,11 @@ use crate::{
 };
 
 /// Represents a MongoDB item writer.
-pub struct MongodbItemWriter<'a, W: Send + Sync> {
-    collection: &'a Collection<W>,
+pub struct MongodbItemWriter<'a, O: Send + Sync> {
+    collection: &'a Collection<O>,
 }
 
-impl<W: serde::Serialize + Send + Sync> ItemWriter<W> for MongodbItemWriter<'_, W> {
+impl<O: serde::Serialize + Send + Sync> ItemWriter<O> for MongodbItemWriter<'_, O> {
     /// Writes the items to the MongoDB collection.
     ///
     /// # Arguments
@@ -20,7 +20,7 @@ impl<W: serde::Serialize + Send + Sync> ItemWriter<W> for MongodbItemWriter<'_, 
     /// # Returns
     ///
     /// Returns an `ItemWriterResult` indicating the result of the write operation.
-    fn write(&self, items: &[W]) -> ItemWriterResult {
+    fn write(&self, items: &[O]) -> ItemWriterResult {
         let opts = InsertManyOptions::builder().ordered(false).build();
 
         let result = self.collection.insert_many(items).with_options(opts).run();
@@ -34,11 +34,11 @@ impl<W: serde::Serialize + Send + Sync> ItemWriter<W> for MongodbItemWriter<'_, 
 
 /// Builder for `MongodbItemWriter`.
 #[derive(Default)]
-pub struct MongodbItemWriterBuilder<'a, W: Send + Sync> {
-    collection: Option<&'a Collection<W>>,
+pub struct MongodbItemWriterBuilder<'a, O: Send + Sync> {
+    collection: Option<&'a Collection<O>>,
 }
 
-impl<'a, W: Send + Sync> MongodbItemWriterBuilder<'a, W> {
+impl<'a, O: Send + Sync> MongodbItemWriterBuilder<'a, O> {
     /// Creates a new `MongodbItemWriterBuilder` instance.
     pub fn new() -> Self {
         Self { collection: None }
@@ -53,7 +53,7 @@ impl<'a, W: Send + Sync> MongodbItemWriterBuilder<'a, W> {
     /// # Returns
     ///
     /// Returns the updated `MongodbItemWriterBuilder` instance.
-    pub fn collection(mut self, collection: &'a Collection<W>) -> MongodbItemWriterBuilder<'a, W> {
+    pub fn collection(mut self, collection: &'a Collection<O>) -> MongodbItemWriterBuilder<'a, O> {
         self.collection = Some(collection);
         self
     }
@@ -63,7 +63,7 @@ impl<'a, W: Send + Sync> MongodbItemWriterBuilder<'a, W> {
     /// # Returns
     ///
     /// Returns a `MongodbItemWriter` instance with the specified configuration.
-    pub fn build(&self) -> MongodbItemWriter<'a, W> {
+    pub fn build(&self) -> MongodbItemWriter<'a, O> {
         MongodbItemWriter {
             collection: self.collection.unwrap(),
         }

@@ -11,6 +11,27 @@
 
 Inspired by the robust Java Spring Batch framework, **Spring Batch for Rust** brings its battle-tested concepts to the Rust ecosystem. It offers a comprehensive toolkit for developing efficient, reliable, and enterprise-grade batch applications. This framework is designed to address the challenges of handling large-scale data processing tasks, providing developers with the tools needed for complex batch operations.
 
+## Architecture Overview
+
+```mermaid
+graph TB
+    subgraph "Spring Batch RS Architecture"
+        Job[Job] --> Step1[Step 1]
+        Job --> Step2[Step 2]
+        Job --> StepN[Step N]
+
+        subgraph "Chunk-Oriented Processing"
+            Step1 --> Reader[ItemReader]
+            Reader --> Processor[ItemProcessor]
+            Processor --> Writer[ItemWriter]
+        end
+
+        subgraph "Tasklet Processing"
+            Step2 --> Tasklet[Tasklet]
+        end
+    end
+```
+
 ## Why Spring Batch for Rust ?
 
 - **Performance & Safety:** Leverage Rust's performance and memory safety for demanding batch jobs.
@@ -39,6 +60,7 @@ The crate is modular, allowing you to enable only the features you need:
 | `rdbc-postgres` | Enables RDBC `ItemReader` and `ItemWriter` for PostgreSQL.        |
 | `rdbc-mysql`    | Enables RDBC `ItemReader` and `ItemWriter` for MySQL and MariaDB. |
 | `rdbc-sqlite`   | Enables RDBC `ItemReader` and `ItemWriter` for SQLite.            |
+| `orm`           | Enables ORM `ItemReader` and `ItemWriter` using SeaORM.           |
 | `json`          | Enables JSON `ItemReader` and `ItemWriter`.                       |
 | `csv`           | Enables CSV `ItemReader` and `ItemWriter`.                        |
 | `xml`           | Enables XML `ItemReader` and `ItemWriter`.                        |
@@ -59,6 +81,25 @@ This is the traditional batch processing model where data is read, processed, an
 - ETL operations
 - Data transformations
 - Scenarios where you need transaction boundaries and fault tolerance
+
+#### Available Item Readers & Writers
+
+**File-based:**
+
+- **CSV**: Read/write CSV files with configurable delimiters and headers
+- **JSON**: Read/write JSON files with pretty printing support
+- **XML**: Read/write XML files with custom serialization
+
+**Database:**
+
+- **ORM**: Read/write using SeaORM with pagination and filtering support
+- **RDBC**: Direct database access for PostgreSQL, MySQL, and SQLite
+- **MongoDB**: Native MongoDB document operations
+
+**Utility:**
+
+- **Fake**: Generate mock data for testing
+- **Logger**: Debug output for development
 
 ### Tasklet Processing
 
@@ -92,6 +133,135 @@ impl Tasklet for MyCustomTasklet {
 }
 ```
 
+## Getting Started
+
+### Prerequisites
+
+- A recent Rust toolchain installed.
+
+### 1. Add `spring-batch-rs` to your `Cargo.toml`
+
+Make sure to activate the features relevant to your needs:
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "<version>", features = ["csv", "json"] }
+# Or for database operations:
+spring-batch-rs = { version = "<version>", features = ["orm", "csv"] }
+# Or for all features:
+spring-batch-rs = { version = "<version>", features = ["full"] }
+```
+
+### 2. Chunk-Oriented Processing Example
+
+Simple CSV to JSON transformation:
+
+```rust
+use spring_batch_rs::{
+    core::{job::JobBuilder, step::StepBuilder},
+    item::{csv::CsvItemReaderBuilder, json::JsonItemWriterBuilder},
+    BatchError,
+};
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize)]
+struct Product {
+    id: u32,
+    name: String,
+    price: f64,
+}
+
+fn main() -> Result<(), BatchError> {
+    let csv_data = "id,name,price\n1,Laptop,999.99\n2,Mouse,29.99";
+
+    let reader = CsvItemReaderBuilder::<Product>::new()
+        .has_headers(true)
+        .from_reader(csv_data.as_bytes());
+
+    let writer = JsonItemWriterBuilder::new()
+        .pretty(true)
+        .from_path("products.json");
+
+    let step = StepBuilder::new("csv_to_json")
+        .chunk(10)
+        .reader(&reader)
+        .writer(&writer)
+        .build();
+
+    let job = JobBuilder::new().start(&step).build();
+    job.run()
+}
+```
+
+### 3. ORM Database Processing Example
+
+Reading from database with SeaORM:
+
+```rust
+use spring_batch_rs::{
+    core::{job::JobBuilder, step::StepBuilder},
+    item::{orm::OrmItemReaderBuilder, csv::CsvItemWriterBuilder},
+    BatchError,
+};
+use sea_orm::{Database, EntityTrait};
+
+// Assuming you have a SeaORM entity defined
+async fn process_database_to_csv() -> Result<(), BatchError> {
+    let db = Database::connect("sqlite::memory:").await?;
+
+    // Create a query with filtering and pagination
+    let query = ProductEntity::find()
+        .filter(product::Column::Active.eq(true))
+        .order_by_asc(product::Column::Id);
+
+    let reader = OrmItemReaderBuilder::new()
+        .connection(&db)
+        .query(query)
+        .page_size(100)
+        .build();
+
+    let writer = CsvItemWriterBuilder::new()
+        .has_headers(true)
+        .from_path("active_products.csv");
+
+    let step = StepBuilder::new("db_to_csv")
+        .chunk(50)
+        .reader(&reader)
+        .writer(&writer)
+        .build();
+
+    let job = JobBuilder::new().start(&step).build();
+    job.run()
+}
+```
+
+### 4. Tasklet Processing Example
+
+File operations using tasklets:
+
+```rust
+use spring_batch_rs::{
+    core::{job::JobBuilder, step::StepBuilder},
+    tasklet::zip::ZipTaskletBuilder,
+    BatchError,
+};
+
+fn main() -> Result<(), BatchError> {
+    let zip_tasklet = ZipTaskletBuilder::new()
+        .source_path("./data")
+        .target_path("./backup.zip")
+        .compression_level(6)
+        .build()?;
+
+    let step = StepBuilder::new("backup_files")
+        .tasklet(&zip_tasklet)
+        .build();
+
+    let job = JobBuilder::new().start(&step).build();
+    job.run()
+}
+```
+
 ## Roadmap
 
 We are actively working on enhancing `spring-batch-rs` with more features:
@@ -101,121 +271,6 @@ We are actively working on enhancing `spring-batch-rs` with more features:
 - [ ] Parquet reader and writer
 - [ ] Advanced Retry/Skip policies for fault tolerance
 - [ ] Persist job execution metadata (e.g., in a database)
-
-## Getting Started
-
-### Prerequisites
-
-- A recent Rust toolchain installed.
-
-### 1. Add `spring-batch-rs` to your `Cargo.toml`
-
-Make sure to activate the features relevant to your needs. For example, if you need JSON and CSV support:
-
-```toml
-[dependencies]
-spring-batch-rs = { version = "<version>", features = ["<full|json|csv|xml|zip|logger>"] }
-```
-
-Then, on your main.rs:
-
-### Chunk-Oriented Processing Example
-
-```rust
-fn main() -> Result<(), BatchError> {
-    let csv = "year,make,model,description
-   1948,Porsche,356,Luxury sports car
-   1995,Peugeot,205,City car
-   2021,Mazda,CX-30,SUV Compact
-   1967,Ford,Mustang fastback 1967,American car";
-
-    let reader = CsvItemReaderBuilder::new()
-        .delimiter(b',')
-        .has_headers(true)
-        .from_reader(csv.as_bytes());
-
-    let processor = UpperCaseProcessor::default();
-
-    let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join("cars.json"));
-
-    let step: Step<Car, Car> = StepBuilder::new("my_step")
-        .chunk::<Car, Car>(2) // set commit interval
-        .reader(&reader) // set csv reader
-        .processor(&processor) // set upper case processor
-        .writer(&writer) // set json writer
-        .skip_limit(2) // set fault tolerance
-        .build();
-
-    let job = JobBuilder::new().start(Box::new(&step)).build();
-    let result = job.run();
-
-    assert!(result.is_ok());
-
-    Ok(())
-}
-```
-
-### Tasklet Processing Example
-
-For operations that don't fit the chunk-oriented processing model, you can use tasklets:
-
-```rust
-use spring_batch_rs::{
-    core::{
-        job::{Job, JobBuilder},
-        step::{StepBuilder, StepExecution, RepeatStatus, Tasklet},
-    },
-    tasklet::zip::ZipTaskletBuilder,
-    BatchError,
-};
-
-// Custom tasklet example
-struct FileCleanupTasklet {
-    directory: String,
-}
-
-impl Tasklet for FileCleanupTasklet {
-    fn execute(&self, _step_execution: &StepExecution) -> Result<RepeatStatus, BatchError> {
-        // Perform file cleanup logic here
-        println!("Cleaning up directory: {}", self.directory);
-        Ok(RepeatStatus::Finished)
-    }
-}
-
-fn main() -> Result<(), BatchError> {
-    // Create a cleanup tasklet
-    let cleanup_tasklet = FileCleanupTasklet {
-        directory: "/tmp/batch_files".to_string(),
-    };
-
-    // Create a ZIP compression tasklet (requires 'zip' feature)
-    let zip_tasklet = ZipTaskletBuilder::new()
-        .source_path("./data")
-        .target_path("./archive.zip")
-        .compression_level(6)
-        .build()?;
-
-    // Create steps using tasklets
-    let cleanup_step = StepBuilder::new("cleanup")
-        .tasklet(&cleanup_tasklet)
-        .build();
-
-    let zip_step = StepBuilder::new("compress")
-        .tasklet(&zip_tasklet)
-        .build();
-
-    // Create and run job with multiple steps
-    let job = JobBuilder::new()
-        .start(Box::new(&cleanup_step))
-        .next(Box::new(&zip_step))
-        .build();
-
-    let result = job.run();
-    assert!(result.is_ok());
-
-    Ok(())
-}
-```
 
 ## Examples
 
