@@ -29,58 +29,14 @@
          Job --> StepN[Step N]
 
          subgraph "Chunk-Oriented Processing"
-             Step1 --> Reader1[ItemReader]
-             Reader1 --> Processor1[ItemProcessor]
-             Processor1 --> Writer1[ItemWriter]
+             Step1 --> Reader[ItemReader]
+             Reader --> Processor[ItemProcessor]
+             Processor --> Writer[ItemWriter]
          end
 
          subgraph "Tasklet Processing"
              Step2 --> Tasklet[Tasklet]
          end
-
-         subgraph "Item Readers"
-             CSV[CSV Reader]
-             JSON[JSON Reader]
-             XML[XML Reader]
-             ORM[ORM Reader]
-             MongoDB[MongoDB Reader]
-             RDBC[RDBC Reader]
-             Fake[Fake Reader]
-         end
-
-         subgraph "Item Writers"
-             CSVW[CSV Writer]
-             JSONW[JSON Writer]
-             XMLW[XML Writer]
-             ORMW[ORM Writer]
-             MongoDBW[MongoDB Writer]
-             RDBCW[RDBC Writer]
-             Logger[Logger Writer]
-         end
-
-         subgraph "Built-in Tasklets"
-             ZipT[ZIP Tasklet]
-             CustomT[Custom Tasklet]
-         end
-
-         Reader1 -.-> CSV
-         Reader1 -.-> JSON
-         Reader1 -.-> XML
-         Reader1 -.-> ORM
-         Reader1 -.-> MongoDB
-         Reader1 -.-> RDBC
-         Reader1 -.-> Fake
-
-         Writer1 -.-> CSVW
-         Writer1 -.-> JSONW
-         Writer1 -.-> XMLW
-         Writer1 -.-> ORMW
-         Writer1 -.-> MongoDBW
-         Writer1 -.-> RDBCW
-         Writer1 -.-> Logger
-
-         Tasklet -.-> ZipT
-         Tasklet -.-> CustomT
      end
  ```
 
