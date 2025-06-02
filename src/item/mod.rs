@@ -18,10 +18,8 @@ pub mod json;
 /// This module provides an XML item reader and writer implementation for Spring Batch.
 pub mod xml;
 
-#[cfg(feature = "rdbc-postgres")]
-#[cfg(feature = "rdbc-mysql")]
-#[cfg(feature = "rdbc-sqlite")]
-/// This module provides an RDBC (PostgreSQL) item reader and writer implementation for Spring Batch.
+#[cfg(feature = "rdbc")]
+/// This module provides an RDBC item reader and writer implementation for Spring Batch.
 pub mod rdbc;
 
 #[cfg(feature = "mongodb")]
