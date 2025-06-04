@@ -281,9 +281,12 @@ All readers and writers support configurable error handling:
 ```rust
 use spring_batch_rs::core::step::StepBuilder;
 
+let processor = PassThroughProcessor::<Product>::new();
+
 let step = StepBuilder::new("fault_tolerant_step")
-    .chunk(100)
+    .chunk::<Product, Product>(100)
     .reader(&reader)
+    .processor(&processor)
     .writer(&writer)
     .skip_limit(10)  // Skip up to 10 failed items
     .build();
