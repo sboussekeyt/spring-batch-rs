@@ -79,9 +79,12 @@ fn main() -> Result<(), BatchError> {
         .pretty(true)
         .from_path("output.json");
 
+    let processor = PassThroughProcessor::<Product>::new();
+
     let step = StepBuilder::new("csv_to_json")
-        .chunk(100)
+        .chunk::<Product, Product>(100)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
         .build();
 

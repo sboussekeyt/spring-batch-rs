@@ -232,7 +232,7 @@ async fn process_database_to_csv() -> Result<(), BatchError> {
     let step = StepBuilder::new("db_to_csv")
         .chunk(50)
         .reader(&reader)
-        .proccesor(&processor)
+        .procesor(&processor)
         .writer(&writer)
         .build();
 

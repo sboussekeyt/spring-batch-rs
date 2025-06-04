@@ -182,12 +182,16 @@ fn main() -> Result<(), BatchError> {
     // Step 1: Process data (chunk-oriented)
     let reader = CsvItemReaderBuilder::<Product>::new()
         .from_path("input.csv");
+
     let writer = JsonItemWriterBuilder::new()
         .from_path("output.json");
 
+    let processor = PassThroughProcessor::<Product>::new();
+
     let process_step = StepBuilder::new("process_data")
-        .chunk(100)
+        .chunk::<Product, Product>(100)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
         .build();
 
