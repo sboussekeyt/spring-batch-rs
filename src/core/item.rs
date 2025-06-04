@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use crate::error::BatchError;
 
 /// Represents the result of reading an item from the reader.
@@ -210,47 +208,273 @@ pub trait ItemWriter<O> {
     }
 }
 
-/// A default implementation of the `ItemProcessor` trait.
+/// A pass-through processor that returns items unchanged.
 ///
-/// This processor simply passes items through without modifying them, but handles
-/// type conversion if the input and output types are compatible.
+/// This processor implements the identity function for batch processing pipelines.
+/// It takes an input item and returns it unchanged, making it useful for scenarios
+/// where you need a processor in the pipeline but don't want to transform the data.
 ///
 /// # Type Parameters
 ///
-/// - `R`: The input item type
-/// - `W`: The output item type, which must be clonable and downcastable from `R`
-///
-/// # Behavior
-///
-/// - If the input type `R` can be downcast to the output type `W`, the item is cloned and returned
-/// - If the downcast fails, a `BatchError` is returned
+/// - `T`: The item type that will be passed through unchanged. Must implement `Clone`.
 ///
 /// # Use Cases
 ///
-/// This processor is useful when:
-/// - No processing is needed, just pass-through
-/// - A trivial processor is needed as a placeholder
-/// - Types are compatible but formally different
+/// - Testing batch processing pipelines without data transformation
+/// - Placeholder processor during development
+/// - Pipelines where processing logic is conditional and sometimes bypassed
+/// - Maintaining consistent pipeline structure when transformation is optional
+///
+/// # Performance
+///
+/// This processor performs a clone operation on each item. For large or complex
+/// data structures, consider whether pass-through processing is necessary or if
+/// the pipeline can be restructured to avoid unnecessary cloning.
+///
+/// # Examples
+///
+/// ```
+/// use spring_batch_rs::core::item::{ItemProcessor, PassThroughProcessor};
+///
+/// let processor = PassThroughProcessor::<String>::new();
+/// let input = "Hello, World!".to_string();
+/// let result = processor.process(&input).unwrap();
+/// assert_eq!(result, input);
+/// ```
+///
+/// Using with different data types:
+///
+/// ```
+/// use spring_batch_rs::core::item::{ItemProcessor, PassThroughProcessor};
+///
+/// // With integers
+/// let int_processor = PassThroughProcessor::<i32>::new();
+/// let number = 42;
+/// let result = int_processor.process(&number).unwrap();
+/// assert_eq!(result, number);
+///
+/// // With custom structs
+/// #[derive(Clone, PartialEq, Debug)]
+/// struct Person {
+///     name: String,
+///     age: u32,
+/// }
+///
+/// let person_processor = PassThroughProcessor::<Person>::new();
+/// let person = Person {
+///     name: "Alice".to_string(),
+///     age: 30,
+/// };
+/// let result = person_processor.process(&person).unwrap();
+/// assert_eq!(result, person);
+/// ```
 #[derive(Default)]
-pub struct DefaultProcessor;
+pub struct PassThroughProcessor<T> {
+    _phantom: std::marker::PhantomData<T>,
+}
 
-impl<I: Any, O: Clone + Any> ItemProcessor<I, O> for DefaultProcessor {
-    /// Processes an item by attempting to downcast it to the target type.
+impl<T: Clone> ItemProcessor<T, T> for PassThroughProcessor<T> {
+    /// Processes an item by returning it unchanged.
     ///
     /// # Parameters
-    /// - `item`: The item to process
+    /// - `item`: The item to process (will be cloned and returned unchanged)
     ///
     /// # Returns
-    /// - `Ok(item_as_w)` when the item can be downcast to type `W`
-    /// - `Err(BatchError)` when the item cannot be downcast to type `W`
-    fn process(&self, item: &I) -> ItemProcessorResult<O> {
-        // Treat the item as Any to enable downcasting
-        let value_any = item as &dyn Any;
+    /// - `Ok(cloned_item)` - Always succeeds and returns a clone of the input item
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use spring_batch_rs::core::item::{ItemProcessor, PassThroughProcessor};
+    ///
+    /// let processor = PassThroughProcessor::<Vec<i32>>::new();
+    /// let input = vec![1, 2, 3];
+    /// let result = processor.process(&input).unwrap();
+    /// assert_eq!(result, input);
+    /// ```
+    fn process(&self, item: &T) -> ItemProcessorResult<T> {
+        Ok(item.clone())
+    }
+}
 
-        // Try to downcast to the target type
-        match value_any.downcast_ref::<O>() {
-            Some(as_w) => Ok(as_w.clone()),
-            None => Err(BatchError::ItemProcessor("Cannot downcast".to_string())),
+impl<T: Clone> PassThroughProcessor<T> {
+    /// Creates a new `PassThroughProcessor`.
+    ///
+    /// # Returns
+    /// A new instance of `PassThroughProcessor` that will pass through items of type `T`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use spring_batch_rs::core::item::PassThroughProcessor;
+    ///
+    /// let processor = PassThroughProcessor::<String>::new();
+    /// ```
+    pub fn new() -> Self {
+        Self {
+            _phantom: std::marker::PhantomData,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_create_new_pass_through_processor() {
+        let _processor = PassThroughProcessor::<String>::new();
+        // Test that we can create the processor without panicking
+        // Verify it's a zero-sized type (only contains PhantomData)
+        assert_eq!(std::mem::size_of::<PassThroughProcessor<String>>(), 0);
+    }
+
+    #[test]
+    fn should_create_pass_through_processor_with_default() {
+        let _processor = PassThroughProcessor::<i32>::default();
+        // Test that we can create the processor using Default trait
+        // Verify it's a zero-sized type (only contains PhantomData)
+        assert_eq!(std::mem::size_of::<PassThroughProcessor<i32>>(), 0);
+    }
+
+    #[test]
+    fn should_pass_through_string_unchanged() -> Result<(), BatchError> {
+        let processor = PassThroughProcessor::new();
+        let input = "Hello, World!".to_string();
+        let expected = input.clone();
+
+        let result = processor.process(&input)?;
+
+        assert_eq!(result, expected);
+        assert_eq!(result, input);
+        Ok(())
+    }
+
+    #[test]
+    fn should_pass_through_integer_unchanged() -> Result<(), BatchError> {
+        let processor = PassThroughProcessor::new();
+        let input = 42i32;
+
+        let result = processor.process(&input)?;
+
+        assert_eq!(result, input);
+        Ok(())
+    }
+
+    #[test]
+    fn should_pass_through_vector_unchanged() -> Result<(), BatchError> {
+        let processor = PassThroughProcessor::new();
+        let input = vec![1, 2, 3, 4, 5];
+        let expected = input.clone();
+
+        let result = processor.process(&input)?;
+
+        assert_eq!(result, expected);
+        assert_eq!(result, input);
+        Ok(())
+    }
+
+    #[test]
+    fn should_pass_through_custom_struct_unchanged() -> Result<(), BatchError> {
+        #[derive(Clone, PartialEq, Debug)]
+        struct TestData {
+            id: u32,
+            name: String,
+            values: Vec<f64>,
+        }
+
+        let processor = PassThroughProcessor::new();
+        let input = TestData {
+            id: 123,
+            name: "Test Item".to_string(),
+            values: vec![1.1, 2.2, 3.3],
+        };
+        let expected = input.clone();
+
+        let result = processor.process(&input)?;
+
+        assert_eq!(result, expected);
+        assert_eq!(result.id, input.id);
+        assert_eq!(result.name, input.name);
+        assert_eq!(result.values, input.values);
+        Ok(())
+    }
+
+    #[test]
+    fn should_pass_through_option_unchanged() -> Result<(), BatchError> {
+        let processor = PassThroughProcessor::new();
+
+        // Test with Some value
+        let input_some = Some("test".to_string());
+        let result_some = processor.process(&input_some)?;
+        assert_eq!(result_some, input_some);
+
+        // Test with None value
+        let input_none: Option<String> = None;
+        let result_none = processor.process(&input_none)?;
+        assert_eq!(result_none, input_none);
+
+        Ok(())
+    }
+
+    #[test]
+    fn should_handle_empty_collections() -> Result<(), BatchError> {
+        // Test empty vector
+        let vec_processor = PassThroughProcessor::new();
+        let empty_vec: Vec<i32> = vec![];
+        let result_vec = vec_processor.process(&empty_vec)?;
+        assert_eq!(result_vec, empty_vec);
+        assert!(result_vec.is_empty());
+
+        // Test empty string
+        let string_processor = PassThroughProcessor::new();
+        let empty_string = String::new();
+        let result_string = string_processor.process(&empty_string)?;
+        assert_eq!(result_string, empty_string);
+        assert!(result_string.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn should_clone_input_not_move() {
+        let processor = PassThroughProcessor::new();
+        let input = "original".to_string();
+        let input_copy = input.clone();
+
+        let _result = processor.process(&input).unwrap();
+
+        // Original input should still be accessible (not moved)
+        assert_eq!(input, input_copy);
+        assert_eq!(input, "original");
+    }
+
+    #[test]
+    fn should_work_with_multiple_processors() -> Result<(), BatchError> {
+        let processor1 = PassThroughProcessor::<String>::new();
+        let processor2 = PassThroughProcessor::<String>::new();
+
+        let input = "test data".to_string();
+        let result1 = processor1.process(&input)?;
+        let result2 = processor2.process(&result1)?;
+
+        assert_eq!(result2, input);
+        assert_eq!(result1, result2);
+        Ok(())
+    }
+
+    #[test]
+    fn should_handle_large_data_structures() -> Result<(), BatchError> {
+        let processor = PassThroughProcessor::new();
+
+        // Create a large vector
+        let large_input: Vec<i32> = (0..10000).collect();
+        let expected = large_input.clone();
+
+        let result = processor.process(&large_input)?;
+
+        assert_eq!(result.len(), expected.len());
+        assert_eq!(result, expected);
+        Ok(())
     }
 }

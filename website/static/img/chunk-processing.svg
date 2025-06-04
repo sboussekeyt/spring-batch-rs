@@ -1,0 +1,36 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3578e5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2e6ce6;stop-opacity:1" />
+    </linearGradient>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+     refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#3578e5" />
+    </marker>
+  </defs>
+  
+  <!-- Reader -->
+  <rect x="20" y="80" width="40" height="40" rx="5" fill="url(#grad1)" />
+  <text x="40" y="105" text-anchor="middle" fill="white" font-size="10" font-family="Arial">READ</text>
+  
+  <!-- Arrow 1 -->
+  <path d="M 65 100 L 85 100" stroke="#3578e5" stroke-width="3" marker-end="url(#arrowhead)" />
+  
+  <!-- Processor -->
+  <rect x="90" y="80" width="40" height="40" rx="5" fill="url(#grad1)" />
+  <text x="110" y="105" text-anchor="middle" fill="white" font-size="9" font-family="Arial">PROCESS</text>
+  
+  <!-- Arrow 2 -->
+  <path d="M 135 100 L 155 100" stroke="#3578e5" stroke-width="3" marker-end="url(#arrowhead)" />
+  
+  <!-- Writer -->
+  <rect x="160" y="80" width="40" height="40" rx="5" fill="url(#grad1)" />
+  <text x="180" y="105" text-anchor="middle" fill="white" font-size="10" font-family="Arial">WRITE</text>
+  
+  <!-- Chunk indicators -->
+  <rect x="30" y="140" width="15" height="15" rx="2" fill="#e3f2fd" stroke="#3578e5" />
+  <rect x="50" y="140" width="15" height="15" rx="2" fill="#e3f2fd" stroke="#3578e5" />
+  <rect x="70" y="140" width="15" height="15" rx="2" fill="#e3f2fd" stroke="#3578e5" />
+  <text x="100" y="152" fill="#666" font-size="12" font-family="Arial">Chunks</text>
+</svg> 

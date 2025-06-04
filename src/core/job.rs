@@ -309,7 +309,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use crate::{
-        core::{item::DefaultProcessor, step::StepBuilder},
+        core::{item::PassThroughProcessor, step::StepBuilder},
         item::{
             csv::csv_writer::{CsvItemWriter, CsvItemWriterBuilder},
             json::{json_reader::JsonItemReaderBuilder, JsonItemReader},
@@ -341,7 +341,7 @@ mod tests {
             .has_headers(true)
             .from_path(temp_dir().join("persons.csv"));
 
-        let processor = DefaultProcessor::default();
+        let processor = PassThroughProcessor::<Person>::new();
 
         let step = StepBuilder::new("test")
             .chunk(2)

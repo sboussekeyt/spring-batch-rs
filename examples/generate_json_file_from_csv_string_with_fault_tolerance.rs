@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::{
-        item::{ItemProcessor, ItemProcessorResult},
+        item::PassThroughProcessor,
         job::{Job, JobBuilder},
         step::{StepBuilder, StepStatus},
     },
@@ -16,15 +16,6 @@ struct Car {
     make: String,
     model: String,
     description: String,
-}
-
-#[derive(Default)]
-struct PassThroughProcessor;
-
-impl ItemProcessor<Car, Car> for PassThroughProcessor {
-    fn process(&self, item: &Car) -> ItemProcessorResult<Car> {
-        Ok(item.clone())
-    }
 }
 
 fn main() -> Result<()> {
@@ -41,7 +32,7 @@ fn main() -> Result<()> {
 
     let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join("cars.json"));
 
-    let processor = PassThroughProcessor::default();
+    let processor = PassThroughProcessor::<Car>::new();
 
     let step = StepBuilder::new("test")
         .chunk::<Car, Car>(2)
