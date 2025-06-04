@@ -4,7 +4,7 @@
 /*!
  <div align="center">
    <h1>Spring-Batch for Rust</h1>
-   <h3>🐞 A toolkit for building enterprise-grade batch applications</h3>
+   <h3>A toolkit for building enterprise-grade batch applications</h3>
 
    [![crate](https://img.shields.io/crates/v/spring-batch-rs.svg)](https://crates.io/crates/spring-batch-rs)
    [![docs](https://docs.rs/spring-batch-rs/badge.svg)](https://docs.rs/spring-batch-rs)
@@ -149,7 +149,7 @@ Simple CSV to JSON transformation:
 ```rust
 # use serde::{Deserialize, Serialize};
 # use spring_batch_rs::{
-#     core::{job::{Job, JobBuilder}, step::StepBuilder, item::ItemProcessor},
+#     core::{job::{Job, JobBuilder}, step::StepBuilder, item::PassThroughProcessor},
 #     item::{csv::csv_reader::CsvItemReaderBuilder, json::json_writer::JsonItemWriterBuilder},
 #     BatchError,
 # };
@@ -159,12 +159,6 @@ Simple CSV to JSON transformation:
 #     name: String,
 #     price: f64,
 # }
-# struct PassThroughProcessor;
-# impl ItemProcessor<Product, Product> for PassThroughProcessor {
-#     fn process(&self, item: &Product) -> Result<Product, BatchError> {
-#         Ok(item.clone())
-#     }
-# }
 
 fn main() -> Result<(), BatchError> {
     let csv_data = "id,name,price\n1,Laptop,999.99\n2,Mouse,29.99";
@@ -173,11 +167,14 @@ fn main() -> Result<(), BatchError> {
         .has_headers(true)
         .from_reader(csv_data.as_bytes());
 
+    // Create a temporary file for JSON output
+    let temp_file = std::env::temp_dir().join("products_temp.json");
+
     let writer = JsonItemWriterBuilder::new()
         .pretty_formatter(true)
-        .from_path("products.json");
+        .from_path(&temp_file);
 
-    let processor = PassThroughProcessor;
+    let processor = PassThroughProcessor::<Product>::new();
 
     let step = StepBuilder::new("csv_to_json")
         .chunk::<Product, Product>(10)
@@ -187,7 +184,12 @@ fn main() -> Result<(), BatchError> {
         .build();
 
     let job = JobBuilder::new().start(&step).build();
-    job.run().map(|_| ())
+    let result = job.run();
+
+    // Clean up temporary file after processing
+    std::fs::remove_file(&temp_file).ok();
+
+    result.map(|_| ())
 }
 ```
 
@@ -197,7 +199,7 @@ Reading from database with SeaORM:
 
 ```rust
 # use spring_batch_rs::{
-#     core::{job::{Job, JobBuilder}, step::StepBuilder},
+#     core::{job::{Job, JobBuilder}, step::StepBuilder, item::PassThroughProcessor},
 #     item::{csv::csv_writer::CsvItemWriterBuilder, fake::person_reader::{PersonReaderBuilder, Person}},
 #     BatchError,
 # };
@@ -232,9 +234,12 @@ async fn process_database_to_csv() -> Result<(), Box<dyn std::error::Error>> {
         .has_headers(true)
         .from_path("active_products.csv");
 
+    let processor = PassThroughProcessor::<Person>::new();
+
     let step = StepBuilder::new("db_to_csv")
         .chunk::<Person, Person>(50)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
         .build();
 

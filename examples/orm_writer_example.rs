@@ -7,7 +7,7 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::{
-        item::{ItemProcessor, ItemProcessorResult, ItemReader},
+        item::{ItemProcessor, ItemProcessorResult, ItemReader, PassThroughProcessor},
         job::{Job, JobBuilder},
         step::StepBuilder,
     },
@@ -96,18 +96,6 @@ impl ItemReader<ActiveModel> for ActiveModelReader {
         } else {
             Ok(None)
         }
-    }
-}
-
-/// Pass-through processor
-#[derive(Default)]
-struct PassThroughProcessor<T> {
-    _phantom: std::marker::PhantomData<T>,
-}
-
-impl<T: Clone> ItemProcessor<T, T> for PassThroughProcessor<T> {
-    fn process(&self, item: &T) -> ItemProcessorResult<T> {
-        Ok(item.clone())
     }
 }
 
@@ -231,9 +219,7 @@ async fn example_with_direct_entities(db: &DatabaseConnection) -> Result<()> {
         .connection(db)
         .build();
 
-    let processor = PassThroughProcessor {
-        _phantom: std::marker::PhantomData,
-    };
+    let processor = PassThroughProcessor::<ActiveModel>::new();
 
     // Run job
     let step = StepBuilder::new("write_direct_entities")

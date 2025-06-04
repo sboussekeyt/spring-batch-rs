@@ -9,14 +9,17 @@ use mongodb::{
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::{
-        item::{ItemProcessor, ItemProcessorResult},
+        item::{ItemProcessor, ItemProcessorResult, PassThroughProcessor},
         job::{Job, JobBuilder},
         step::{StepBuilder, StepStatus},
     },
-    item::csv::csv_reader::CsvItemReaderBuilder,
-    item::csv::csv_writer::CsvItemWriterBuilder,
-    item::mongodb::mongodb_reader::{MongodbItemReaderBuilder, WithObjectId},
-    item::mongodb::mongodb_writer::MongodbItemWriterBuilder,
+    item::{
+        csv::{csv_reader::CsvItemReaderBuilder, csv_writer::CsvItemWriterBuilder},
+        mongodb::{
+            mongodb_reader::{MongodbItemReaderBuilder, WithObjectId},
+            mongodb_writer::MongodbItemWriterBuilder,
+        },
+    },
 };
 use tempfile::NamedTempFile;
 
@@ -51,15 +54,6 @@ impl ItemProcessor<Book, FormattedBook> for FormatBookProcessor {
         };
 
         Ok(book)
-    }
-}
-
-#[derive(Default)]
-struct PassThroughProcessor;
-
-impl ItemProcessor<FormattedBook, FormattedBook> for PassThroughProcessor {
-    fn process(&self, item: &FormattedBook) -> ItemProcessorResult<FormattedBook> {
-        Ok(item.clone())
     }
 }
 
@@ -238,7 +232,7 @@ fn write_items_to_database() -> Result<()> {
         .collection(&book_collection)
         .build();
 
-    let processor = PassThroughProcessor::default();
+    let processor = PassThroughProcessor::<FormattedBook>::new();
 
     // Execute process
     let step = StepBuilder::new("test")

@@ -1,0 +1,482 @@
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+:root {
+  --ifm-color-primary: #2e8555;
+  --ifm-color-primary-dark: #29784c;
+  --ifm-color-primary-darker: #277148;
+  --ifm-color-primary-darkest: #205d3b;
+  --ifm-color-primary-light: #33925d;
+  --ifm-color-primary-lighter: #359962;
+  --ifm-color-primary-lightest: #3cad6e;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+/* For readability concerns, you should choose a lighter palette in dark mode. */
+[data-theme="dark"] {
+  --ifm-color-primary: #25c2a0;
+  --ifm-color-primary-dark: #21af90;
+  --ifm-color-primary-darker: #1fa588;
+  --ifm-color-primary-darkest: #1a8870;
+  --ifm-color-primary-light: #29d5b0;
+  --ifm-color-primary-lighter: #32d8b4;
+  --ifm-color-primary-lightest: #4fddbf;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/**
+ * Modern theme for Spring Batch RS Documentation
+ * Features: Clean design, modern colors, improved typography
+ */
+
+/* Import modern fonts */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+/* CSS Variables for modern color scheme */
+:root {
+  /* Primary colors - Modern blue palette */
+  --ifm-color-primary: #2563eb;
+  --ifm-color-primary-dark: #1d4ed8;
+  --ifm-color-primary-darker: #1e40af;
+  --ifm-color-primary-darkest: #1e3a8a;
+  --ifm-color-primary-light: #3b82f6;
+  --ifm-color-primary-lighter: #60a5fa;
+  --ifm-color-primary-lightest: #93c5fd;
+
+  /* Secondary colors */
+  --ifm-color-secondary: #64748b;
+  --ifm-color-secondary-dark: #475569;
+  --ifm-color-secondary-darker: #334155;
+  --ifm-color-secondary-darkest: #1e293b;
+  --ifm-color-secondary-light: #94a3b8;
+  --ifm-color-secondary-lighter: #cbd5e1;
+  --ifm-color-secondary-lightest: #f1f5f9;
+
+  /* Success colors */
+  --ifm-color-success: #10b981;
+  --ifm-color-success-dark: #059669;
+  --ifm-color-success-darker: #047857;
+  --ifm-color-success-darkest: #065f46;
+  --ifm-color-success-light: #34d399;
+  --ifm-color-success-lighter: #6ee7b7;
+  --ifm-color-success-lightest: #a7f3d0;
+
+  /* Warning colors */
+  --ifm-color-warning: #f59e0b;
+  --ifm-color-warning-dark: #d97706;
+  --ifm-color-warning-darker: #b45309;
+  --ifm-color-warning-darkest: #92400e;
+  --ifm-color-warning-light: #fbbf24;
+  --ifm-color-warning-lighter: #fcd34d;
+  --ifm-color-warning-lightest: #fde68a;
+
+  /* Danger colors */
+  --ifm-color-danger: #ef4444;
+  --ifm-color-danger-dark: #dc2626;
+  --ifm-color-danger-darker: #b91c1c;
+  --ifm-color-danger-darkest: #991b1b;
+  --ifm-color-danger-light: #f87171;
+  --ifm-color-danger-lighter: #fca5a5;
+  --ifm-color-danger-lightest: #fecaca;
+
+  /* Modern typography */
+  --ifm-font-family-base: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif;
+  --ifm-font-family-monospace: "JetBrains Mono", "SF Mono", Monaco,
+    "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+
+  /* Font sizes */
+  --ifm-font-size-base: 16px;
+  --ifm-line-height-base: 1.6;
+
+  /* Spacing */
+  --ifm-spacing-horizontal: 1.5rem;
+  --ifm-spacing-vertical: 1.5rem;
+
+  /* Border radius for modern look */
+  --ifm-border-radius: 8px;
+  --ifm-button-border-radius: 6px;
+  --ifm-card-border-radius: 12px;
+
+  /* Shadows for depth */
+  --ifm-box-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --ifm-box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1),
+    0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --ifm-box-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --ifm-box-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+  /* Background colors */
+  --ifm-background-color: #ffffff;
+  --ifm-background-surface-color: #f8fafc;
+  --ifm-hero-background-color: linear-gradient(
+    135deg,
+    #667eea 0%,
+    #764ba2 100%
+  );
+
+  /* Code block styling */
+  --ifm-code-font-size: 14px;
+  --ifm-code-background: #f1f5f9;
+  --ifm-code-border-radius: 6px;
+  --ifm-code-padding-horizontal: 0.5rem;
+  --ifm-code-padding-vertical: 0.25rem;
+
+  /* Navbar */
+  --ifm-navbar-height: 4rem;
+  --ifm-navbar-background-color: rgba(255, 255, 255, 0.95);
+  --ifm-navbar-shadow: var(--ifm-box-shadow);
+
+  /* Footer */
+  --ifm-footer-background-color: #1e293b;
+  --ifm-footer-color: #cbd5e1;
+  --ifm-footer-link-color: #e2e8f0;
+  --ifm-footer-title-color: #f1f5f9;
+}
+
+/* Dark theme colors */
+[data-theme="dark"] {
+  --ifm-color-primary: #60a5fa;
+  --ifm-color-primary-dark: #3b82f6;
+  --ifm-color-primary-darker: #2563eb;
+  --ifm-color-primary-darkest: #1d4ed8;
+  --ifm-color-primary-light: #93c5fd;
+  --ifm-color-primary-lighter: #bfdbfe;
+  --ifm-color-primary-lightest: #dbeafe;
+
+  --ifm-background-color: #0f172a;
+  --ifm-background-surface-color: #1e293b;
+  --ifm-hero-background-color: linear-gradient(
+    135deg,
+    #1e293b 0%,
+    #334155 100%
+  );
+
+  --ifm-navbar-background-color: rgba(15, 23, 42, 0.95);
+  --ifm-footer-background-color: #020617;
+
+  --ifm-code-background: #1e293b;
+  --ifm-code-color: #e2e8f0;
+
+  /* Mermaid dark theme colors */
+  --ifm-color-emphasis-100: #1e293b;
+  --ifm-color-emphasis-200: #334155;
+  --ifm-color-emphasis-300: #475569;
+}
+
+/* Global styles */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography improvements */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 2rem;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+h3 {
+  font-size: 1.5rem;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Modern button styles */
+.button {
+  font-weight: 500;
+  letter-spacing: 0.025em;
+  transition: all 0.2s ease-in-out;
+  border: none;
+  box-shadow: var(--ifm-box-shadow-sm);
+}
+
+.button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ifm-box-shadow-md);
+}
+
+.button--primary {
+  background: linear-gradient(
+    135deg,
+    var(--ifm-color-primary) 0%,
+    var(--ifm-color-primary-dark) 100%
+  );
+}
+
+.button--secondary {
+  background: var(--ifm-color-secondary-lightest);
+  color: var(--ifm-color-secondary-darkest);
+}
+
+.button--outline {
+  border: 2px solid var(--ifm-color-primary);
+  background: transparent;
+}
+
+/* Navbar improvements */
+.navbar {
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.navbar__brand {
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+.navbar__item {
+  font-weight: 500;
+}
+
+.navbar__link {
+  transition: color 0.2s ease-in-out;
+}
+
+.navbar__link:hover {
+  color: var(--ifm-color-primary);
+}
+
+/* Hero section */
+.hero {
+  background: var(--ifm-hero-background-color);
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  opacity: 0.3;
+}
+
+.hero__title {
+  font-size: 3.5rem;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  margin-bottom: 1rem;
+  position: relative;
+  z-index: 1;
+}
+
+.hero__subtitle {
+  font-size: 1.25rem;
+  font-weight: 400;
+  opacity: 0.9;
+  position: relative;
+  z-index: 1;
+}
+
+/* Card improvements */
+.card {
+  border-radius: var(--ifm-card-border-radius);
+  box-shadow: var(--ifm-box-shadow);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  transition: all 0.3s ease-in-out;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ifm-box-shadow-lg);
+}
+
+/* Code block improvements */
+.prism-code {
+  border-radius: var(--ifm-border-radius);
+  font-size: var(--ifm-code-font-size);
+  line-height: 1.5;
+}
+
+.token.comment {
+  font-style: italic;
+}
+
+/* Sidebar improvements */
+.theme-doc-sidebar-container {
+  border-right: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.theme-doc-sidebar-item-link {
+  border-radius: 6px;
+  margin: 2px 0;
+  transition: all 0.2s ease-in-out;
+}
+
+.theme-doc-sidebar-item-link:hover {
+  background: var(--ifm-color-emphasis-100);
+}
+
+.theme-doc-sidebar-item-link-level-1 {
+  font-weight: 500;
+}
+
+/* Table improvements */
+table {
+  border-radius: var(--ifm-border-radius);
+  overflow: hidden;
+  box-shadow: var(--ifm-box-shadow-sm);
+}
+
+th {
+  background: var(--ifm-color-emphasis-100);
+  font-weight: 600;
+}
+
+/* Admonition improvements */
+.admonition {
+  border-radius: var(--ifm-border-radius);
+  box-shadow: var(--ifm-box-shadow-sm);
+}
+
+/* Footer improvements */
+.footer {
+  background: var(--ifm-footer-background-color);
+  color: var(--ifm-footer-color);
+}
+
+.footer__title {
+  color: var(--ifm-footer-title-color);
+  font-weight: 600;
+}
+
+.footer__link-item {
+  color: var(--ifm-footer-link-color);
+  transition: color 0.2s ease-in-out;
+}
+
+.footer__link-item:hover {
+  color: var(--ifm-color-primary-lighter);
+}
+
+/* Pagination improvements */
+.pagination-nav {
+  border-radius: var(--ifm-border-radius);
+  box-shadow: var(--ifm-box-shadow-sm);
+}
+
+.pagination-nav__link {
+  border-radius: var(--ifm-border-radius);
+  transition: all 0.2s ease-in-out;
+}
+
+.pagination-nav__link:hover {
+  box-shadow: var(--ifm-box-shadow-md);
+  transform: translateY(-1px);
+}
+
+/* Breadcrumb improvements */
+.breadcrumbs {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.breadcrumbs__link {
+  transition: color 0.2s ease-in-out;
+}
+
+.breadcrumbs__link:hover {
+  color: var(--ifm-color-primary);
+}
+
+/* Search improvements */
+.DocSearch-Button {
+  border-radius: var(--ifm-button-border-radius);
+  box-shadow: var(--ifm-box-shadow-sm);
+  transition: all 0.2s ease-in-out;
+}
+
+.DocSearch-Button:hover {
+  box-shadow: var(--ifm-box-shadow-md);
+}
+
+/* Mobile responsiveness */
+@media screen and (max-width: 996px) {
+  .hero__title {
+    font-size: 2.5rem;
+  }
+
+  .hero__subtitle {
+    font-size: 1.125rem;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+
+  h2 {
+    font-size: 1.75rem;
+  }
+}
+
+/* Smooth animations */
+* {
+  transition-property: background-color, border-color, color, fill, stroke,
+    opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Focus styles for accessibility */
+*:focus {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+/* Mermaid diagram improvements */
+.mermaid {
+  background: transparent !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ifm-color-emphasis-100);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ifm-color-emphasis-300);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ifm-color-emphasis-400);
+}

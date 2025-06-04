@@ -8,6 +8,7 @@ use sea_orm::{
     entity::prelude::*, Database, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
 };
 use serde::{Deserialize, Serialize};
+use spring_batch_rs::core::item::PassThroughProcessor;
 use spring_batch_rs::{
     core::{
         item::{ItemProcessor, ItemProcessorResult, ItemReader, ItemWriter},
@@ -69,16 +70,6 @@ impl ItemProcessor<Model, ProductDto> for ProductTransformProcessor {
             },
         };
         Ok(dto)
-    }
-}
-
-/// Processor for Model objects
-#[derive(Default)]
-struct ModelPassThroughProcessor;
-
-impl ItemProcessor<Model, Model> for ModelPassThroughProcessor {
-    fn process(&self, item: &Model) -> ItemProcessorResult<Model> {
-        Ok(item.clone())
     }
 }
 
@@ -154,7 +145,7 @@ async fn test_orm_reader_without_pagination() -> Result<(), Error> {
         .has_headers(true)
         .from_writer(tmpfile.as_file());
 
-    let processor = ModelPassThroughProcessor::default();
+    let processor = PassThroughProcessor::<Model>::new();
 
     // Execute process
     let step = StepBuilder::new("test_orm_no_pagination")
@@ -465,7 +456,7 @@ async fn test_orm_reader_integration_with_job() -> Result<(), Error> {
         .has_headers(true)
         .from_writer(tmpfile.as_file());
 
-    let processor = ModelPassThroughProcessor::default();
+    let processor = PassThroughProcessor::<Model>::new();
 
     // Execute process with chunk size smaller than page size
     let step = StepBuilder::new("test_furniture_products")

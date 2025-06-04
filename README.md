@@ -1,6 +1,6 @@
 # Spring-Batch for Rust
 
-> 🐞 A toolkit for building enterprise-grade batch applications
+> A toolkit for building enterprise-grade batch applications
 
 [![crate](https://img.shields.io/crates/v/spring-batch-rs.svg)](https://crates.io/crates/spring-batch-rs)
 [![docs](https://docs.rs/spring-batch-rs/badge.svg)](https://docs.rs/spring-batch-rs)
@@ -182,9 +182,12 @@ fn main() -> Result<(), BatchError> {
         .pretty(true)
         .from_path("products.json");
 
+    let processor = PassThroughProcessor::<Product>::new();
+
     let step = StepBuilder::new("csv_to_json")
         .chunk(10)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
         .build();
 
@@ -224,9 +227,12 @@ async fn process_database_to_csv() -> Result<(), BatchError> {
         .has_headers(true)
         .from_path("active_products.csv");
 
+    let processor = PassThroughProcessor::<Product>::new();
+
     let step = StepBuilder::new("db_to_csv")
         .chunk(50)
         .reader(&reader)
+        .proccesor(&processor)
         .writer(&writer)
         .build();
 

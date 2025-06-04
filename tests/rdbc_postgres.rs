@@ -4,7 +4,7 @@ use anyhow::Error;
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
     core::{
-        item::{ItemProcessor, ItemProcessorResult},
+        item::PassThroughProcessor,
         job::{Job, JobBuilder},
         step::{StepBuilder, StepStatus},
     },
@@ -44,15 +44,6 @@ impl RdbcRowMapper<Person> for PersonRowMapper {
     }
 }
 
-#[derive(Default)]
-struct PersonPassThroughProcessor;
-
-impl ItemProcessor<Person, Person> for PersonPassThroughProcessor {
-    fn process(&self, item: &Person) -> ItemProcessorResult<Person> {
-        Ok(item.clone())
-    }
-}
-
 #[tokio::test(flavor = "multi_thread")]
 async fn read_items_from_database() -> Result<(), Error> {
     // Prepare container
@@ -83,7 +74,7 @@ async fn read_items_from_database() -> Result<(), Error> {
         .has_headers(true)
         .from_writer(tmpfile.as_file());
 
-    let processor = PersonPassThroughProcessor::default();
+    let processor = PassThroughProcessor::new();
 
     // Execute process
     let step = StepBuilder::new("test")
@@ -158,15 +149,6 @@ struct Car {
     description: String,
 }
 
-#[derive(Default)]
-struct PassThroughProcessor;
-
-impl ItemProcessor<Car, Car> for PassThroughProcessor {
-    fn process(&self, item: &Car) -> ItemProcessorResult<Car> {
-        Ok(item.clone())
-    }
-}
-
 #[tokio::test(flavor = "multi_thread")]
 #[ignore] // Ignore because of issue: https://github.com/launchbadge/sqlx/issues/3000
 async fn write_items_to_database() -> Result<(), Error> {
@@ -208,7 +190,7 @@ async fn write_items_to_database() -> Result<(), Error> {
         .item_binder(&item_binder)
         .build();
 
-    let processor = PassThroughProcessor::default();
+    let processor = PassThroughProcessor::<Car>::new();
 
     // Execute process
     let step = StepBuilder::new("test")

@@ -3,7 +3,7 @@ use std::env::temp_dir;
 
 use spring_batch_rs::{
     core::{
-        item::{ItemProcessor, ItemProcessorResult},
+        item::PassThroughProcessor,
         job::{Job, JobBuilder},
         step::StepBuilder,
     },
@@ -13,15 +13,6 @@ use spring_batch_rs::{
     },
 };
 
-#[derive(Default)]
-struct PassThroughProcessor;
-
-impl ItemProcessor<Person, Person> for PassThroughProcessor {
-    fn process(&self, item: &Person) -> ItemProcessorResult<Person> {
-        Ok(item.clone())
-    }
-}
-
 fn main() -> Result<()> {
     let reader = PersonReaderBuilder::new().number_of_items(10).build();
 
@@ -29,7 +20,7 @@ fn main() -> Result<()> {
         .has_headers(false)
         .from_path(temp_dir().join("fake-persons.csv"));
 
-    let processor = PassThroughProcessor::default();
+    let processor = PassThroughProcessor::<Person>::new();
 
     let step = StepBuilder::new("test")
         .chunk::<Person, Person>(10)
