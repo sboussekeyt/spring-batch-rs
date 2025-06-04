@@ -72,7 +72,7 @@ fn main() -> Result<(), BatchError> {
         .from_path("discounted_products.json");
 
     let step = StepBuilder::new("apply_discount")
-        .chunk(100) // Process 100 items at a time
+        .chunk::<Product, Product>(100) // Process 100 items at a time
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
@@ -172,7 +172,7 @@ You can combine both processing models in a single job:
 
 ```rust
 use spring_batch_rs::{
-    core::{job::JobBuilder, step::StepBuilder},
+    core::{job::JobBuilder, step::StepBuilder, item::PassThroughProcessor},
     item::{csv::CsvItemReaderBuilder, json::JsonItemWriterBuilder},
     tasklet::zip::ZipTaskletBuilder,
     BatchError,

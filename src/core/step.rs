@@ -538,49 +538,51 @@ pub enum RepeatStatus {
     Finished,
 }
 
-/// A step implementation that processes data in chunks using the read-process-write pattern.
+/// A step implementation that processes items in chunks.
 ///
-/// ChunkOrientedStep is the most common type of step in batch processing. It reads items
-/// from a source, processes them through a transformation, and writes them to a destination.
-/// Processing is done in configurable chunks to optimize memory usage and transaction boundaries.
-///
-/// # Type Parameters
-/// - `I`: The input item type (what the reader produces)
-/// - `O`: The output item type (what the processor produces and writer consumes)
+/// ChunkOrientedStep reads items from a reader, processes them through a processor,
+/// and writes them using a writer. It handles errors gracefully with configurable
+/// skip limits and provides comprehensive metrics tracking.
 ///
 /// # Examples
 ///
+/// ## Chunk-Oriented Processing
+///
 /// ```rust
-/// use spring_batch_rs::core::step::{StepBuilder, StepExecution};
-/// use spring_batch_rs::core::item::{ItemReader, ItemProcessor, ItemWriter};
+/// use spring_batch_rs::core::step::{StepBuilder, StepExecution, Step};
+/// use spring_batch_rs::core::item::{ItemReader, ItemProcessor, ItemWriter, PassThroughProcessor};
 /// use spring_batch_rs::BatchError;
 ///
-/// # struct StringReader;
-/// # impl ItemReader<String> for StringReader {
+/// # struct MyReader;
+/// # impl ItemReader<String> for MyReader {
 /// #     fn read(&self) -> Result<Option<String>, BatchError> { Ok(None) }
 /// # }
-/// # struct UppercaseProcessor;
-/// # impl ItemProcessor<String, String> for UppercaseProcessor {
-/// #     fn process(&self, item: &String) -> Result<String, BatchError> { Ok(item.to_uppercase()) }
+/// # struct MyProcessor;
+/// # impl ItemProcessor<String, String> for MyProcessor {
+/// #     fn process(&self, item: &String) -> Result<String, BatchError> { Ok(item.clone()) }
 /// # }
-/// # struct StringWriter;
-/// # impl ItemWriter<String> for StringWriter {
+/// # struct MyWriter;
+/// # impl ItemWriter<String> for MyWriter {
 /// #     fn write(&self, items: &[String]) -> Result<(), BatchError> { Ok(()) }
 /// #     fn flush(&self) -> Result<(), BatchError> { Ok(()) }
 /// #     fn open(&self) -> Result<(), BatchError> { Ok(()) }
 /// #     fn close(&self) -> Result<(), BatchError> { Ok(()) }
 /// # }
-/// let reader = StringReader;
-/// let processor = UppercaseProcessor;
-/// let writer = StringWriter;
 ///
-/// let step = StepBuilder::new("text-processing")
-///     .chunk(1000)                   // Process 1000 items per chunk
+/// let reader = MyReader;
+/// let processor = PassThroughProcessor::<String>::new();
+/// let writer = MyWriter;
+///
+/// let step = StepBuilder::new("my-step")
+///     .chunk::<String, String>(100)                    // Process 100 items per chunk
 ///     .reader(&reader)
 ///     .processor(&processor)
 ///     .writer(&writer)
-///     .skip_limit(50)               // Allow up to 50 errors
+///     .skip_limit(10)               // Allow up to 10 errors
 ///     .build();
+///
+/// let mut step_execution = StepExecution::new(step.get_name());
+/// let result = step.execute(&mut step_execution);
 /// ```
 pub struct ChunkOrientedStep<'a, I, O> {
     name: String,
@@ -1191,7 +1193,7 @@ impl<'a, I, O> ChunkOrientedStepBuilder<'a, I, O> {
 /// let writer = MyWriter;
 ///
 /// let step = StepBuilder::new("data-processing")
-///     .chunk(100)
+///     .chunk::<String, String>(100)
 ///     .reader(&reader)
 ///     .processor(&processor)
 ///     .writer(&writer)

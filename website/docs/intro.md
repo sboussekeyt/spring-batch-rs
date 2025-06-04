@@ -69,7 +69,7 @@ Here's a simple example that reads from CSV and writes to JSON:
 
 ```rust
 use spring_batch_rs::{
-    core::{job::JobBuilder, step::StepBuilder},
+    core::{job::JobBuilder, step::StepBuilder, item::PassThroughProcessor},
     item::{csv::CsvItemReaderBuilder, json::JsonItemWriterBuilder},
     BatchError,
 };

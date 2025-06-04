@@ -280,6 +280,7 @@ All readers and writers support configurable error handling:
 
 ```rust
 use spring_batch_rs::core::step::StepBuilder;
+use spring_batch_rs::core::item::PassThroughProcessor;
 
 let processor = PassThroughProcessor::<Product>::new();
 
@@ -300,13 +301,13 @@ Choose appropriate chunk sizes based on your data and memory constraints:
 
 ```rust
 // Small chunks for memory-constrained environments
-.chunk(10)
+.chunk::<Product, Product>(10)
 
 // Medium chunks for balanced performance
-.chunk(100)
+.chunk::<Product, Product>(100)
 
 // Large chunks for high-throughput scenarios
-.chunk(1000)
+.chunk::<Product, Product>(1000)
 ```
 
 ### Database Pagination

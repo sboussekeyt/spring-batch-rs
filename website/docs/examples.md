@@ -74,7 +74,7 @@ fn main() -> Result<(), BatchError> {
         .from_path("enriched_products.json");
 
     let step = StepBuilder::new("enrich_products")
-        .chunk(100)
+        .chunk::<Product, EnrichedProduct>(100)
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
@@ -150,7 +150,7 @@ fn main() -> Result<(), BatchError> {
         .from_path("processed_data.json");
 
     let step = StepBuilder::new("validate_data")
-        .chunk(50)
+        .chunk::<RawData, ProcessedData>(50)
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
@@ -168,9 +168,9 @@ fn main() -> Result<(), BatchError> {
 
 Export database records to CSV with pagination:
 
-```rust
+````rust
 use spring_batch_rs::{
-    core::{job::JobBuilder, step::StepBuilder},
+    core::{job::JobBuilder, step::StepBuilder, item::PassThroughProcessor},
     item::{orm::OrmItemReaderBuilder, csv::CsvItemWriterBuilder},
     BatchError,
 };
@@ -206,16 +206,18 @@ async fn export_active_users() -> Result<(), Box<dyn std::error::Error>> {
         .has_headers(true)
         .from_path("active_users_export.csv");
 
+    let processor = PassThroughProcessor::<User>::new();
+
     let step = StepBuilder::new("export_users")
-        .chunk(500)
+        .chunk::<User, User>(500)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
         .build();
 
     let job = JobBuilder::new().start(&step).build();
     job.run().map(|_| ()).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
 }
-```
 
 ### File to Database Import
 
@@ -276,7 +278,7 @@ async fn import_users() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     let step = StepBuilder::new("import_users")
-        .chunk(100)
+        .chunk::<CsvUser, user::ActiveModel>(100)
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
@@ -286,7 +288,7 @@ async fn import_users() -> Result<(), Box<dyn std::error::Error>> {
     let job = JobBuilder::new().start(&step).build();
     job.run().map(|_| ()).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
 }
-```
+````
 
 ## Tasklet Examples
 
@@ -296,7 +298,7 @@ Create a multi-step job that processes files and then archives them:
 
 ```rust
 use spring_batch_rs::{
-    core::{job::JobBuilder, step::StepBuilder, step::{Tasklet, StepExecution, RepeatStatus}},
+    core::{job::JobBuilder, step::StepBuilder, step::{Tasklet, StepExecution, RepeatStatus}, item::PassThroughProcessor},
     item::{csv::CsvItemReaderBuilder, json::JsonItemWriterBuilder},
     tasklet::zip::ZipTaskletBuilder,
     BatchError,
@@ -346,9 +348,12 @@ fn main() -> Result<(), BatchError> {
         .pretty_formatter(true)
         .from_path("output/products.json");
 
+    let processor = PassThroughProcessor::<Product>::new();
+
     let process_step = StepBuilder::new("process_data")
-        .chunk(100)
+        .chunk::<Product, Product>(100)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
         .build();
 
@@ -392,7 +397,7 @@ Generate test data for development and testing:
 
 ```rust
 use spring_batch_rs::{
-    core::{job::JobBuilder, step::StepBuilder},
+    core::{job::JobBuilder, step::StepBuilder, item::PassThroughProcessor},
     item::{fake::person_reader::PersonReaderBuilder, csv::CsvItemWriterBuilder},
     BatchError,
 };
@@ -408,9 +413,12 @@ fn generate_test_data() -> Result<(), BatchError> {
         .has_headers(true)
         .from_path("test_data/persons.csv");
 
+    let processor = PassThroughProcessor::<Person>::new();
+
     let step = StepBuilder::new("generate_test_persons")
-        .chunk(500)
+        .chunk::<Person, Person>(500)
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
         .build();
 
@@ -458,7 +466,7 @@ fn debug_processing() -> Result<(), BatchError> {
         .build();
 
     let step = StepBuilder::new("debug_processing")
-        .chunk(10)  // Small chunks for detailed logging
+        .chunk::<Product, Product>(10)  // Small chunks for detailed logging
         .reader(&reader)
         .processor(&processor)
         .writer(&writer)
@@ -477,7 +485,7 @@ Optimize for processing large datasets:
 
 ```rust
 use spring_batch_rs::{
-    core::{job::JobBuilder, step::StepBuilder},
+    core::{job::JobBuilder, step::StepBuilder, item::PassThroughProcessor},
     item::{csv::CsvItemReaderBuilder, csv::CsvItemWriterBuilder},
     BatchError,
 };
@@ -493,9 +501,12 @@ fn process_large_dataset() -> Result<(), BatchError> {
         .buffer_size(8192)
         .from_path("processed_large_dataset.csv");
 
+    let processor = PassThroughProcessor::<Product>::new();
+
     let step = StepBuilder::new("process_large_data")
-        .chunk(1000)  // Large chunks for better throughput
+        .chunk::<Product, Product>(1000)  // Large chunks for better throughput
         .reader(&reader)
+        .processor(&processor)
         .writer(&writer)
         .build();
 
