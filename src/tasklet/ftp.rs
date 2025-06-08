@@ -14,6 +14,22 @@
 //! - Proper error handling and logging
 //! - Builder pattern for easy configuration
 //!
+//! ## Memory Efficiency Features
+//!
+//! **Streaming Downloads (Implemented):**
+//! - Both `FtpGetTasklet` and `FtpGetFolderTasklet` use `retr()` streaming method
+//!   to download files directly from FTP server to local storage without loading
+//!   entire files into memory
+//! - This approach is memory-efficient for files of any size, from small to very large
+//! - Uses proper error type conversion between `std::io::Error` and `FtpError`
+//!   through the `io_error_to_ftp_error` helper function
+//!
+//! **Performance Benefits:**
+//! - Constant memory usage regardless of file size
+//! - Improved performance for large file transfers
+//! - Reduced risk of out-of-memory errors when processing large files
+//! - Direct streaming from network to disk without intermediate buffering
+//!
 //! ## Examples
 //!
 //! ### FTP PUT Operation
@@ -44,18 +60,19 @@
 //! # }
 //! ```
 //!
-//! ### FTP GET Operation
+//! ### FTP GET Operation (Memory-Efficient Streaming)
 //!
 //! ```rust
 //! use spring_batch_rs::tasklet::ftp::FtpGetTaskletBuilder;
 //!
 //! # fn example() -> Result<(), spring_batch_rs::BatchError> {
+//! // This tasklet streams large files directly to disk without loading into memory
 //! let ftp_get_tasklet = FtpGetTaskletBuilder::new()
 //!     .host("ftp.example.com")
 //!     .username("user")
 //!     .password("password")
-//!     .remote_file("/remote/path/file.txt")
-//!     .local_file("./downloaded_file.txt")
+//!     .remote_file("/remote/path/large_file.zip")  // Works efficiently with any file size
+//!     .local_file("./downloaded_large_file.zip")
 //!     .build()?;
 //! # Ok(())
 //! # }
@@ -72,7 +89,26 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
-use suppaftp::{FtpStream, Mode};
+use suppaftp::{FtpError, FtpStream, Mode};
+
+/// Helper function to convert std::io::Error to FtpError for use in suppaftp closures.
+///
+/// This allows us to use std::io operations within FTP streaming closures while
+/// maintaining proper error type compatibility. The suppaftp library's `retr()` method
+/// expects closures to return `Result<T, FtpError>`, but standard I/O operations return
+/// `Result<T, std::io::Error>`. This function bridges that gap by wrapping the I/O error
+/// in a `FtpError::ConnectionError` variant.
+///
+/// # Arguments
+///
+/// * `error` - The std::io::Error to convert
+///
+/// # Returns
+///
+/// An FtpError that can be used in suppaftp closure contexts
+fn io_error_to_ftp_error(error: std::io::Error) -> FtpError {
+    FtpError::ConnectionError(error)
+}
 
 /// Helper function to establish and configure an FTP connection.
 ///
@@ -338,13 +374,27 @@ impl Tasklet for FtpGetTasklet {
             self.timeout,
         )?;
 
-        // Download file
-        let data = ftp_stream.retr_as_buffer(&self.remote_file).map_err(|e| {
-            BatchError::Io(std::io::Error::other(format!("FTP download failed: {}", e)))
-        })?;
+        // Stream download directly to file for improved memory efficiency
+        let local_file_path = self.local_file.clone();
+        ftp_stream
+            .retr(&self.remote_file, |stream| {
+                // Create local file for writing
+                let mut file = File::create(&local_file_path).map_err(io_error_to_ftp_error)?;
 
-        // Write data to local file
-        std::fs::write(&self.local_file, data.into_inner()).map_err(BatchError::Io)?;
+                // Copy data from FTP stream to local file using streaming
+                std::io::copy(stream, &mut file).map_err(io_error_to_ftp_error)?;
+
+                // Ensure data is flushed to disk
+                file.sync_all().map_err(io_error_to_ftp_error)?;
+
+                Ok(())
+            })
+            .map_err(|e| {
+                BatchError::Io(std::io::Error::other(format!(
+                    "FTP streaming download failed: {}",
+                    e
+                )))
+            })?;
 
         // Disconnect
         let _ = ftp_stream.quit();
@@ -651,12 +701,29 @@ impl FtpGetFolderTasklet {
                 format!("{}/{}", remote_dir, file_name)
             };
 
-            // Try to determine if it's a file or directory by attempting to download
-            match ftp_stream.retr_as_buffer(&remote_full_path) {
-                Ok(data) => {
-                    // It's a file, save it
+            // Try to determine if it's a file or directory by attempting to stream download
+            let download_result = {
+                let local_path_clone = local_path.clone();
+                ftp_stream.retr(&remote_full_path, |stream| {
+                    // Create local file for writing
+                    let mut file =
+                        File::create(&local_path_clone).map_err(io_error_to_ftp_error)?;
+
+                    // Copy data from FTP stream to local file using streaming
+                    std::io::copy(stream, &mut file).map_err(io_error_to_ftp_error)?;
+
+                    // Ensure data is flushed to disk
+                    file.sync_all().map_err(io_error_to_ftp_error)?;
+
+                    Ok(())
+                })
+            };
+
+            match download_result {
+                Ok(_) => {
+                    // It's a file, successfully downloaded using streaming
                     info!(
-                        "Downloading file: {} -> {}",
+                        "Streaming downloaded file: {} -> {}",
                         remote_full_path,
                         local_path.display()
                     );
@@ -666,10 +733,6 @@ impl FtpGetFolderTasklet {
                             fs::create_dir_all(parent).map_err(BatchError::Io)?;
                         }
                     }
-
-                    // Extract the data from the cursor
-                    let bytes = data.into_inner();
-                    fs::write(&local_path, bytes).map_err(BatchError::Io)?;
                 }
                 Err(_) if self.recursive => {
                     // Might be a directory, try to recurse
