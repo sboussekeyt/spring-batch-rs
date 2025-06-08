@@ -74,6 +74,72 @@ use std::{
 };
 use suppaftp::{FtpStream, Mode};
 
+/// Helper function to establish and configure an FTP connection.
+///
+/// This function handles the common setup logic shared by all FTP tasklets:
+/// - Connecting to the FTP server
+/// - Logging in with credentials
+/// - Setting timeouts for read/write operations
+/// - Configuring transfer mode (active/passive)
+///
+/// # Arguments
+///
+/// * `host` - FTP server hostname or IP address
+/// * `port` - FTP server port
+/// * `username` - FTP username
+/// * `password` - FTP password
+/// * `passive_mode` - Whether to use passive mode
+/// * `timeout` - Connection timeout duration
+///
+/// # Returns
+///
+/// Returns a configured `FtpStream` ready for file operations.
+///
+/// # Errors
+///
+/// Returns `BatchError` if connection, login, or configuration fails.
+fn setup_ftp_connection(
+    host: &str,
+    port: u16,
+    username: &str,
+    password: &str,
+    passive_mode: bool,
+    timeout: Duration,
+) -> Result<FtpStream, BatchError> {
+    // Connect to FTP server
+    let mut ftp_stream = FtpStream::connect(format!("{}:{}", host, port)).map_err(|e| {
+        BatchError::Io(std::io::Error::new(
+            std::io::ErrorKind::ConnectionRefused,
+            format!("Failed to connect to FTP server: {}", e),
+        ))
+    })?;
+
+    // Login
+    ftp_stream
+        .login(username, password)
+        .map_err(|e| BatchError::Configuration(format!("FTP login failed: {}", e)))?;
+
+    // Set timeout for control channel commands
+    ftp_stream
+        .get_ref()
+        .set_read_timeout(Some(timeout))
+        .map_err(|e| BatchError::Configuration(format!("Failed to set read timeout: {}", e)))?;
+    ftp_stream
+        .get_ref()
+        .set_write_timeout(Some(timeout))
+        .map_err(|e| BatchError::Configuration(format!("Failed to set write timeout: {}", e)))?;
+
+    // Set transfer mode
+    let mode = if passive_mode {
+        Mode::Passive
+    } else {
+        Mode::Active
+    };
+    ftp_stream.set_mode(mode);
+
+    Ok(ftp_stream)
+}
+
 /// A tasklet for uploading files to an FTP server.
 ///
 /// This tasklet provides functionality for uploading local files to an FTP server
@@ -151,38 +217,14 @@ impl Tasklet for FtpPutTasklet {
         );
 
         // Connect to FTP server
-        let mut ftp_stream =
-            FtpStream::connect(format!("{}:{}", self.host, self.port)).map_err(|e| {
-                BatchError::Io(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionRefused,
-                    format!("Failed to connect to FTP server: {}", e),
-                ))
-            })?;
-
-        // Login
-        ftp_stream
-            .login(&self.username, &self.password)
-            .map_err(|e| BatchError::Configuration(format!("FTP login failed: {}", e)))?;
-
-        // Set timeout for control channel commands
-        ftp_stream
-            .get_ref()
-            .set_read_timeout(Some(self.timeout))
-            .map_err(|e| BatchError::Configuration(format!("Failed to set read timeout: {}", e)))?;
-        ftp_stream
-            .get_ref()
-            .set_write_timeout(Some(self.timeout))
-            .map_err(|e| {
-                BatchError::Configuration(format!("Failed to set write timeout: {}", e))
-            })?;
-
-        // Set transfer mode
-        let mode = if self.passive_mode {
-            Mode::Passive
-        } else {
-            Mode::Active
-        };
-        ftp_stream.set_mode(mode);
+        let mut ftp_stream = setup_ftp_connection(
+            &self.host,
+            self.port,
+            &self.username,
+            &self.password,
+            self.passive_mode,
+            self.timeout,
+        )?;
 
         // Upload file
         let file = File::open(&self.local_file).map_err(BatchError::Io)?;
@@ -285,38 +327,14 @@ impl Tasklet for FtpGetTasklet {
         );
 
         // Connect to FTP server
-        let mut ftp_stream =
-            FtpStream::connect(format!("{}:{}", self.host, self.port)).map_err(|e| {
-                BatchError::Io(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionRefused,
-                    format!("Failed to connect to FTP server: {}", e),
-                ))
-            })?;
-
-        // Login
-        ftp_stream
-            .login(&self.username, &self.password)
-            .map_err(|e| BatchError::Configuration(format!("FTP login failed: {}", e)))?;
-
-        // Set timeout for control channel commands
-        ftp_stream
-            .get_ref()
-            .set_read_timeout(Some(self.timeout))
-            .map_err(|e| BatchError::Configuration(format!("Failed to set read timeout: {}", e)))?;
-        ftp_stream
-            .get_ref()
-            .set_write_timeout(Some(self.timeout))
-            .map_err(|e| {
-                BatchError::Configuration(format!("Failed to set write timeout: {}", e))
-            })?;
-
-        // Set transfer mode
-        let mode = if self.passive_mode {
-            Mode::Passive
-        } else {
-            Mode::Active
-        };
-        ftp_stream.set_mode(mode);
+        let mut ftp_stream = setup_ftp_connection(
+            &self.host,
+            self.port,
+            &self.username,
+            &self.password,
+            self.passive_mode,
+            self.timeout,
+        )?;
 
         // Download file
         let data = ftp_stream.retr_as_buffer(&self.remote_file).map_err(|e| {
@@ -496,38 +514,14 @@ impl Tasklet for FtpPutFolderTasklet {
         );
 
         // Connect to FTP server
-        let mut ftp_stream =
-            FtpStream::connect(format!("{}:{}", self.host, self.port)).map_err(|e| {
-                BatchError::Io(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionRefused,
-                    format!("Failed to connect to FTP server: {}", e),
-                ))
-            })?;
-
-        // Login
-        ftp_stream
-            .login(&self.username, &self.password)
-            .map_err(|e| BatchError::Configuration(format!("FTP login failed: {}", e)))?;
-
-        // Set timeout for control channel commands
-        ftp_stream
-            .get_ref()
-            .set_read_timeout(Some(self.timeout))
-            .map_err(|e| BatchError::Configuration(format!("Failed to set read timeout: {}", e)))?;
-        ftp_stream
-            .get_ref()
-            .set_write_timeout(Some(self.timeout))
-            .map_err(|e| {
-                BatchError::Configuration(format!("Failed to set write timeout: {}", e))
-            })?;
-
-        // Set transfer mode
-        let mode = if self.passive_mode {
-            Mode::Passive
-        } else {
-            Mode::Active
-        };
-        ftp_stream.set_mode(mode);
+        let mut ftp_stream = setup_ftp_connection(
+            &self.host,
+            self.port,
+            &self.username,
+            &self.password,
+            self.passive_mode,
+            self.timeout,
+        )?;
 
         // Create remote base directory if needed
         if self.create_directories && !self.remote_folder.is_empty() {
@@ -716,38 +710,14 @@ impl Tasklet for FtpGetFolderTasklet {
         );
 
         // Connect to FTP server
-        let mut ftp_stream =
-            FtpStream::connect(format!("{}:{}", self.host, self.port)).map_err(|e| {
-                BatchError::Io(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionRefused,
-                    format!("Failed to connect to FTP server: {}", e),
-                ))
-            })?;
-
-        // Login
-        ftp_stream
-            .login(&self.username, &self.password)
-            .map_err(|e| BatchError::Configuration(format!("FTP login failed: {}", e)))?;
-
-        // Set timeout for control channel commands
-        ftp_stream
-            .get_ref()
-            .set_read_timeout(Some(self.timeout))
-            .map_err(|e| BatchError::Configuration(format!("Failed to set read timeout: {}", e)))?;
-        ftp_stream
-            .get_ref()
-            .set_write_timeout(Some(self.timeout))
-            .map_err(|e| {
-                BatchError::Configuration(format!("Failed to set write timeout: {}", e))
-            })?;
-
-        // Set transfer mode
-        let mode = if self.passive_mode {
-            Mode::Passive
-        } else {
-            Mode::Active
-        };
-        ftp_stream.set_mode(mode);
+        let mut ftp_stream = setup_ftp_connection(
+            &self.host,
+            self.port,
+            &self.username,
+            &self.password,
+            self.passive_mode,
+            self.timeout,
+        )?;
 
         // Create local base directory if needed
         if self.create_directories {

@@ -13,17 +13,26 @@ import type { SidebarsConfig } from "@docusaurus/plugin-content-docs";
  Create as many sidebars as you want.
  */
 const sidebars: SidebarsConfig = {
-  // By default, Docusaurus generates a sidebar from the docs folder structure
+  // Main documentation sidebar
   tutorialSidebar: [
     "intro",
-    "processing-models",
-    "tasklets",
-    "item-readers-writers",
+    "getting-started",
+    {
+      type: "category",
+      label: "Core Concepts",
+      items: [
+        "processing-models",
+        "item-readers-writers",
+        "tasklets",
+        "architecture",
+      ],
+    },
+    "tutorials",
     "examples",
-    "architecture",
+    "api",
   ],
 
-  // But you can create a sidebar manually
+  // Alternative manual sidebar structure (commented out for reference)
   /*
   tutorialSidebar: [
     'intro',
