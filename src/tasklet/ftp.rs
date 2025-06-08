@@ -164,6 +164,18 @@ impl Tasklet for FtpPutTasklet {
             .login(&self.username, &self.password)
             .map_err(|e| BatchError::Configuration(format!("FTP login failed: {}", e)))?;
 
+        // Set timeout for control channel commands
+        ftp_stream
+            .get_ref()
+            .set_read_timeout(Some(self.timeout))
+            .map_err(|e| BatchError::Configuration(format!("Failed to set read timeout: {}", e)))?;
+        ftp_stream
+            .get_ref()
+            .set_write_timeout(Some(self.timeout))
+            .map_err(|e| {
+                BatchError::Configuration(format!("Failed to set write timeout: {}", e))
+            })?;
+
         // Set transfer mode
         let mode = if self.passive_mode {
             Mode::Passive
@@ -288,6 +300,18 @@ impl Tasklet for FtpGetTasklet {
         ftp_stream
             .login(&self.username, &self.password)
             .map_err(|e| BatchError::Configuration(format!("FTP login failed: {}", e)))?;
+
+        // Set timeout for control channel commands
+        ftp_stream
+            .get_ref()
+            .set_read_timeout(Some(self.timeout))
+            .map_err(|e| BatchError::Configuration(format!("Failed to set read timeout: {}", e)))?;
+        ftp_stream
+            .get_ref()
+            .set_write_timeout(Some(self.timeout))
+            .map_err(|e| {
+                BatchError::Configuration(format!("Failed to set write timeout: {}", e))
+            })?;
 
         // Set transfer mode
         let mode = if self.passive_mode {
@@ -489,6 +513,18 @@ impl Tasklet for FtpPutFolderTasklet {
         ftp_stream
             .login(&self.username, &self.password)
             .map_err(|e| BatchError::Configuration(format!("FTP login failed: {}", e)))?;
+
+        // Set timeout for control channel commands
+        ftp_stream
+            .get_ref()
+            .set_read_timeout(Some(self.timeout))
+            .map_err(|e| BatchError::Configuration(format!("Failed to set read timeout: {}", e)))?;
+        ftp_stream
+            .get_ref()
+            .set_write_timeout(Some(self.timeout))
+            .map_err(|e| {
+                BatchError::Configuration(format!("Failed to set write timeout: {}", e))
+            })?;
 
         // Set transfer mode
         let mode = if self.passive_mode {
@@ -697,6 +733,18 @@ impl Tasklet for FtpGetFolderTasklet {
         ftp_stream
             .login(&self.username, &self.password)
             .map_err(|e| BatchError::Configuration(format!("FTP login failed: {}", e)))?;
+
+        // Set timeout for control channel commands
+        ftp_stream
+            .get_ref()
+            .set_read_timeout(Some(self.timeout))
+            .map_err(|e| BatchError::Configuration(format!("Failed to set read timeout: {}", e)))?;
+        ftp_stream
+            .get_ref()
+            .set_write_timeout(Some(self.timeout))
+            .map_err(|e| {
+                BatchError::Configuration(format!("Failed to set write timeout: {}", e))
+            })?;
 
         // Set transfer mode
         let mode = if self.passive_mode {
