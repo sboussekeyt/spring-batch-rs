@@ -90,7 +90,7 @@ fn transform_from_xml_file_to_csv_file_without_error() {
         .from_reader(file);
 
     // Create processor to transform products
-    let processor = ProductProcessor::default();
+    let processor = ProductProcessor;
 
     // Create CSV writer
     let csv_path = temp_dir().join(format!("{}.csv", file_name));
@@ -322,7 +322,7 @@ fn test_xml_reader_with_error_handling() {
         .item_tag("product")
         .from_writer(buffer);
 
-    let processor = ProductProcessor::default();
+    let processor = ProductProcessor;
 
     // Build step with skip limit of 1 (to tolerate one error)
     let step = StepBuilder::new("test")

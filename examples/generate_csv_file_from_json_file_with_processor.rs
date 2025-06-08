@@ -61,7 +61,7 @@ fn main() -> Result<()> {
 
     let reader = JsonItemReaderBuilder::new().from_reader(file);
 
-    let processor = UpperCaseProcessor::default();
+    let processor = UpperCaseProcessor;
 
     let writer = CsvItemWriterBuilder::new()
         .has_headers(true)

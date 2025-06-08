@@ -73,7 +73,7 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
         .from_reader(file);
 
     // Create processor to transform products
-    let processor = ProductProcessor::default();
+    let processor = ProductProcessor;
 
     // Create CSV writer
     let output_path = temp_dir().join(format!("output_{}.csv", file_name));
@@ -154,7 +154,7 @@ P003,Smart Watch,149.99,"Fitness tracker",true"#;
         .from_writer(buffer);
 
     // Create processor to transform products
-    let processor = ProductProcessor::default();
+    let processor = ProductProcessor;
 
     // Build step with skip limit of 1 (to tolerate one error)
     let step = StepBuilder::new("test")
@@ -204,7 +204,7 @@ P003,Smart Watch,149.99,"Fitness tracker",true"#;
         .from_reader(file);
 
     // Create processor to transform products
-    let processor = ProductProcessor::default();
+    let processor = ProductProcessor;
 
     // Create CSV writer with semicolon delimiter
     let output_path = temp_dir().join(format!("output_{}.csv", file_name));
@@ -270,7 +270,7 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
         .from_reader(file);
 
     // Create processor to transform products
-    let processor = ProductProcessor::default();
+    let processor = ProductProcessor;
 
     // Create XML writer
     let output_path = temp_dir().join(format!("output_{}.xml", file_name));
@@ -353,7 +353,7 @@ fn transform_from_xml_to_csv() {
         .from_reader(file);
 
     // Create processor to transform products
-    let processor = ProductProcessor::default();
+    let processor = ProductProcessor;
 
     // Create CSV writer
     let output_path = temp_dir().join(format!("output_{}.csv", file_name));
@@ -417,7 +417,7 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
         .from_path(&xml_path)
         .expect("Failed to create XML writer");
 
-    let processor1 = ProductProcessor::default();
+    let processor1 = ProductProcessor;
     let step1 = StepBuilder::new("test")
         .chunk::<Product, Product>(2)
         .reader(&reader)
@@ -441,7 +441,7 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
         .delimiter(b',')
         .from_path(&final_csv_path);
 
-    let processor2 = ProductProcessor::default();
+    let processor2 = ProductProcessor;
     let step2 = StepBuilder::new("test")
         .chunk::<Product, Product>(2)
         .reader(&reader)

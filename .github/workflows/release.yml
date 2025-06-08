@@ -6,7 +6,7 @@ on:
       version:
         type: choice
         required: true
-        description: 'Version number to bump'
+        description: "Version number to bump"
         options:
           - patch
           - minor
@@ -41,7 +41,7 @@ jobs:
         uses: tibdex/github-app-token@v2
         with:
           app_id: ${{ secrets.APP_ID }}
-          private_key:  ${{ secrets.APP_PRIVATE_KEY }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -56,7 +56,7 @@ jobs:
 
       - name: Install `cargo-edit`
         run: cargo install cargo-edit
-      
+
       - id: cargo-set-version
         name: Set Version
         run: cargo set-version --bump ${{ inputs.version }}
@@ -90,9 +90,11 @@ jobs:
       - name: Create Release
         id: create_release
         uses: actions/github-script@v7
+        env:
+          CRATE_VERSION: ${{ env.CRATE_VERSION }}
         with:
           script: |
             await github.request(`POST /repos/${{ github.repository }}/releases`, {
-              tag_name: "v${{ env.CRATE_VERSION }}",
+              tag_name: `v${process.env.CRATE_VERSION}`,
               generate_release_notes: true
             });

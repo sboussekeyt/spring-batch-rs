@@ -128,20 +128,20 @@ mod tests {
 
         let result1 = reader.read();
         assert_eq!(reader.count.get(), 1);
-        assert_eq!(result1.is_ok(), true);
+        assert!(result1.is_ok());
 
         let person = result1.unwrap();
-        assert_eq!(person.is_some(), true);
-        assert_eq!(person.as_ref().unwrap().first_name.is_empty(), false);
-        assert_eq!(person.as_ref().unwrap().last_name.is_empty(), false);
+        assert!(person.is_some());
+        assert!(!person.as_ref().unwrap().first_name.is_empty());
+        assert!(!person.as_ref().unwrap().last_name.is_empty());
 
         let result2 = reader.read();
         assert_eq!(reader.count.get(), 0);
-        assert_eq!(result2.is_ok(), true);
-        assert_eq!(result2.unwrap().is_some(), true);
+        assert!(result2.is_ok());
+        assert!(result2.unwrap().is_some());
 
         let result3 = reader.read();
         assert_eq!(reader.count.get(), 0);
-        assert_eq!(result3.unwrap().is_none(), true);
+        assert!(result3.unwrap().is_none());
     }
 }

@@ -6,3 +6,7 @@
 #[cfg(feature = "zip")]
 #[cfg_attr(docsrs, doc(cfg(feature = "zip")))]
 pub mod zip;
+
+#[cfg(feature = "ftp")]
+#[cfg_attr(docsrs, doc(cfg(feature = "ftp")))]
+pub mod ftp;

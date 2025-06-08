@@ -1649,7 +1649,7 @@ mod tests {
             .skip_limit(1)
             .build();
 
-        let mut step_execution = StepExecution::new(&step.get_name());
+        let mut step_execution = StepExecution::new(step.get_name());
 
         let result = step.execute(&mut step_execution);
 

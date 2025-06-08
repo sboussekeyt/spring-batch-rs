@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
         .build();
 
     // Prepare writer
-    let writer = LoggerWriter::default();
+    let writer = LoggerWriter;
 
     // Execute process
     let step = StepBuilder::new("log_postgres_records")

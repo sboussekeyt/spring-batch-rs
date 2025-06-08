@@ -226,7 +226,7 @@ async fn test_orm_reader_with_pagination() -> Result<(), Error> {
         .from_writer(tmpfile.as_file());
 
     // Use transform processor to convert Model to ProductDto
-    let processor = ProductTransformProcessor::default();
+    let processor = ProductTransformProcessor;
 
     // Execute process
     let step = StepBuilder::new("test_orm_pagination")
@@ -1043,7 +1043,7 @@ mod orm_writer_tests {
             .build();
 
         // Use processor to convert DTOs to active models
-        let processor = ProductDtoToActiveModelProcessor::default();
+        let processor = ProductDtoToActiveModelProcessor;
 
         // Create and run job
         let step = StepBuilder::new("test_orm_writer_integration")

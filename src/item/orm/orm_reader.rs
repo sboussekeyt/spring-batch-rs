@@ -422,12 +422,12 @@ where
 ///
 /// # Usage Pattern
 ///
-/// ```rust
-/// // let reader = OrmItemReaderBuilder::new()
-/// //     .connection(&db)           // Required
-/// //     .query(entity_query)       // Required  
-/// //     .page_size(100)           // Optional
-/// //     .build();                 // Creates the reader
+/// ```text
+/// let reader = OrmItemReaderBuilder::new()
+///     .connection(&db)           // Required
+///     .query(entity_query)       // Required  
+///     .page_size(100)           // Optional
+///     .build();                 // Creates the reader
 /// ```
 ///
 /// # Examples

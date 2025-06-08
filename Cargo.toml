@@ -43,12 +43,15 @@ quick-xml = { version = "0.37", features = ["serialize"], optional = true }
 tempfile = { version = "3.20", optional = true }
 zip = { version = "4.0", optional = true }
 sea-orm = { version = "1.1", features = [ "sqlx-postgres", "sqlx-mysql", "sqlx-sqlite", "runtime-tokio-native-tls", "macros", "mock" ], optional = true }
+suppaftp = { version = "6.0", optional = true, features = ["native-tls"] }
 
 [dev-dependencies]
 spring-batch-rs = { path = ".", features = ["tests-cfg"] }
 rand = { version = "0.9" }
 mockall = "0.13"
+testcontainers = "0.24"
 testcontainers-modules = { version = "0.12", features = ["postgres", "mysql", "mongo", "blocking"] }
+tokio = { version = "1.0", features = ["full"] }
 env_logger = "0.11"
 
 [features]
@@ -68,6 +71,7 @@ full = [
   "mongodb",
   "xml",
   "zip",
+  "ftp",
   "orm"
 ]
 
@@ -75,6 +79,7 @@ csv = ["dep:csv", "dep:tempfile"]
 json = []
 xml = ["dep:quick-xml", "dep:tempfile"]
 zip = ["dep:zip"]
+ftp = ["dep:suppaftp"]
 rdbc-postgres = ["sqlx/postgres", "rdbc"]
 rdbc-mysql = ["sqlx/mysql", "rdbc"]
 rdbc-sqlite = ["sqlx/sqlite", "rdbc"]
@@ -123,6 +128,10 @@ required-features = ["xml", "json"]
 [[example]]
 name = "zip_files_tasklet"
 required-features = ["zip"]
+
+[[example]]
+name = "ftp_transfer_tasklet"
+required-features = ["ftp"]
 
 [[example]]
 name = "orm_reader_example"

@@ -2,7 +2,7 @@
 sidebar_position: 1
 ---
 
-# Getting Started
+# Introduction
 
 Welcome to **Spring Batch RS** - a comprehensive toolkit for building enterprise-grade batch applications in Rust!
 
@@ -109,7 +109,12 @@ fn main() -> Result<(), BatchError> {
 
 ## What's Next?
 
-- Learn about [Processing Models](./processing-models) - chunk-oriented vs tasklet processing
-- Explore [Item Readers and Writers](./item-readers-writers) for different data sources
-- Check out [Examples](./examples) for real-world use cases
-- View detailed [Architecture & Diagrams](./architecture) with interactive Mermaid diagrams
+Ready to start building? Here's your learning path:
+
+1. **[Getting Started Guide](./getting-started)** - Create your first batch job step-by-step
+2. **[Tutorials](./tutorials)** - Comprehensive guides for common scenarios
+3. **[Processing Models](./processing-models)** - Understand chunk-oriented vs tasklet processing
+4. **[Item Readers and Writers](./item-readers-writers)** - Explore different data sources
+5. **[Examples](./examples)** - Real-world use cases and patterns
+6. **[API Reference](./api)** - Complete API documentation
+7. **[Architecture](./architecture)** - Deep dive into framework design

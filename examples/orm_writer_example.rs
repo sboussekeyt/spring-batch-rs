@@ -157,7 +157,7 @@ async fn example_with_business_dtos(db: &DatabaseConnection) -> Result<()> {
         .build();
 
     // Use processor to convert DTOs to active models
-    let processor = ProductDtoToActiveModelProcessor::default();
+    let processor = ProductDtoToActiveModelProcessor;
 
     // Run job
     let step = StepBuilder::new("write_business_dtos")

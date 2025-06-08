@@ -31,7 +31,7 @@ struct FormattedBook {
 }
 
 fn main() -> Result<()> {
-    let url = format!("mongodb://127.0.0.1:27017/");
+    let url = "mongodb://127.0.0.1:27017/".to_string();
 
     let client: Client = Client::with_uri_str(&url).unwrap();
 

@@ -73,7 +73,7 @@ async fn read_items_from_database() -> Result<(), sqlx::Error> {
     let row_mapper = PersonRowMapper::default();
     let reader = RdbcItemReaderBuilder::new()
         .pool(&pool)
-        .query(&query)
+        .query(query)
         .row_mapper(&row_mapper)
         .page_size(5)
         .build();
