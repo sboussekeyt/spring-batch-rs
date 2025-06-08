@@ -3493,6 +3493,7 @@ dependencies = [
  "futures-lite",
  "lazy-regex",
  "log",
+ "native-tls",
  "thiserror 2.0.12",
 ]
 

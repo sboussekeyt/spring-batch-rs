@@ -77,6 +77,37 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! ### FTPS (Secure FTP) Operations
+//!
+//! ```rust
+//! use spring_batch_rs::tasklet::ftp::{FtpPutTaskletBuilder, FtpGetTaskletBuilder};
+//!
+//! # fn example() -> Result<(), spring_batch_rs::BatchError> {
+//! // Secure upload using FTPS (FTP over TLS)
+//! let secure_upload = FtpPutTaskletBuilder::new()
+//!     .host("secure-ftp.example.com")
+//!     .port(990)  // Common FTPS port
+//!     .username("user")
+//!     .password("password")
+//!     .local_file("./sensitive_data.txt")
+//!     .remote_file("/secure/path/data.txt")
+//!     .secure(true)  // Enable FTPS
+//!     .build()?;
+//!
+//! // Secure download using FTPS with streaming for memory efficiency
+//! let secure_download = FtpGetTaskletBuilder::new()
+//!     .host("secure-ftp.example.com")
+//!     .port(990)
+//!     .username("user")
+//!     .password("password")
+//!     .remote_file("/secure/path/confidential.zip")
+//!     .local_file("./confidential.zip")
+//!     .secure(true)  // Enable FTPS
+//!     .build()?;
+//! # Ok(())
+//! # }
+//! ```
 
 use crate::{
     core::step::{RepeatStatus, StepExecution, Tasklet},
@@ -90,6 +121,12 @@ use std::{
     time::Duration,
 };
 use suppaftp::{FtpError, FtpStream, Mode};
+
+#[cfg(feature = "ftp")]
+use suppaftp::{NativeTlsConnector, NativeTlsFtpStream};
+
+#[cfg(feature = "ftp")]
+use suppaftp::native_tls::TlsConnector;
 
 /// Helper function to convert std::io::Error to FtpError for use in suppaftp closures.
 ///
@@ -176,10 +213,91 @@ fn setup_ftp_connection(
     Ok(ftp_stream)
 }
 
+/// Helper function to establish and configure an FTPS connection.
+///
+/// This function handles the setup logic for secure FTP connections:
+/// - Connecting to the FTP server
+/// - Switching to secure mode (explicit FTPS)
+/// - Logging in with credentials
+/// - Setting timeouts for read/write operations
+/// - Configuring transfer mode (active/passive)
+///
+/// # Arguments
+///
+/// * `host` - FTP server hostname or IP address
+/// * `port` - FTP server port
+/// * `username` - FTP username
+/// * `password` - FTP password
+/// * `passive_mode` - Whether to use passive mode
+/// * `timeout` - Connection timeout duration
+///
+/// # Returns
+///
+/// Returns a configured `NativeTlsFtpStream` ready for secure file operations.
+///
+/// # Errors
+///
+/// Returns `BatchError` if connection, TLS setup, login, or configuration fails.
+#[cfg(feature = "ftp")]
+fn setup_ftps_connection(
+    host: &str,
+    port: u16,
+    username: &str,
+    password: &str,
+    passive_mode: bool,
+    timeout: Duration,
+) -> Result<NativeTlsFtpStream, BatchError> {
+    // Connect to FTP server
+    let plain_stream = NativeTlsFtpStream::connect(format!("{}:{}", host, port)).map_err(|e| {
+        BatchError::Io(std::io::Error::new(
+            std::io::ErrorKind::ConnectionRefused,
+            format!("Failed to connect to FTP server: {}", e),
+        ))
+    })?;
+
+    // Switch to secure mode using explicit FTPS
+    let tls_connector = TlsConnector::new()
+        .map_err(|e| BatchError::Configuration(format!("Failed to create TLS connector: {}", e)))?;
+    let mut ftp_stream = plain_stream
+        .into_secure(NativeTlsConnector::from(tls_connector), host)
+        .map_err(|e| {
+            BatchError::Io(std::io::Error::new(
+                std::io::ErrorKind::ConnectionRefused,
+                format!("Failed to establish FTPS connection: {}", e),
+            ))
+        })?;
+
+    // Login
+    ftp_stream
+        .login(username, password)
+        .map_err(|e| BatchError::Configuration(format!("FTPS login failed: {}", e)))?;
+
+    // Set timeout for control channel commands
+    ftp_stream
+        .get_ref()
+        .set_read_timeout(Some(timeout))
+        .map_err(|e| BatchError::Configuration(format!("Failed to set read timeout: {}", e)))?;
+    ftp_stream
+        .get_ref()
+        .set_write_timeout(Some(timeout))
+        .map_err(|e| BatchError::Configuration(format!("Failed to set write timeout: {}", e)))?;
+
+    // Set transfer mode
+    let mode = if passive_mode {
+        Mode::Passive
+    } else {
+        Mode::Active
+    };
+    ftp_stream.set_mode(mode);
+
+    Ok(ftp_stream)
+}
+
 /// A tasklet for uploading files to an FTP server.
 ///
 /// This tasklet provides functionality for uploading local files to an FTP server
-/// as part of a batch processing step.
+/// as part of a batch processing step. Supports both plain FTP and secure FTPS
+/// (FTP over TLS) connections.
 #[derive(Debug)]
 pub struct FtpPutTasklet {
     /// FTP server hostname or IP address
@@ -198,6 +316,8 @@ pub struct FtpPutTasklet {
     passive_mode: bool,
     /// Connection timeout in seconds
     timeout: Duration,
+    /// Whether to use FTPS (FTP over TLS) for secure communication (default: false)
+    secure: bool,
 }
 
 impl FtpPutTasklet {
@@ -229,6 +349,7 @@ impl FtpPutTasklet {
             remote_file: remote_file.to_string(),
             passive_mode: true,
             timeout: Duration::from_secs(30),
+            secure: false,
         })
     }
 
@@ -245,39 +366,73 @@ impl FtpPutTasklet {
 
 impl Tasklet for FtpPutTasklet {
     fn execute(&self, _step_execution: &StepExecution) -> Result<RepeatStatus, BatchError> {
+        let protocol = if self.secure { "FTPS" } else { "FTP" };
         info!(
-            "Starting FTP PUT: {} -> {}:{}{}",
+            "Starting {} PUT: {} -> {}:{}{}",
+            protocol,
             self.local_file.display(),
             self.host,
             self.port,
             self.remote_file
         );
 
-        // Connect to FTP server
-        let mut ftp_stream = setup_ftp_connection(
-            &self.host,
-            self.port,
-            &self.username,
-            &self.password,
-            self.passive_mode,
-            self.timeout,
-        )?;
-
-        // Upload file
         let file = File::open(&self.local_file).map_err(BatchError::Io)?;
         let mut reader = BufReader::new(file);
 
-        ftp_stream
-            .put_file(&self.remote_file, &mut reader)
-            .map_err(|e| {
-                BatchError::Io(std::io::Error::other(format!("FTP upload failed: {}", e)))
-            })?;
+        if self.secure {
+            #[cfg(feature = "ftp")]
+            {
+                // Connect using FTPS
+                let mut ftp_stream = setup_ftps_connection(
+                    &self.host,
+                    self.port,
+                    &self.username,
+                    &self.password,
+                    self.passive_mode,
+                    self.timeout,
+                )?;
 
-        // Disconnect
-        let _ = ftp_stream.quit();
+                // Upload file
+                ftp_stream
+                    .put_file(&self.remote_file, &mut reader)
+                    .map_err(|e| {
+                        BatchError::Io(std::io::Error::other(format!("FTPS upload failed: {}", e)))
+                    })?;
+
+                // Disconnect
+                let _ = ftp_stream.quit();
+            }
+            #[cfg(not(feature = "ftp"))]
+            {
+                return Err(BatchError::Configuration(
+                    "FTPS support requires the 'ftp' feature to be enabled".to_string(),
+                ));
+            }
+        } else {
+            // Connect using plain FTP
+            let mut ftp_stream = setup_ftp_connection(
+                &self.host,
+                self.port,
+                &self.username,
+                &self.password,
+                self.passive_mode,
+                self.timeout,
+            )?;
+
+            // Upload file
+            ftp_stream
+                .put_file(&self.remote_file, &mut reader)
+                .map_err(|e| {
+                    BatchError::Io(std::io::Error::other(format!("FTP upload failed: {}", e)))
+                })?;
+
+            // Disconnect
+            let _ = ftp_stream.quit();
+        }
 
         info!(
-            "FTP PUT completed successfully: {} uploaded to {}:{}{}",
+            "{} PUT completed successfully: {} uploaded to {}:{}{}",
+            protocol,
             self.local_file.display(),
             self.host,
             self.port,
@@ -291,7 +446,8 @@ impl Tasklet for FtpPutTasklet {
 /// A tasklet for downloading files from an FTP server.
 ///
 /// This tasklet provides functionality for downloading files from an FTP server
-/// to local storage as part of a batch processing step.
+/// to local storage as part of a batch processing step. Supports both plain FTP
+/// and secure FTPS (FTP over TLS) connections.
 #[derive(Debug)]
 pub struct FtpGetTasklet {
     /// FTP server hostname or IP address
@@ -310,6 +466,8 @@ pub struct FtpGetTasklet {
     passive_mode: bool,
     /// Connection timeout in seconds
     timeout: Duration,
+    /// Whether to use FTPS (FTP over TLS) for secure communication (default: false)
+    secure: bool,
 }
 
 impl FtpGetTasklet {
@@ -340,6 +498,7 @@ impl FtpGetTasklet {
             local_file: local_path,
             passive_mode: true,
             timeout: Duration::from_secs(30),
+            secure: false,
         })
     }
 
@@ -356,51 +515,101 @@ impl FtpGetTasklet {
 
 impl Tasklet for FtpGetTasklet {
     fn execute(&self, _step_execution: &StepExecution) -> Result<RepeatStatus, BatchError> {
+        let protocol = if self.secure { "FTPS" } else { "FTP" };
         info!(
-            "Starting FTP GET: {}:{}{} -> {}",
+            "Starting {} GET: {}:{}{} -> {}",
+            protocol,
             self.host,
             self.port,
             self.remote_file,
             self.local_file.display()
         );
 
-        // Connect to FTP server
-        let mut ftp_stream = setup_ftp_connection(
-            &self.host,
-            self.port,
-            &self.username,
-            &self.password,
-            self.passive_mode,
-            self.timeout,
-        )?;
-
-        // Stream download directly to file for improved memory efficiency
         let local_file_path = self.local_file.clone();
-        ftp_stream
-            .retr(&self.remote_file, |stream| {
-                // Create local file for writing
-                let mut file = File::create(&local_file_path).map_err(io_error_to_ftp_error)?;
 
-                // Copy data from FTP stream to local file using streaming
-                std::io::copy(stream, &mut file).map_err(io_error_to_ftp_error)?;
+        if self.secure {
+            #[cfg(feature = "ftp")]
+            {
+                // Connect using FTPS
+                let mut ftp_stream = setup_ftps_connection(
+                    &self.host,
+                    self.port,
+                    &self.username,
+                    &self.password,
+                    self.passive_mode,
+                    self.timeout,
+                )?;
 
-                // Ensure data is flushed to disk
-                file.sync_all().map_err(io_error_to_ftp_error)?;
+                // Stream download directly to file for improved memory efficiency
+                ftp_stream
+                    .retr(&self.remote_file, |stream| {
+                        // Create local file for writing
+                        let mut file =
+                            File::create(&local_file_path).map_err(io_error_to_ftp_error)?;
 
-                Ok(())
-            })
-            .map_err(|e| {
-                BatchError::Io(std::io::Error::other(format!(
-                    "FTP streaming download failed: {}",
-                    e
-                )))
-            })?;
+                        // Copy data from FTP stream to local file using streaming
+                        std::io::copy(stream, &mut file).map_err(io_error_to_ftp_error)?;
 
-        // Disconnect
-        let _ = ftp_stream.quit();
+                        // Ensure data is flushed to disk
+                        file.sync_all().map_err(io_error_to_ftp_error)?;
+
+                        Ok(())
+                    })
+                    .map_err(|e| {
+                        BatchError::Io(std::io::Error::other(format!(
+                            "FTPS streaming download failed: {}",
+                            e
+                        )))
+                    })?;
+
+                // Disconnect
+                let _ = ftp_stream.quit();
+            }
+            #[cfg(not(feature = "ftp"))]
+            {
+                return Err(BatchError::Configuration(
+                    "FTPS support requires the 'ftp' feature to be enabled".to_string(),
+                ));
+            }
+        } else {
+            // Connect using plain FTP
+            let mut ftp_stream = setup_ftp_connection(
+                &self.host,
+                self.port,
+                &self.username,
+                &self.password,
+                self.passive_mode,
+                self.timeout,
+            )?;
+
+            // Stream download directly to file for improved memory efficiency
+            ftp_stream
+                .retr(&self.remote_file, |stream| {
+                    // Create local file for writing
+                    let mut file = File::create(&local_file_path).map_err(io_error_to_ftp_error)?;
+
+                    // Copy data from FTP stream to local file using streaming
+                    std::io::copy(stream, &mut file).map_err(io_error_to_ftp_error)?;
+
+                    // Ensure data is flushed to disk
+                    file.sync_all().map_err(io_error_to_ftp_error)?;
+
+                    Ok(())
+                })
+                .map_err(|e| {
+                    BatchError::Io(std::io::Error::other(format!(
+                        "FTP streaming download failed: {}",
+                        e
+                    )))
+                })?;
+
+            // Disconnect
+            let _ = ftp_stream.quit();
+        }
 
         info!(
-            "FTP GET completed successfully: {}:{}{} downloaded to {}",
+            "{} GET completed successfully: {}:{}{} downloaded to {}",
+            protocol,
             self.host,
             self.port,
             self.remote_file,
@@ -414,7 +623,8 @@ impl Tasklet for FtpGetTasklet {
 /// A tasklet for uploading entire folder contents to an FTP server.
 ///
 /// This tasklet provides functionality for uploading all files from a local folder
-/// to a remote folder on an FTP server as part of a batch processing step.
+/// to a remote folder on an FTP server as part of a batch processing step. Supports
+/// both plain FTP and secure FTPS (FTP over TLS) connections.
 #[derive(Debug)]
 pub struct FtpPutFolderTasklet {
     /// FTP server hostname or IP address
@@ -437,6 +647,8 @@ pub struct FtpPutFolderTasklet {
     create_directories: bool,
     /// Whether to upload subdirectories recursively
     recursive: bool,
+    /// Whether to use FTPS (FTP over TLS) for secure communication (default: false)
+    secure: bool,
 }
 
 impl FtpPutFolderTasklet {
@@ -477,6 +689,7 @@ impl FtpPutFolderTasklet {
             timeout: Duration::from_secs(30),
             create_directories: true,
             recursive: false,
+            secure: false,
         })
     }
 
@@ -554,41 +767,136 @@ impl FtpPutFolderTasklet {
 
         Ok(())
     }
+
+    /// Recursively uploads files from a directory using FTPS.
+    #[cfg(feature = "ftp")]
+    fn upload_directory_secure(
+        &self,
+        ftp_stream: &mut NativeTlsFtpStream,
+        local_dir: &Path,
+        remote_dir: &str,
+    ) -> Result<(), BatchError> {
+        let entries = fs::read_dir(local_dir).map_err(BatchError::Io)?;
+
+        for entry in entries {
+            let entry = entry.map_err(BatchError::Io)?;
+            let local_path = entry.path();
+            let file_name = entry.file_name();
+            let file_name_str = file_name.to_string_lossy();
+            let remote_path = if remote_dir.is_empty() {
+                file_name_str.to_string()
+            } else {
+                format!("{}/{}", remote_dir, file_name_str)
+            };
+
+            if local_path.is_file() {
+                info!(
+                    "Uploading file (FTPS): {} -> {}",
+                    local_path.display(),
+                    remote_path
+                );
+
+                let file = File::open(&local_path).map_err(BatchError::Io)?;
+                let mut reader = BufReader::new(file);
+
+                ftp_stream
+                    .put_file(&remote_path, &mut reader)
+                    .map_err(|e| {
+                        BatchError::Io(std::io::Error::other(format!(
+                            "FTPS upload failed for {}: {}",
+                            local_path.display(),
+                            e
+                        )))
+                    })?;
+            } else if local_path.is_dir() && self.recursive {
+                info!("Creating remote directory (FTPS): {}", remote_path);
+
+                if self.create_directories {
+                    // Try to create directory, ignore error if it already exists
+                    let _ = ftp_stream.mkdir(&remote_path);
+                }
+
+                // Recursively upload subdirectory
+                self.upload_directory_secure(ftp_stream, &local_path, &remote_path)?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Tasklet for FtpPutFolderTasklet {
     fn execute(&self, _step_execution: &StepExecution) -> Result<RepeatStatus, BatchError> {
+        let protocol = if self.secure { "FTPS" } else { "FTP" };
         info!(
-            "Starting FTP PUT FOLDER: {} -> {}:{}{}",
+            "Starting {} PUT FOLDER: {} -> {}:{}{}",
+            protocol,
             self.local_folder.display(),
             self.host,
             self.port,
             self.remote_folder
         );
 
-        // Connect to FTP server
-        let mut ftp_stream = setup_ftp_connection(
-            &self.host,
-            self.port,
-            &self.username,
-            &self.password,
-            self.passive_mode,
-            self.timeout,
-        )?;
+        if self.secure {
+            #[cfg(feature = "ftp")]
+            {
+                // Connect using FTPS
+                let mut ftp_stream = setup_ftps_connection(
+                    &self.host,
+                    self.port,
+                    &self.username,
+                    &self.password,
+                    self.passive_mode,
+                    self.timeout,
+                )?;
 
-        // Create remote base directory if needed
-        if self.create_directories && !self.remote_folder.is_empty() {
-            let _ = ftp_stream.mkdir(&self.remote_folder);
+                // Create remote base directory if needed
+                if self.create_directories && !self.remote_folder.is_empty() {
+                    let _ = ftp_stream.mkdir(&self.remote_folder);
+                }
+
+                // Upload folder contents using FTPS
+                self.upload_directory_secure(
+                    &mut ftp_stream,
+                    &self.local_folder,
+                    &self.remote_folder,
+                )?;
+
+                // Disconnect
+                let _ = ftp_stream.quit();
+            }
+            #[cfg(not(feature = "ftp"))]
+            {
+                return Err(BatchError::Configuration(
+                    "FTPS support requires the 'ftp' feature to be enabled".to_string(),
+                ));
+            }
+        } else {
+            // Connect using plain FTP
+            let mut ftp_stream = setup_ftp_connection(
+                &self.host,
+                self.port,
+                &self.username,
+                &self.password,
+                self.passive_mode,
+                self.timeout,
+            )?;
+
+            // Create remote base directory if needed
+            if self.create_directories && !self.remote_folder.is_empty() {
+                let _ = ftp_stream.mkdir(&self.remote_folder);
+            }
+
+            // Upload folder contents
+            self.upload_directory(&mut ftp_stream, &self.local_folder, &self.remote_folder)?;
+
+            // Disconnect
+            let _ = ftp_stream.quit();
         }
 
-        // Upload folder contents
-        self.upload_directory(&mut ftp_stream, &self.local_folder, &self.remote_folder)?;
-
-        // Disconnect
-        let _ = ftp_stream.quit();
-
         info!(
-            "FTP PUT FOLDER completed successfully: {} uploaded to {}:{}{}",
+            "{} PUT FOLDER completed successfully: {} uploaded to {}:{}{}",
+            protocol,
             self.local_folder.display(),
             self.host,
             self.port,
@@ -602,7 +910,8 @@ impl Tasklet for FtpPutFolderTasklet {
 /// A tasklet for downloading entire folder contents from an FTP server.
 ///
 /// This tasklet provides functionality for downloading all files from a remote folder
-/// on an FTP server to a local folder as part of a batch processing step.
+/// on an FTP server to a local folder as part of a batch processing step. Supports
+/// both plain FTP and secure FTPS (FTP over TLS) connections.
 #[derive(Debug)]
 pub struct FtpGetFolderTasklet {
     /// FTP server hostname or IP address
@@ -625,6 +934,8 @@ pub struct FtpGetFolderTasklet {
     create_directories: bool,
     /// Whether to download subdirectories recursively
     recursive: bool,
+    /// Whether to use FTPS (FTP over TLS) for secure communication (default: false)
+    secure: bool,
 }
 
 impl FtpGetFolderTasklet {
@@ -650,6 +961,7 @@ impl FtpGetFolderTasklet {
             timeout: Duration::from_secs(30),
             create_directories: true,
             recursive: false,
+            secure: false,
         })
     }
 
@@ -764,41 +1076,171 @@ impl FtpGetFolderTasklet {
 
         Ok(())
     }
+
+    /// Recursively downloads files from a directory using FTPS.
+    #[cfg(feature = "ftp")]
+    fn download_directory_secure(
+        &self,
+        ftp_stream: &mut NativeTlsFtpStream,
+        remote_dir: &str,
+        local_dir: &Path,
+    ) -> Result<(), BatchError> {
+        // List remote directory contents
+        let files = ftp_stream.nlst(Some(remote_dir)).map_err(|e| {
+            BatchError::Io(std::io::Error::other(format!(
+                "Failed to list remote directory {}: {}",
+                remote_dir, e
+            )))
+        })?;
+
+        for file_path in files {
+            let file_name = Path::new(&file_path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(&file_path);
+
+            let local_path = local_dir.join(file_name);
+            let remote_full_path = if remote_dir.is_empty() {
+                file_path.clone()
+            } else {
+                format!("{}/{}", remote_dir, file_name)
+            };
+
+            // Try to determine if it's a file or directory by attempting to stream download
+            let download_result = {
+                let local_path_clone = local_path.clone();
+                ftp_stream.retr(&remote_full_path, |stream| {
+                    // Create local file for writing
+                    let mut file =
+                        File::create(&local_path_clone).map_err(io_error_to_ftp_error)?;
+
+                    // Copy data from FTP stream to local file using streaming
+                    std::io::copy(stream, &mut file).map_err(io_error_to_ftp_error)?;
+
+                    // Ensure data is flushed to disk
+                    file.sync_all().map_err(io_error_to_ftp_error)?;
+
+                    Ok(())
+                })
+            };
+
+            match download_result {
+                Ok(_) => {
+                    // It's a file, successfully downloaded using streaming
+                    info!(
+                        "Streaming downloaded file (FTPS): {} -> {}",
+                        remote_full_path,
+                        local_path.display()
+                    );
+
+                    if self.create_directories {
+                        if let Some(parent) = local_path.parent() {
+                            fs::create_dir_all(parent).map_err(BatchError::Io)?;
+                        }
+                    }
+                }
+                Err(_) if self.recursive => {
+                    // Might be a directory, try to recurse
+                    info!(
+                        "Attempting to download directory (FTPS): {}",
+                        remote_full_path
+                    );
+
+                    if self.create_directories {
+                        fs::create_dir_all(&local_path).map_err(BatchError::Io)?;
+                    }
+
+                    // Recursively download subdirectory
+                    if let Err(e) =
+                        self.download_directory_secure(ftp_stream, &remote_full_path, &local_path)
+                    {
+                        // If recursion fails, it might not be a directory, just log and continue
+                        info!(
+                            "Failed to download as directory, skipping: {} ({})",
+                            remote_full_path, e
+                        );
+                    }
+                }
+                Err(e) => {
+                    info!(
+                        "Skipping item that couldn't be downloaded (FTPS): {} ({})",
+                        remote_full_path, e
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Tasklet for FtpGetFolderTasklet {
     fn execute(&self, _step_execution: &StepExecution) -> Result<RepeatStatus, BatchError> {
+        let protocol = if self.secure { "FTPS" } else { "FTP" };
         info!(
-            "Starting FTP GET FOLDER: {}:{}{} -> {}",
+            "Starting {} GET FOLDER: {}:{}{} -> {}",
+            protocol,
             self.host,
             self.port,
             self.remote_folder,
             self.local_folder.display()
         );
 
-        // Connect to FTP server
-        let mut ftp_stream = setup_ftp_connection(
-            &self.host,
-            self.port,
-            &self.username,
-            &self.password,
-            self.passive_mode,
-            self.timeout,
-        )?;
-
         // Create local base directory if needed
         if self.create_directories {
             fs::create_dir_all(&self.local_folder).map_err(BatchError::Io)?;
         }
 
-        // Download folder contents
-        self.download_directory(&mut ftp_stream, &self.remote_folder, &self.local_folder)?;
+        if self.secure {
+            #[cfg(feature = "ftp")]
+            {
+                // Connect using FTPS
+                let mut ftp_stream = setup_ftps_connection(
+                    &self.host,
+                    self.port,
+                    &self.username,
+                    &self.password,
+                    self.passive_mode,
+                    self.timeout,
+                )?;
 
-        // Disconnect
-        let _ = ftp_stream.quit();
+                // Download folder contents using FTPS
+                self.download_directory_secure(
+                    &mut ftp_stream,
+                    &self.remote_folder,
+                    &self.local_folder,
+                )?;
+
+                // Disconnect
+                let _ = ftp_stream.quit();
+            }
+            #[cfg(not(feature = "ftp"))]
+            {
+                return Err(BatchError::Configuration(
+                    "FTPS support requires the 'ftp' feature to be enabled".to_string(),
+                ));
+            }
+        } else {
+            // Connect using plain FTP
+            let mut ftp_stream = setup_ftp_connection(
+                &self.host,
+                self.port,
+                &self.username,
+                &self.password,
+                self.passive_mode,
+                self.timeout,
+            )?;
+
+            // Download folder contents
+            self.download_directory(&mut ftp_stream, &self.remote_folder, &self.local_folder)?;
+
+            // Disconnect
+            let _ = ftp_stream.quit();
+        }
 
         info!(
-            "FTP GET FOLDER completed successfully: {}:{}{} downloaded to {}",
+            "{} GET FOLDER completed successfully: {}:{}{} downloaded to {}",
+            protocol,
             self.host,
             self.port,
             self.remote_folder,
@@ -819,6 +1261,7 @@ pub struct FtpPutTaskletBuilder {
     remote_file: Option<String>,
     passive_mode: bool,
     timeout: Duration,
+    secure: bool,
 }
 
 impl Default for FtpPutTaskletBuilder {
@@ -839,6 +1282,7 @@ impl FtpPutTaskletBuilder {
             remote_file: None,
             passive_mode: true,
             timeout: Duration::from_secs(30),
+            secure: false,
         }
     }
 
@@ -890,6 +1334,19 @@ impl FtpPutTaskletBuilder {
         self
     }
 
+    /// Sets whether to use FTPS (FTP over TLS) for secure communication.
+    ///
+    /// When enabled, the connection will use explicit FTPS (FTP over TLS) for secure
+    /// file transfers. This is recommended when handling sensitive data.
+    ///
+    /// # Arguments
+    ///
+    /// * `secure` - true to enable FTPS, false for plain FTP (default: false)
+    pub fn secure(mut self, secure: bool) -> Self {
+        self.secure = secure;
+        self
+    }
+
     /// Builds the FtpPutTasklet instance.
     pub fn build(self) -> Result<FtpPutTasklet, BatchError> {
         let host = self
@@ -919,6 +1376,7 @@ impl FtpPutTaskletBuilder {
 
         tasklet.set_passive_mode(self.passive_mode);
         tasklet.set_timeout(self.timeout);
+        tasklet.secure = self.secure;
 
         Ok(tasklet)
     }
@@ -934,6 +1392,7 @@ pub struct FtpGetTaskletBuilder {
     local_file: Option<PathBuf>,
     passive_mode: bool,
     timeout: Duration,
+    secure: bool,
 }
 
 impl Default for FtpGetTaskletBuilder {
@@ -954,6 +1413,7 @@ impl FtpGetTaskletBuilder {
             local_file: None,
             passive_mode: true,
             timeout: Duration::from_secs(30),
+            secure: false,
         }
     }
 
@@ -1005,6 +1465,19 @@ impl FtpGetTaskletBuilder {
         self
     }
 
+    /// Sets whether to use FTPS (FTP over TLS) for secure communication.
+    ///
+    /// When enabled, the connection will use explicit FTPS (FTP over TLS) for secure
+    /// file transfers. This is recommended when handling sensitive data.
+    ///
+    /// # Arguments
+    ///
+    /// * `secure` - true to enable FTPS, false for plain FTP (default: false)
+    pub fn secure(mut self, secure: bool) -> Self {
+        self.secure = secure;
+        self
+    }
+
     /// Builds the FtpGetTasklet instance.
     pub fn build(self) -> Result<FtpGetTasklet, BatchError> {
         let host = self
@@ -1034,6 +1507,7 @@ impl FtpGetTaskletBuilder {
 
         tasklet.set_passive_mode(self.passive_mode);
         tasklet.set_timeout(self.timeout);
+        tasklet.secure = self.secure;
 
         Ok(tasklet)
     }
@@ -1051,6 +1525,7 @@ pub struct FtpPutFolderTaskletBuilder {
     timeout: Duration,
     create_directories: bool,
     recursive: bool,
+    secure: bool,
 }
 
 impl Default for FtpPutFolderTaskletBuilder {
@@ -1073,6 +1548,7 @@ impl FtpPutFolderTaskletBuilder {
             timeout: Duration::from_secs(30),
             create_directories: true,
             recursive: false,
+            secure: false,
         }
     }
 
@@ -1136,6 +1612,19 @@ impl FtpPutFolderTaskletBuilder {
         self
     }
 
+    /// Sets whether to use FTPS (FTP over TLS) for secure communication.
+    ///
+    /// When enabled, the connection will use explicit FTPS (FTP over TLS) for secure
+    /// file transfers. This is recommended when handling sensitive data.
+    ///
+    /// # Arguments
+    ///
+    /// * `secure` - true to enable FTPS, false for plain FTP (default: false)
+    pub fn secure(mut self, secure: bool) -> Self {
+        self.secure = secure;
+        self
+    }
+
     /// Builds the FtpPutFolderTasklet instance.
     pub fn build(self) -> Result<FtpPutFolderTasklet, BatchError> {
         let host = self
@@ -1167,6 +1656,7 @@ impl FtpPutFolderTaskletBuilder {
         tasklet.set_timeout(self.timeout);
         tasklet.set_create_directories(self.create_directories);
         tasklet.set_recursive(self.recursive);
+        tasklet.secure = self.secure;
 
         Ok(tasklet)
     }
@@ -1184,6 +1674,7 @@ pub struct FtpGetFolderTaskletBuilder {
     timeout: Duration,
     create_directories: bool,
     recursive: bool,
+    secure: bool,
 }
 
 impl Default for FtpGetFolderTaskletBuilder {
@@ -1206,6 +1697,7 @@ impl FtpGetFolderTaskletBuilder {
             timeout: Duration::from_secs(30),
             create_directories: true,
             recursive: false,
+            secure: false,
         }
     }
 
@@ -1269,6 +1761,19 @@ impl FtpGetFolderTaskletBuilder {
         self
     }
 
+    /// Sets whether to use FTPS (FTP over TLS) for secure communication.
+    ///
+    /// When enabled, the connection will use explicit FTPS (FTP over TLS) for secure
+    /// file transfers. This is recommended when handling sensitive data.
+    ///
+    /// # Arguments
+    ///
+    /// * `secure` - true to enable FTPS, false for plain FTP (default: false)
+    pub fn secure(mut self, secure: bool) -> Self {
+        self.secure = secure;
+        self
+    }
+
     /// Builds the FtpGetFolderTasklet instance.
     pub fn build(self) -> Result<FtpGetFolderTasklet, BatchError> {
         let host = self
@@ -1300,6 +1805,7 @@ impl FtpGetFolderTaskletBuilder {
         tasklet.set_timeout(self.timeout);
         tasklet.set_create_directories(self.create_directories);
         tasklet.set_recursive(self.recursive);
+        tasklet.secure = self.secure;
 
         Ok(tasklet)
     }
@@ -2451,6 +2957,107 @@ mod tests {
         assert!(!tasklet.passive_mode);
 
         fs::remove_file(&test_file).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn test_secure_ftp_configuration() -> Result<(), BatchError> {
+        let temp_dir = temp_dir();
+        let test_file = temp_dir.join("secure_test.txt");
+        fs::write(&test_file, "test content").unwrap();
+
+        // Test secure mode disabled (default)
+        let tasklet = FtpPutTaskletBuilder::new()
+            .host("localhost")
+            .username("user")
+            .password("pass")
+            .local_file(&test_file)
+            .remote_file("/remote/file.txt")
+            .build()?;
+
+        assert!(!tasklet.secure);
+
+        // Test secure mode enabled (FTPS)
+        let tasklet = FtpPutTaskletBuilder::new()
+            .host("secure-ftp.example.com")
+            .port(990)
+            .username("user")
+            .password("pass")
+            .local_file(&test_file)
+            .remote_file("/secure/file.txt")
+            .secure(true)
+            .build()?;
+
+        assert!(tasklet.secure);
+        assert_eq!(tasklet.port, 990);
+
+        // Test secure mode with FtpGetTasklet
+        let local_file = temp_dir.join("downloaded_secure.txt");
+        let get_tasklet = FtpGetTaskletBuilder::new()
+            .host("secure-ftp.example.com")
+            .port(990)
+            .username("user")
+            .password("pass")
+            .remote_file("/secure/file.txt")
+            .local_file(&local_file)
+            .secure(true)
+            .build()?;
+
+        assert!(get_tasklet.secure);
+        assert_eq!(get_tasklet.port, 990);
+
+        fs::remove_file(&test_file).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn test_secure_ftp_folder_configuration() -> Result<(), BatchError> {
+        let temp_dir = temp_dir();
+        let test_folder = temp_dir.join("secure_folder_test");
+        fs::create_dir_all(&test_folder).unwrap();
+        fs::write(test_folder.join("file.txt"), "test content").unwrap();
+
+        // Test secure mode disabled (default) for folder upload
+        let tasklet = FtpPutFolderTaskletBuilder::new()
+            .host("localhost")
+            .username("user")
+            .password("pass")
+            .local_folder(&test_folder)
+            .remote_folder("/remote/folder")
+            .build()?;
+
+        assert!(!tasklet.secure);
+
+        // Test secure mode enabled (FTPS) for folder upload
+        let tasklet = FtpPutFolderTaskletBuilder::new()
+            .host("secure-ftp.example.com")
+            .port(990)
+            .username("user")
+            .password("pass")
+            .local_folder(&test_folder)
+            .remote_folder("/secure/folder")
+            .secure(true)
+            .build()?;
+
+        assert!(tasklet.secure);
+        assert_eq!(tasklet.port, 990);
+
+        // Test secure mode with FtpGetFolderTasklet
+        let local_folder = temp_dir.join("downloaded_secure_folder");
+        let get_tasklet = FtpGetFolderTaskletBuilder::new()
+            .host("secure-ftp.example.com")
+            .port(990)
+            .username("user")
+            .password("pass")
+            .remote_folder("/secure/folder")
+            .local_folder(&local_folder)
+            .secure(true)
+            .build()?;
+
+        assert!(get_tasklet.secure);
+        assert_eq!(get_tasklet.port, 990);
+
+        fs::remove_dir_all(&test_folder).ok();
         Ok(())
     }
 }
