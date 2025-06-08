@@ -54,8 +54,8 @@ mod ftp_tests {
             .with_mapped_port(random_port + 1, ContainerPort::Tcp(random_port + 1))
             .with_env_var("USERS", "testuser|testpass123|/home/testuser|1000")
             .with_env_var("ADDRESS", "127.0.0.1")
-            .with_env_var("MIN_PORT", &(random_port + 1).to_string())
-            .with_env_var("MAX_PORT", &(random_port + 1).to_string())
+            .with_env_var("MIN_PORT", (random_port + 1).to_string())
+            .with_env_var("MAX_PORT", (random_port + 1).to_string())
             .start()
             .await?;
 
@@ -191,10 +191,10 @@ mod ftp_tests {
 
         // All builders should succeed - tasklets don't have name() method
         // Just verify they were created successfully by checking they exist
-        assert!(std::ptr::addr_of!(put_tasklet) != std::ptr::null());
-        assert!(std::ptr::addr_of!(get_tasklet) != std::ptr::null());
-        assert!(std::ptr::addr_of!(put_folder_tasklet) != std::ptr::null());
-        assert!(std::ptr::addr_of!(get_folder_tasklet) != std::ptr::null());
+        assert!(!std::ptr::addr_of!(put_tasklet).is_null());
+        assert!(!std::ptr::addr_of!(get_tasklet).is_null());
+        assert!(!std::ptr::addr_of!(put_folder_tasklet).is_null());
+        assert!(!std::ptr::addr_of!(get_folder_tasklet).is_null());
 
         Ok(())
     }
@@ -255,7 +255,7 @@ mod ftp_tests {
 
         // Job creation should succeed even if execution would fail
         // Jobs don't have a public name() method, just verify it was created
-        assert!(std::ptr::addr_of!(job) != std::ptr::null());
+        assert!(!std::ptr::addr_of!(job).is_null());
 
         // Cleanup
         fs::remove_dir_all(&temp_dir).ok();
@@ -332,7 +332,7 @@ mod ftp_tests {
             .build()?;
 
         // Tasklet created successfully
-        assert!(std::ptr::addr_of!(tasklet) != std::ptr::null());
+        assert!(!std::ptr::addr_of!(tasklet).is_null());
 
         // Cleanup
         fs::remove_dir_all(&empty_dir).ok();
@@ -372,8 +372,8 @@ mod ftp_tests {
             .build()?;
 
         // Both configurations should be valid
-        assert!(std::ptr::addr_of!(tasklet_active) != std::ptr::null());
-        assert!(std::ptr::addr_of!(tasklet_passive) != std::ptr::null());
+        assert!(!std::ptr::addr_of!(tasklet_active).is_null());
+        assert!(!std::ptr::addr_of!(tasklet_passive).is_null());
 
         // Cleanup
         fs::remove_dir_all(&temp_dir).ok();
@@ -436,7 +436,7 @@ mod ftp_tests {
             .username(&server_info.username)
             .password(&server_info.password)
             .remote_file(&remote_single_file)
-            .local_file(&download_single.join("retrieved_single.txt"))
+            .local_file(download_single.join("retrieved_single.txt"))
             .passive_mode(true)
             .timeout(Duration::from_secs(10))
             .build()?;
@@ -546,7 +546,7 @@ mod ftp_tests {
             .username("testuser")
             .password("testpass")
             .remote_file("/test.txt")
-            .local_file(&temp_dir.join("downloaded.txt"))
+            .local_file(temp_dir.join("downloaded.txt"))
             .passive_mode(true)
             .timeout(Duration::from_secs(30))
             .build()?;
@@ -570,7 +570,7 @@ mod ftp_tests {
             .username("testuser")
             .password("testpass")
             .remote_folder("/upload")
-            .local_folder(&temp_dir.join("download"))
+            .local_folder(temp_dir.join("download"))
             .passive_mode(true)
             .create_directories(true)
             .recursive(true)
@@ -609,7 +609,7 @@ mod ftp_tests {
             .build();
 
         // Job should be created successfully (even though execution would fail without real FTP server)
-        assert!(std::ptr::addr_of!(job) != std::ptr::null());
+        assert!(!std::ptr::addr_of!(job).is_null());
 
         // Cleanup
         fs::remove_dir_all(&temp_dir).ok();

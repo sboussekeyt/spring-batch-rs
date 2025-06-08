@@ -50,7 +50,7 @@ impl ItemProcessor<Book, FormattedBook> for FormatBookProcessor {
 }
 
 fn main() -> Result<()> {
-    let url = format!("mongodb://127.0.0.1:27017/");
+    let url = "mongodb://127.0.0.1:27017/".to_string();
 
     let client: Client = Client::with_uri_str(&url).unwrap();
 
@@ -68,7 +68,7 @@ fn main() -> Result<()> {
         .build();
 
     // Prepare processor
-    let processor = FormatBookProcessor::default();
+    let processor = FormatBookProcessor;
 
     // Prepare writer
     let tmpfile = NamedTempFile::new()?;

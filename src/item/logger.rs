@@ -42,7 +42,7 @@ mod tests {
 
     #[test]
     fn test_write() {
-        let writer = LoggerWriter::default();
+        let writer = LoggerWriter;
         let items = vec![1, 2, 3];
         let result = writer.write(&items);
         assert!(result.is_ok());

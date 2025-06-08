@@ -82,7 +82,7 @@ fn transform_from_json_file_to_csv_file_without_error() {
 
     let reader = JsonItemReaderBuilder::new().from_reader(file);
 
-    let processor = UpperCaseProcessor::default();
+    let processor = UpperCaseProcessor;
 
     let writer = CsvItemWriterBuilder::new()
         .has_headers(true)
@@ -131,7 +131,7 @@ fn convert_csv_file_to_json_file_without_error() {
         .has_headers(true)
         .from_reader(file);
 
-    let processor = CarProcessor::default();
+    let processor = CarProcessor;
 
     let writer = JsonItemWriterBuilder::new().from_path(temp_dir().join("cars.json"));
 
@@ -185,7 +185,7 @@ fn transform_csv_stream_to_writer_with_one_error_should_succeded() {
 
     let writer = JsonItemWriterBuilder::new().from_writer(file_writer);
 
-    let processor = CarProcessor::default();
+    let processor = CarProcessor;
 
     let step = StepBuilder::new("test")
         .chunk::<Car, Car>(3)
@@ -238,7 +238,7 @@ fn transform_csv_stream_to_writer_with_3_errors_should_failed() {
 
     let writer = JsonItemWriterBuilder::new().from_writer(file_writer);
 
-    let processor = CarProcessor::default();
+    let processor = CarProcessor;
 
     let step = StepBuilder::new("test")
         .chunk(3)

@@ -1,0 +1,240 @@
+# Code Quality Rules for Spring Batch RS
+
+You are an expert Rust developer focused on maintaining the highest code quality standards for Spring Batch RS. These rules ensure consistent formatting, clean code, and comprehensive testing.
+
+## Automatic Quality Checks
+
+### Before Any Code Changes
+
+Always run these commands in sequence before making any code changes:
+
+1. **Format Code**: `cargo fmt`
+2. **Check Clippy**: `cargo clippy --all-features --all-targets -- -D warnings`
+3. **Run Tests**: `cargo test --all-features`
+4. **Run Doc Tests**: `cargo test --doc --all-features`
+
+### After Any Code Changes
+
+Always run these commands in sequence after making any code changes:
+
+1. **Format Code**: `cargo fmt`
+2. **Fix Clippy Issues**: `cargo clippy --all-features --all-targets --fix --allow-dirty -- -D warnings`
+3. **Run All Tests**: `cargo test --all-features`
+4. **Run Doc Tests**: `cargo test --doc --all-features`
+5. **Check Documentation**: `cargo doc --no-deps --all-features`
+
+## Quality Standards
+
+### Code Formatting
+
+- **ALWAYS** run `cargo fmt` before committing any changes
+- Use the project's `rustfmt.toml` configuration
+- Ensure consistent indentation (4 spaces)
+- Keep line length under 100 characters where possible
+- Use trailing commas in multi-line expressions
+
+### Clippy Compliance
+
+- **ZERO TOLERANCE** for clippy warnings
+- Run `cargo clippy --all-features --all-targets -- -D warnings`
+- Fix all clippy suggestions immediately
+- Use `#[allow(clippy::lint_name)]` only when absolutely necessary with justification
+- Common fixes to apply:
+  - Remove redundant closures: `map_err(|e| Error::from(e))` → `map_err(Error::from)`
+  - Use `if let` instead of `match` for single pattern
+  - Remove unnecessary `return` statements
+  - Use `&str` instead of `&String` in function parameters
+  - Remove unused imports and variables
+
+### Testing Requirements
+
+- **100% test coverage** for all public APIs
+- **All tests must pass** before any commit
+- **Doc tests must compile and run** successfully
+- Test categories to maintain:
+  - Unit tests for all functions
+  - Integration tests for workflows
+  - Doc tests for all public APIs
+  - Error handling tests
+  - Edge case tests
+
+### Documentation Standards
+
+- **All public APIs** must have rustdoc comments
+- **Include examples** in documentation using `/// # Examples`
+- **Document errors** using `/// # Errors`
+- **Document panics** using `/// # Panics`
+- **Doc tests must be runnable** and demonstrate real usage
+- Keep documentation concise but complete
+
+## Automated Quality Workflow
+
+### Pre-Commit Checklist
+
+Run this exact sequence before any commit:
+
+```bash
+# 1. Format code
+cargo fmt
+
+# 2. Fix clippy issues automatically
+cargo clippy --all-features --all-targets --fix --allow-dirty -- -D warnings
+
+# 3. Check for remaining clippy issues
+cargo clippy --all-features --all-targets -- -D warnings
+
+# 4. Run all unit and integration tests
+cargo test --all-features
+
+# 5. Run all doc tests
+cargo test --doc --all-features
+
+# 6. Check documentation builds
+cargo doc --no-deps --all-features
+
+# 7. Final format check
+cargo fmt -- --check
+```
+
+### Quality Gate Rules
+
+- **NEVER commit** if any of these fail:
+  - `cargo fmt -- --check` (formatting)
+  - `cargo clippy --all-features --all-targets -- -D warnings` (linting)
+  - `cargo test --all-features` (tests)
+  - `cargo test --doc --all-features` (doc tests)
+  - `cargo doc --no-deps --all-features` (documentation)
+
+### Feature-Specific Testing
+
+When working with specific features, run targeted tests:
+
+```bash
+# For FTP features
+cargo test --features ftp
+cargo clippy --features ftp -- -D warnings
+
+# For database features
+cargo test --features orm,rdbc
+cargo clippy --features orm,rdbc -- -D warnings
+
+# For all features
+cargo test --all-features
+cargo clippy --all-features -- -D warnings
+```
+
+## Code Quality Patterns
+
+### Error Handling
+
+- Use `?` operator for error propagation
+- Provide meaningful error messages with context
+- Use `map_err` to convert between error types
+- Prefer `Result<T, BatchError>` for fallible operations
+
+### Performance
+
+- Use `&str` instead of `String` for parameters when possible
+- Prefer borrowing over cloning
+- Use appropriate data structures for the use case
+- Profile performance-critical paths
+
+### Safety
+
+- Avoid `unsafe` code unless absolutely necessary
+- Use `RefCell` for interior mutability in single-threaded contexts
+- Document thread safety guarantees
+- Validate inputs at API boundaries
+
+### Dependencies
+
+- Keep dependencies minimal and well-maintained
+- Use specific version constraints
+- Regularly update dependencies for security
+- Document why each dependency is needed
+
+## Continuous Quality Improvement
+
+### Regular Maintenance
+
+- Run `cargo audit` weekly for security vulnerabilities
+- Update dependencies monthly
+- Review and update documentation quarterly
+- Benchmark performance-critical paths
+
+### Code Review Standards
+
+- All code must pass quality gates before review
+- Focus review on logic, architecture, and API design
+- Ensure tests cover edge cases and error conditions
+- Verify documentation is accurate and helpful
+
+### Metrics to Track
+
+- Test coverage percentage
+- Clippy warning count (target: 0)
+- Documentation coverage
+- Build time and test execution time
+- Dependency count and freshness
+
+## Emergency Quality Fixes
+
+### If Quality Gates Fail
+
+1. **Stop all development** until issues are resolved
+2. **Fix formatting**: `cargo fmt`
+3. **Fix clippy**: `cargo clippy --fix --allow-dirty`
+4. **Fix failing tests**: Debug and resolve test failures
+5. **Fix doc tests**: Ensure all examples compile and run
+6. **Re-run quality gates** to verify fixes
+
+### Common Quick Fixes
+
+```bash
+# Fix most formatting and clippy issues automatically
+cargo fmt && cargo clippy --all-features --fix --allow-dirty
+
+# Run specific test subset for faster feedback
+cargo test test_name --all-features
+
+# Check specific feature compilation
+cargo check --features feature_name
+
+# Generate and open documentation
+cargo doc --no-deps --all-features --open
+```
+
+## Integration with Development Workflow
+
+### IDE Integration
+
+- Configure IDE to run `cargo fmt` on save
+- Enable clippy linting in real-time
+- Set up test runner for immediate feedback
+- Configure documentation preview
+
+### Git Hooks (Recommended)
+
+Set up pre-commit hooks to run quality checks:
+
+```bash
+#!/bin/sh
+# .git/hooks/pre-commit
+cargo fmt -- --check && \
+cargo clippy --all-features -- -D warnings && \
+cargo test --all-features && \
+cargo test --doc --all-features
+```
+
+### CI/CD Pipeline
+
+Ensure CI pipeline runs all quality checks:
+
+- Formatting verification
+- Clippy linting with zero warnings
+- All tests including doc tests
+- Documentation generation
+- Security audit
+- Dependency check
+
+Remember: **Quality is not optional**. These rules ensure the Spring Batch RS codebase remains maintainable, reliable, and professional. Every developer must follow these standards without exception.

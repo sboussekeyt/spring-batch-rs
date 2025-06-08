@@ -158,7 +158,7 @@ fn main() -> Result<(), BatchError> {
     let xml_writer = XmlItemWriterBuilder::new()
         .root_tag("houses")
         .item_tag("house")
-        .from_path(&xml_output_path)?;
+        .from_path(xml_output_path)?;
 
     // Create a processor to convert CSV to XML format
     let processor = HouseProcessor;
@@ -188,7 +188,7 @@ fn main() -> Result<(), BatchError> {
             let xml_reader = XmlItemReaderBuilder::<XmlHouse>::new()
                 .capacity(1024)
                 .tag("house")
-                .from_path(&xml_output_path)?;
+                .from_path(xml_output_path)?;
 
             let mut count = 0;
             while let Some(house) = xml_reader.read()? {

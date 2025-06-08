@@ -256,7 +256,7 @@ fn demo_ftp_workflow(config: &FtpConfig, base_path: &Path) -> Result<(), BatchEr
 
     // Ensure download directory exists
     if let Some(parent) = download_file.parent() {
-        fs::create_dir_all(parent).map_err(|e| BatchError::Io(e))?;
+        fs::create_dir_all(parent).map_err(BatchError::Io)?;
     }
 
     // Step 1: Upload file
@@ -301,7 +301,7 @@ fn demo_ftp_workflow(config: &FtpConfig, base_path: &Path) -> Result<(), BatchEr
 
     // Verify the downloaded file exists and has content
     if download_file.exists() {
-        let content = fs::read_to_string(&download_file).map_err(|e| BatchError::Io(e))?;
+        let content = fs::read_to_string(&download_file).map_err(BatchError::Io)?;
         info!(
             "Downloaded file content preview: {}",
             content.chars().take(100).collect::<String>()
@@ -407,20 +407,19 @@ fn demo_ftp_recursive_workflow(config: &FtpConfig, base_path: &Path) -> Result<(
     // Create a nested folder structure for demonstration
     let source_folder = base_path.join("recursive_upload");
     let subfolder = source_folder.join("subfolder");
-    fs::create_dir_all(&subfolder).map_err(|e| BatchError::Io(e))?;
+    fs::create_dir_all(&subfolder).map_err(BatchError::Io)?;
 
     // Create files in root folder
     fs::write(source_folder.join("root_file.txt"), "File in root folder")
-        .map_err(|e| BatchError::Io(e))?;
+        .map_err(BatchError::Io)?;
 
     // Create files in subfolder
-    fs::write(subfolder.join("sub_file.txt"), "File in subfolder")
-        .map_err(|e| BatchError::Io(e))?;
+    fs::write(subfolder.join("sub_file.txt"), "File in subfolder").map_err(BatchError::Io)?;
     fs::write(
         subfolder.join("data.json"),
         r#"{"nested": true, "level": 1}"#,
     )
-    .map_err(|e| BatchError::Io(e))?;
+    .map_err(BatchError::Io)?;
 
     let remote_folder = "/tmp/recursive_test";
     let download_folder = base_path.join("recursive_download");
@@ -564,14 +563,14 @@ fn main() -> Result<(), BatchError> {
     // Create working directory
     let base_path = std::env::temp_dir().join("ftp_transfer_example");
     if base_path.exists() {
-        fs::remove_dir_all(&base_path).map_err(|e| BatchError::Io(e))?;
+        fs::remove_dir_all(&base_path).map_err(BatchError::Io)?;
     }
-    fs::create_dir_all(&base_path).map_err(|e| BatchError::Io(e))?;
+    fs::create_dir_all(&base_path).map_err(BatchError::Io)?;
 
     info!("Working directory: {}", base_path.display());
 
     // Create sample files
-    create_sample_files(&base_path).map_err(|e| BatchError::Io(e))?;
+    create_sample_files(&base_path).map_err(BatchError::Io)?;
 
     // Get FTP configuration
     let config = if env::var("FTP_HOST").is_ok() {
@@ -633,7 +632,7 @@ fn main() -> Result<(), BatchError> {
     }
 
     // Print summary
-    print_results_summary(&base_path).map_err(|e| BatchError::Io(e))?;
+    print_results_summary(&base_path).map_err(BatchError::Io)?;
 
     info!("=== Example Summary ===");
     info!("Successful operations: {}", success_count);
