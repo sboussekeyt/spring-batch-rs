@@ -191,10 +191,7 @@ impl Tasklet for FtpPutTasklet {
         ftp_stream
             .put_file(&self.remote_file, &mut reader)
             .map_err(|e| {
-                BatchError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("FTP upload failed: {}", e),
-                ))
+                BatchError::Io(std::io::Error::other(format!("FTP upload failed: {}", e)))
             })?;
 
         // Disconnect
@@ -323,10 +320,7 @@ impl Tasklet for FtpGetTasklet {
 
         // Download file
         let data = ftp_stream.retr_as_buffer(&self.remote_file).map_err(|e| {
-            BatchError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("FTP download failed: {}", e),
-            ))
+            BatchError::Io(std::io::Error::other(format!("FTP download failed: {}", e)))
         })?;
 
         // Write data to local file
@@ -468,10 +462,11 @@ impl FtpPutFolderTasklet {
                 ftp_stream
                     .put_file(&remote_path, &mut reader)
                     .map_err(|e| {
-                        BatchError::Io(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            format!("FTP upload failed for {}: {}", local_path.display(), e),
-                        ))
+                        BatchError::Io(std::io::Error::other(format!(
+                            "FTP upload failed for {}: {}",
+                            local_path.display(),
+                            e
+                        )))
                     })?;
             } else if local_path.is_dir() && self.recursive {
                 info!("Creating remote directory: {}", remote_path);
@@ -639,10 +634,10 @@ impl FtpGetFolderTasklet {
     ) -> Result<(), BatchError> {
         // List remote directory contents
         let files = ftp_stream.nlst(Some(remote_dir)).map_err(|e| {
-            BatchError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to list remote directory {}: {}", remote_dir, e),
-            ))
+            BatchError::Io(std::io::Error::other(format!(
+                "Failed to list remote directory {}: {}",
+                remote_dir, e
+            )))
         })?;
 
         for file_path in files {
