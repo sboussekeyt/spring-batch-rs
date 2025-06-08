@@ -17,6 +17,7 @@ const sidebars: SidebarsConfig = {
   tutorialSidebar: [
     "intro",
     "processing-models",
+    "tasklets",
     "item-readers-writers",
     "examples",
     "architecture",

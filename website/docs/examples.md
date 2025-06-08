@@ -389,6 +389,242 @@ fn main() -> Result<(), BatchError> {
 }
 ```
 
+### FTP File Transfer Operations
+
+Transfer files to and from FTP servers as part of your batch workflow:
+
+```rust
+use spring_batch_rs::{
+    core::{job::JobBuilder, step::StepBuilder, item::PassThroughProcessor},
+    item::{csv::CsvItemReaderBuilder, csv::CsvItemWriterBuilder},
+    tasklet::ftp::{FtpPutTaskletBuilder, FtpGetTaskletBuilder, FtpPutFolderTaskletBuilder, FtpGetFolderTaskletBuilder},
+    BatchError,
+};
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize, Clone)]
+struct SalesReport {
+    date: String,
+    region: String,
+    sales: f64,
+    units: u32,
+}
+
+fn ftp_batch_workflow() -> Result<(), BatchError> {
+    // Step 1: Download input files from FTP server
+    let download_tasklet = FtpGetTaskletBuilder::new()
+        .host("ftp.company.com")
+        .port(21)
+        .username("batch_user")
+        .password("secure_password")
+        .remote_file("/incoming/sales_data.csv")
+        .local_file("./input/sales_data.csv")
+        .passive_mode(true)
+        .build()?;
+
+    let download_step = StepBuilder::new("download_input")
+        .tasklet(&download_tasklet)
+        .build();
+
+    // Step 2: Process the downloaded data
+    let reader = CsvItemReaderBuilder::<SalesReport>::new()
+        .has_headers(true)
+        .from_path("./input/sales_data.csv");
+
+    let writer = CsvItemWriterBuilder::new()
+        .has_headers(true)
+        .from_path("./output/processed_sales.csv");
+
+    let processor = PassThroughProcessor::<SalesReport>::new();
+
+    let process_step = StepBuilder::new("process_sales")
+        .chunk::<SalesReport, SalesReport>(100)
+        .reader(&reader)
+        .processor(&processor)
+        .writer(&writer)
+        .build();
+
+    // Step 3: Upload processed files back to FTP server
+    let upload_tasklet = FtpPutTaskletBuilder::new()
+        .host("ftp.company.com")
+        .port(21)
+        .username("batch_user")
+        .password("secure_password")
+        .local_file("./output/processed_sales.csv")
+        .remote_file("/outgoing/processed_sales.csv")
+        .passive_mode(true)
+        .build()?;
+
+    let upload_step = StepBuilder::new("upload_output")
+        .tasklet(&upload_tasklet)
+        .build();
+
+    // Combine all steps into a complete workflow
+    let job = JobBuilder::new()
+        .start(&download_step)
+        .next(&process_step)
+        .next(&upload_step)
+        .build();
+
+    job.run()
+}
+```
+
+### FTP Folder Operations
+
+Transfer entire directories for bulk file operations:
+
+```rust
+use spring_batch_rs::{
+    core::{job::JobBuilder, step::StepBuilder},
+    tasklet::ftp::{FtpPutFolderTaskletBuilder, FtpGetFolderTaskletBuilder},
+    BatchError,
+};
+
+fn ftp_folder_sync() -> Result<(), BatchError> {
+    // Step 1: Download entire folder from FTP server
+    let download_folder_tasklet = FtpGetFolderTaskletBuilder::new()
+        .host("backup.company.com")
+        .port(21)
+        .username("backup_user")
+        .password("backup_password")
+        .remote_folder("/daily_reports")
+        .local_folder("./downloads/daily_reports")
+        .recursive(true)
+        .create_directories(true)
+        .passive_mode(true)
+        .build()?;
+
+    let download_step = StepBuilder::new("download_reports")
+        .tasklet(&download_folder_tasklet)
+        .build();
+
+    // Step 2: Upload processed folder to different FTP location
+    let upload_folder_tasklet = FtpPutFolderTaskletBuilder::new()
+        .host("archive.company.com")
+        .port(21)
+        .username("archive_user")
+        .password("archive_password")
+        .local_folder("./processed/reports")
+        .remote_folder("/archive/processed_reports")
+        .recursive(true)
+        .create_directories(true)
+        .passive_mode(true)
+        .build()?;
+
+    let upload_step = StepBuilder::new("archive_reports")
+        .tasklet(&upload_folder_tasklet)
+        .build();
+
+    let job = JobBuilder::new()
+        .start(&download_step)
+        .next(&upload_step)
+        .build();
+
+    job.run()
+}
+```
+
+### Secure FTP with Error Handling
+
+Handle FTP operations with proper error handling and security considerations:
+
+```rust
+use spring_batch_rs::{
+    core::{job::JobBuilder, step::StepBuilder, step::{Tasklet, StepExecution, RepeatStatus}},
+    tasklet::ftp::FtpPutTaskletBuilder,
+    BatchError,
+};
+use std::time::Duration;
+use log::{info, error};
+
+struct SecureFtpUploadTasklet {
+    ftp_tasklet: spring_batch_rs::tasklet::ftp::FtpPutTasklet,
+    retry_count: u32,
+}
+
+impl SecureFtpUploadTasklet {
+    fn new(host: &str, username: &str, password: &str, local_file: &str, remote_file: &str) -> Result<Self, BatchError> {
+        let ftp_tasklet = FtpPutTaskletBuilder::new()
+            .host(host)
+            .port(21)
+            .username(username)
+            .password(password)
+            .local_file(local_file)
+            .remote_file(remote_file)
+            .passive_mode(true)
+            .timeout(Duration::from_secs(60))
+            .build()?;
+
+        Ok(Self {
+            ftp_tasklet,
+            retry_count: 3,
+        })
+    }
+}
+
+impl Tasklet for SecureFtpUploadTasklet {
+    fn execute(&self, step_execution: &StepExecution) -> Result<RepeatStatus, BatchError> {
+        let mut attempts = 0;
+
+        while attempts < self.retry_count {
+            attempts += 1;
+
+            match self.ftp_tasklet.execute(step_execution) {
+                Ok(status) => {
+                    info!("FTP upload successful on attempt {}", attempts);
+                    return Ok(status);
+                }
+                Err(e) => {
+                    error!("FTP upload failed on attempt {}: {}", attempts, e);
+
+                    if attempts >= self.retry_count {
+                        return Err(BatchError::Tasklet(format!(
+                            "FTP upload failed after {} attempts: {}",
+                            self.retry_count,
+                            e
+                        )));
+                    }
+
+                    // Wait before retry
+                    std::thread::sleep(Duration::from_secs(5));
+                }
+            }
+        }
+
+        Err(BatchError::Tasklet("Unexpected error in retry logic".to_string()))
+    }
+}
+
+fn secure_ftp_upload() -> Result<(), BatchError> {
+    // Read credentials from environment variables for security
+    let ftp_host = std::env::var("FTP_HOST")
+        .map_err(|_| BatchError::Configuration("FTP_HOST environment variable not set".to_string()))?;
+    let ftp_user = std::env::var("FTP_USER")
+        .map_err(|_| BatchError::Configuration("FTP_USER environment variable not set".to_string()))?;
+    let ftp_pass = std::env::var("FTP_PASS")
+        .map_err(|_| BatchError::Configuration("FTP_PASS environment variable not set".to_string()))?;
+
+    let secure_upload_tasklet = SecureFtpUploadTasklet::new(
+        &ftp_host,
+        &ftp_user,
+        &ftp_pass,
+        "./sensitive_data/report.csv",
+        "/secure/reports/daily_report.csv"
+    )?;
+
+    let upload_step = StepBuilder::new("secure_upload")
+        .tasklet(&secure_upload_tasklet)
+        .build();
+
+    let job = JobBuilder::new()
+        .start(&upload_step)
+        .build();
+
+    job.run()
+}
+```
+
 ## Testing Examples
 
 ### Mock Data Generation

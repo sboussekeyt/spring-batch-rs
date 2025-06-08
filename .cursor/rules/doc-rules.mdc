@@ -1,0 +1,234 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Documentation Rules for Spring Batch RS
+
+You are an expert technical writer working on Spring Batch RS documentation. Follow these rules when working with documentation files.
+
+## Documentation Strategy
+
+### Content Distribution
+- **README.md**: Brief overview, quick start, and link to website
+- **lib.rs**: Minimal crate-level documentation with website link
+- **Website**: Comprehensive documentation, tutorials, and examples
+- **Code docs**: Detailed API documentation with examples
+
+### Website-First Approach
+- All comprehensive documentation should be on the website
+- README.md and lib.rs should be concise and redirect to website
+- Always include website links in documentation
+- Website URL: `https://sboussekeyt.github.io/spring-batch-rs/`
+
+## README.md Rules
+
+### Structure Requirements
+1. **Header Section**
+   - Project title and tagline
+   - Badges (crate, docs, build, discord, codecov, license)
+   - Brief description (1-2 sentences)
+
+2. **Quick Overview**
+   - Why use Spring Batch RS (3-4 bullet points)
+   - Core concepts (brief list)
+   - Features table (concise)
+
+3. **Quick Start**
+   - Installation instructions
+   - One simple example (max 30 lines)
+   - Link to website for more examples
+
+4. **Website Link**
+   - Prominent link to full documentation website
+   - "For comprehensive documentation, tutorials, and examples, visit [our website](mdc:https:/sboussekeyt.github.io/spring-batch-rs)"
+
+### Content Limits
+- Total length: Maximum 200 lines
+- Examples: One simple example only
+- No mermaid diagrams (save for website)
+- No extensive feature explanations
+- No architecture diagrams
+
+### Writing Style
+- Use clear, concise language
+- Focus on getting users started quickly
+- Emphasize the website for detailed information
+- Use bullet points for easy scanning
+
+## lib.rs Documentation Rules
+
+### Structure Requirements
+1. **Crate Header**
+   - Title and brief description
+   - Badges (same as README)
+   - Link to website prominently displayed
+
+2. **Core Concepts**
+   - Brief explanation of main concepts (Job, Step, ItemReader, etc.)
+   - Maximum 2-3 sentences per concept
+
+3. **Features Overview**
+   - Simple feature table
+   - No detailed explanations
+
+4. **Quick Example**
+   - One basic example (max 25 lines)
+   - Link to website for more examples
+
+### Content Restrictions
+- **NO MERMAID DIAGRAMS** in lib.rs
+- Maximum 150 lines of documentation
+- No extensive tutorials
+- No multiple examples
+- No architecture explanations
+
+### Website References
+- Include website link in multiple places
+- Use phrases like "For detailed guides, visit our website"
+- "See the website for comprehensive examples"
+- "Full documentation available at [website]"
+
+## Code Documentation Rules
+
+### API Documentation
+- Every public function/struct must have rustdoc comments
+- Include practical examples in doctests
+- Use `/// # Examples` sections
+- Document error conditions with `/// # Errors`
+- Document panics with `/// # Panics`
+
+### Module Documentation
+- Each module should have clear purpose explanation
+- Include usage patterns
+- Link to related modules
+- Reference website for comprehensive guides
+
+### Example Quality
+- Examples should be runnable
+- Use realistic data and scenarios
+- Include error handling
+- Keep examples focused and concise
+
+## Website Content Strategy
+
+### Comprehensive Documentation
+- Detailed tutorials and guides
+- Multiple examples per feature
+- Architecture explanations with diagrams
+- Best practices and patterns
+- Performance considerations
+- Migration guides
+
+### Content Organization
+- Getting Started guide
+- Feature-specific tutorials
+- API reference (generated from rustdoc)
+- Examples gallery
+- FAQ and troubleshooting
+- Community resources
+
+## Writing Guidelines
+
+### Tone and Style
+- Professional but approachable
+- Focus on practical usage
+- Use active voice
+- Be concise but complete
+- Include code examples liberally
+
+### Technical Accuracy
+- All examples must compile and run
+- Use current Rust idioms
+- Follow project coding standards
+- Test all code examples
+- Keep dependencies minimal in examples
+
+### User Experience
+- Start with simplest use cases
+- Progress to more complex scenarios
+- Provide clear next steps
+- Include troubleshooting tips
+- Make it easy to find information
+
+## Maintenance Rules
+
+### Consistency
+- Keep README.md and lib.rs in sync with basic information
+- Update website link if it changes
+- Ensure examples work with current API
+- Maintain consistent terminology
+
+### Updates
+- When adding new features, update feature table
+- Keep quick start example current
+- Update website with comprehensive documentation
+- Ensure all links work
+
+### Quality Checks
+- Spell check all documentation
+- Verify all links work
+- Test all code examples
+- Check formatting and structure
+- Ensure mobile-friendly presentation
+
+## Link Management
+
+### Website Links
+- Use consistent URL format
+- Include specific page links when relevant
+- Use descriptive link text
+- Ensure links are accessible
+
+### Internal Links
+- Link between related documentation
+- Use relative links for internal content
+- Ensure cross-references are accurate
+- Update links when content moves
+
+## Example Templates
+
+### README.md Website Link Section
+```markdown
+## 📚 Documentation
+
+For comprehensive documentation, tutorials, and examples:
+
+**🌐 [Visit our Website](mdc:https:/sboussekeyt.github.io/spring-batch-rs)**
+
+- [Getting Started Guide](mdc:https:/sboussekeyt.github.io/spring-batch-rs/docs/getting-started)
+- [Feature Tutorials](mdc:https:/sboussekeyt.github.io/spring-batch-rs/docs/tutorials)
+- [API Reference](mdc:https:/sboussekeyt.github.io/spring-batch-rs/docs/api)
+- [Examples Gallery](mdc:https:/sboussekeyt.github.io/spring-batch-rs/docs/examples)
+```
+
+### lib.rs Website Reference
+```rust
+//! For comprehensive documentation, tutorials, and examples, visit our website:
+//! **[https://sboussekeyt.github.io/spring-batch-rs/](mdc:https:/sboussekeyt.github.io/spring-batch-rs)**
+//!
+//! This crate provides the core functionality. See the website for:
+//! - Detailed getting started guide
+//! - Feature-specific tutorials  
+//! - Complete examples gallery
+//! - Best practices and patterns
+```
+
+## Error Prevention
+
+### Common Mistakes to Avoid
+- Don't duplicate extensive content between README and website
+- Don't include mermaid diagrams in lib.rs
+- Don't make README.md too long
+- Don't forget website links
+- Don't include outdated examples
+- Don't use inconsistent terminology
+
+### Quality Assurance
+- Always test code examples
+- Verify website links work
+- Check for typos and grammar
+- Ensure consistent formatting
+- Validate markdown syntax
+
+Remember: The goal is to get users started quickly while directing them to comprehensive resources on the website. Keep documentation concise, accurate, and user-focused.
