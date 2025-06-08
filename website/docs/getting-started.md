@@ -34,21 +34,21 @@ spring-batch-rs = { version = "0.3", features = ["csv", "json", "xml"] }
 
 Available features:
 
-| Feature         | Description                        |
-| --------------- | ---------------------------------- |
-| `csv`           | CSV file reading and writing       |
-| `json`          | JSON file reading and writing      |
-| `xml`           | XML file reading and writing       |
-| `mongodb`       | MongoDB database integration       |
-| `rdbc-postgres` | PostgreSQL database integration    |
-| `rdbc-mysql`    | MySQL/MariaDB database integration |
-| `rdbc-sqlite`   | SQLite database integration        |
-| `orm`           | SeaORM integration                 |
-| `zip`           | ZIP compression tasklets           |
-| `ftp`           | FTP file transfer tasklets         |
-| `fake`          | Mock data generation               |
-| `logger`        | Debug logging writer               |
-| `full`          | All features enabled               |
+| Feature         | Description                         |
+| --------------- | ----------------------------------- |
+| `csv`           | CSV file reading and writing        |
+| `json`          | JSON file reading and writing       |
+| `xml`           | XML file reading and writing        |
+| `mongodb`       | MongoDB database integration        |
+| `rdbc-postgres` | PostgreSQL database integration     |
+| `rdbc-mysql`    | MySQL/MariaDB database integration  |
+| `rdbc-sqlite`   | SQLite database integration         |
+| `orm`           | SeaORM integration                  |
+| `zip`           | ZIP compression tasklets            |
+| `ftp`           | FTP and FTPS file transfer tasklets |
+| `fake`          | Mock data generation                |
+| `logger`        | Debug logging writer                |
+| `full`          | All features enabled                |
 
 ## Your First Batch Job
 
@@ -260,7 +260,7 @@ Now that you have the basics down, explore more advanced features:
 
 1. **[Processing Models](./processing-models)** - Learn about chunk-oriented vs tasklet processing
 2. **[Item Readers & Writers](./item-readers-writers)** - Explore all available data sources
-3. **[Tasklets](./tasklets)** - File operations, FTP transfers, and custom tasks
+3. **[Tasklets](./tasklets)** - File operations, FTP/FTPS transfers, and custom tasks
 4. **[Examples](./examples)** - Real-world examples and patterns
 5. **[Tutorials](./tutorials)** - Step-by-step guides for common scenarios
 
