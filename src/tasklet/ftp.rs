@@ -144,6 +144,7 @@ fn setup_ftp_connection(
 ///
 /// This tasklet provides functionality for uploading local files to an FTP server
 /// as part of a batch processing step.
+#[derive(Debug)]
 pub struct FtpPutTasklet {
     /// FTP server hostname or IP address
     host: String,
@@ -255,6 +256,7 @@ impl Tasklet for FtpPutTasklet {
 ///
 /// This tasklet provides functionality for downloading files from an FTP server
 /// to local storage as part of a batch processing step.
+#[derive(Debug)]
 pub struct FtpGetTasklet {
     /// FTP server hostname or IP address
     host: String,
@@ -363,6 +365,7 @@ impl Tasklet for FtpGetTasklet {
 ///
 /// This tasklet provides functionality for uploading all files from a local folder
 /// to a remote folder on an FTP server as part of a batch processing step.
+#[derive(Debug)]
 pub struct FtpPutFolderTasklet {
     /// FTP server hostname or IP address
     host: String,
@@ -550,6 +553,7 @@ impl Tasklet for FtpPutFolderTasklet {
 ///
 /// This tasklet provides functionality for downloading all files from a remote folder
 /// on an FTP server to a local folder as part of a batch processing step.
+#[derive(Debug)]
 pub struct FtpGetFolderTasklet {
     /// FTP server hostname or IP address
     host: String,
@@ -1241,6 +1245,7 @@ impl FtpGetFolderTaskletBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::step::StepExecution;
     use std::env::temp_dir;
     use std::fs;
 
@@ -1350,6 +1355,10 @@ mod tests {
             .password("pass")
             .build();
         assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("FTP host is required"));
 
         // Test missing username
         let result = FtpGetTaskletBuilder::new()
@@ -1357,6 +1366,47 @@ mod tests {
             .password("pass")
             .build();
         assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("FTP username is required"));
+
+        // Test missing password
+        let result = FtpPutTaskletBuilder::new()
+            .host("localhost")
+            .username("user")
+            .build();
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("FTP password is required"));
+
+        // Test missing local file for PUT
+        let result = FtpPutTaskletBuilder::new()
+            .host("localhost")
+            .username("user")
+            .password("pass")
+            .remote_file("/remote/file.txt")
+            .build();
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Local file path is required"));
+
+        // Test missing remote file for GET
+        let result = FtpGetTaskletBuilder::new()
+            .host("localhost")
+            .username("user")
+            .password("pass")
+            .local_file("/local/file.txt")
+            .build();
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Remote file path is required"));
     }
 
     #[test]
@@ -1370,6 +1420,131 @@ mod tests {
             "/remote/file.txt",
         );
         assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Local file does not exist"));
+    }
+
+    #[test]
+    fn test_ftp_put_tasklet_configuration() -> Result<(), BatchError> {
+        let temp_dir = temp_dir();
+        let test_file = temp_dir.join("config_test.txt");
+        fs::write(&test_file, "test content").unwrap();
+
+        let mut tasklet = FtpPutTasklet::new(
+            "localhost",
+            21,
+            "user",
+            "pass",
+            &test_file,
+            "/remote/file.txt",
+        )?;
+
+        // Test default values
+        assert!(tasklet.passive_mode);
+        assert_eq!(tasklet.timeout, Duration::from_secs(30));
+
+        // Test configuration methods
+        tasklet.set_passive_mode(false);
+        tasklet.set_timeout(Duration::from_secs(60));
+
+        assert!(!tasklet.passive_mode);
+        assert_eq!(tasklet.timeout, Duration::from_secs(60));
+
+        fs::remove_file(&test_file).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn test_ftp_get_tasklet_configuration() -> Result<(), BatchError> {
+        let temp_dir = temp_dir();
+        let local_file = temp_dir.join("config_test.txt");
+
+        let mut tasklet = FtpGetTasklet::new(
+            "localhost",
+            21,
+            "user",
+            "pass",
+            "/remote/file.txt",
+            &local_file,
+        )?;
+
+        // Test default values
+        assert!(tasklet.passive_mode);
+        assert_eq!(tasklet.timeout, Duration::from_secs(30));
+
+        // Test configuration methods
+        tasklet.set_passive_mode(false);
+        tasklet.set_timeout(Duration::from_secs(120));
+
+        assert!(!tasklet.passive_mode);
+        assert_eq!(tasklet.timeout, Duration::from_secs(120));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ftp_put_tasklet_execution_with_connection_error() {
+        let temp_dir = temp_dir();
+        let test_file = temp_dir.join("connection_error_test.txt");
+        fs::write(&test_file, "test content").unwrap();
+
+        let tasklet = FtpPutTasklet::new(
+            "nonexistent.host.invalid",
+            21,
+            "user",
+            "pass",
+            &test_file,
+            "/remote/file.txt",
+        )
+        .unwrap();
+
+        let step_execution = StepExecution::new("test-step");
+        let result = tasklet.execute(&step_execution);
+
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(matches!(error, BatchError::Io(_)));
+        assert!(error
+            .to_string()
+            .contains("Failed to connect to FTP server"));
+
+        fs::remove_file(&test_file).ok();
+    }
+
+    #[test]
+    fn test_ftp_get_tasklet_execution_with_connection_error() {
+        let temp_dir = temp_dir();
+        let local_file = temp_dir.join("connection_error_test.txt");
+
+        let tasklet = FtpGetTasklet::new(
+            "nonexistent.host.invalid",
+            21,
+            "user",
+            "pass",
+            "/remote/file.txt",
+            &local_file,
+        )
+        .unwrap();
+
+        let step_execution = StepExecution::new("test-step");
+        let result = tasklet.execute(&step_execution);
+
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(matches!(error, BatchError::Io(_)));
+        assert!(error
+            .to_string()
+            .contains("Failed to connect to FTP server"));
+    }
+
+    #[test]
+    fn test_setup_ftp_connection_parameters() {
+        // Test that setup_ftp_connection function exists and has correct signature
+        // This is a compile-time test to ensure the function signature is correct
+        let _: fn(&str, u16, &str, &str, bool, Duration) -> Result<FtpStream, BatchError> =
+            setup_ftp_connection;
     }
 
     #[test]
@@ -1493,6 +1668,10 @@ mod tests {
             .password("pass")
             .build();
         assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("FTP host is required"));
 
         // Test missing username for folder download
         let result = FtpGetFolderTaskletBuilder::new()
@@ -1500,6 +1679,36 @@ mod tests {
             .password("pass")
             .build();
         assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("FTP username is required"));
+
+        // Test missing local folder for PUT
+        let result = FtpPutFolderTaskletBuilder::new()
+            .host("localhost")
+            .username("user")
+            .password("pass")
+            .remote_folder("/remote/folder")
+            .build();
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Local folder path is required"));
+
+        // Test missing remote folder for GET
+        let result = FtpGetFolderTaskletBuilder::new()
+            .host("localhost")
+            .username("user")
+            .password("pass")
+            .local_folder("/local/folder")
+            .build();
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Remote folder path is required"));
     }
 
     #[test]
@@ -1513,6 +1722,10 @@ mod tests {
             "/remote/folder",
         );
         assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Local folder does not exist"));
     }
 
     #[test]
@@ -1530,7 +1743,322 @@ mod tests {
             "/remote/folder",
         );
         assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Local path is not a directory"));
 
         fs::remove_file(&test_file).ok();
+    }
+
+    #[test]
+    fn test_ftp_put_folder_tasklet_configuration() -> Result<(), BatchError> {
+        let temp_dir = temp_dir();
+        let test_folder = temp_dir.join("config_folder_test");
+        fs::create_dir_all(&test_folder).unwrap();
+        fs::write(test_folder.join("file.txt"), "content").unwrap();
+
+        let mut tasklet = FtpPutFolderTasklet::new(
+            "localhost",
+            21,
+            "user",
+            "pass",
+            &test_folder,
+            "/remote/folder",
+        )?;
+
+        // Test default values
+        assert!(tasklet.passive_mode);
+        assert_eq!(tasklet.timeout, Duration::from_secs(30));
+        assert!(tasklet.create_directories);
+        assert!(!tasklet.recursive);
+
+        // Test configuration methods
+        tasklet.set_passive_mode(false);
+        tasklet.set_timeout(Duration::from_secs(90));
+        tasklet.set_create_directories(false);
+        tasklet.set_recursive(true);
+
+        assert!(!tasklet.passive_mode);
+        assert_eq!(tasklet.timeout, Duration::from_secs(90));
+        assert!(!tasklet.create_directories);
+        assert!(tasklet.recursive);
+
+        fs::remove_dir_all(&test_folder).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn test_ftp_get_folder_tasklet_configuration() -> Result<(), BatchError> {
+        let temp_dir = temp_dir();
+        let local_folder = temp_dir.join("config_folder_test");
+
+        let mut tasklet = FtpGetFolderTasklet::new(
+            "localhost",
+            21,
+            "user",
+            "pass",
+            "/remote/folder",
+            &local_folder,
+        )?;
+
+        // Test default values
+        assert!(tasklet.passive_mode);
+        assert_eq!(tasklet.timeout, Duration::from_secs(30));
+        assert!(tasklet.create_directories);
+        assert!(!tasklet.recursive);
+
+        // Test configuration methods
+        tasklet.set_passive_mode(false);
+        tasklet.set_timeout(Duration::from_secs(180));
+        tasklet.set_create_directories(false);
+        tasklet.set_recursive(true);
+
+        assert!(!tasklet.passive_mode);
+        assert_eq!(tasklet.timeout, Duration::from_secs(180));
+        assert!(!tasklet.create_directories);
+        assert!(tasklet.recursive);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ftp_put_folder_tasklet_execution_with_connection_error() {
+        let temp_dir = temp_dir();
+        let test_folder = temp_dir.join("connection_error_folder_test");
+        fs::create_dir_all(&test_folder).unwrap();
+        fs::write(test_folder.join("file.txt"), "content").unwrap();
+
+        let tasklet = FtpPutFolderTasklet::new(
+            "nonexistent.host.invalid",
+            21,
+            "user",
+            "pass",
+            &test_folder,
+            "/remote/folder",
+        )
+        .unwrap();
+
+        let step_execution = StepExecution::new("test-step");
+        let result = tasklet.execute(&step_execution);
+
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(matches!(error, BatchError::Io(_)));
+        assert!(error
+            .to_string()
+            .contains("Failed to connect to FTP server"));
+
+        fs::remove_dir_all(&test_folder).ok();
+    }
+
+    #[test]
+    fn test_ftp_get_folder_tasklet_execution_with_connection_error() {
+        let temp_dir = temp_dir();
+        let local_folder = temp_dir.join("connection_error_folder_test");
+
+        let tasklet = FtpGetFolderTasklet::new(
+            "nonexistent.host.invalid",
+            21,
+            "user",
+            "pass",
+            "/remote/folder",
+            &local_folder,
+        )
+        .unwrap();
+
+        let step_execution = StepExecution::new("test-step");
+        let result = tasklet.execute(&step_execution);
+
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(matches!(error, BatchError::Io(_)));
+        assert!(error
+            .to_string()
+            .contains("Failed to connect to FTP server"));
+    }
+
+    #[test]
+    fn test_builder_default_implementations() {
+        // Test that all builders implement Default
+        let _put_builder = FtpPutTaskletBuilder::default();
+        let _get_builder = FtpGetTaskletBuilder::default();
+        let _put_folder_builder = FtpPutFolderTaskletBuilder::default();
+        let _get_folder_builder = FtpGetFolderTaskletBuilder::default();
+    }
+
+    #[test]
+    fn test_builder_fluent_interface() -> Result<(), BatchError> {
+        let temp_dir = temp_dir();
+        let test_file = temp_dir.join("fluent_test.txt");
+        fs::write(&test_file, "test content").unwrap();
+
+        // Test method chaining works correctly
+        let tasklet = FtpPutTaskletBuilder::new()
+            .host("example.com")
+            .port(2121)
+            .username("testuser")
+            .password("testpass")
+            .local_file(&test_file)
+            .remote_file("/remote/test.txt")
+            .passive_mode(true)
+            .timeout(Duration::from_secs(45))
+            .build()?;
+
+        assert_eq!(tasklet.host, "example.com");
+        assert_eq!(tasklet.port, 2121);
+        assert_eq!(tasklet.username, "testuser");
+        assert_eq!(tasklet.password, "testpass");
+        assert_eq!(tasklet.remote_file, "/remote/test.txt");
+        assert!(tasklet.passive_mode);
+        assert_eq!(tasklet.timeout, Duration::from_secs(45));
+
+        fs::remove_file(&test_file).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn test_error_message_quality() {
+        // Test that error messages are descriptive and helpful
+        let result = FtpPutTaskletBuilder::new().build();
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("FTP host is required"));
+
+        let result = FtpPutTaskletBuilder::new().host("localhost").build();
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("FTP username is required"));
+    }
+
+    #[test]
+    fn test_path_handling() -> Result<(), BatchError> {
+        let temp_dir = temp_dir();
+        let test_file = temp_dir.join("path_test.txt");
+        fs::write(&test_file, "test content").unwrap();
+
+        // Test that different path types work
+        let tasklet1 = FtpPutTasklet::new(
+            "localhost",
+            21,
+            "user",
+            "pass",
+            &test_file,
+            "/remote/file.txt",
+        )?;
+
+        let tasklet2 = FtpPutTasklet::new(
+            "localhost",
+            21,
+            "user",
+            "pass",
+            test_file.as_path(),
+            "/remote/file.txt",
+        )?;
+
+        assert_eq!(tasklet1.local_file, tasklet2.local_file);
+
+        fs::remove_file(&test_file).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn test_timeout_configuration() -> Result<(), BatchError> {
+        let temp_dir = temp_dir();
+        let test_file = temp_dir.join("timeout_test.txt");
+        fs::write(&test_file, "test content").unwrap();
+
+        // Test various timeout values
+        let tasklet = FtpPutTaskletBuilder::new()
+            .host("localhost")
+            .username("user")
+            .password("pass")
+            .local_file(&test_file)
+            .remote_file("/remote/file.txt")
+            .timeout(Duration::from_millis(500))
+            .build()?;
+
+        assert_eq!(tasklet.timeout, Duration::from_millis(500));
+
+        let tasklet = FtpPutTaskletBuilder::new()
+            .host("localhost")
+            .username("user")
+            .password("pass")
+            .local_file(&test_file)
+            .remote_file("/remote/file.txt")
+            .timeout(Duration::from_secs(300))
+            .build()?;
+
+        assert_eq!(tasklet.timeout, Duration::from_secs(300));
+
+        fs::remove_file(&test_file).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn test_port_configuration() -> Result<(), BatchError> {
+        let temp_dir = temp_dir();
+        let test_file = temp_dir.join("port_test.txt");
+        fs::write(&test_file, "test content").unwrap();
+
+        // Test various port values
+        let tasklet = FtpPutTaskletBuilder::new()
+            .host("localhost")
+            .port(990) // FTPS port
+            .username("user")
+            .password("pass")
+            .local_file(&test_file)
+            .remote_file("/remote/file.txt")
+            .build()?;
+
+        assert_eq!(tasklet.port, 990);
+
+        let tasklet = FtpPutTaskletBuilder::new()
+            .host("localhost")
+            .port(2121) // Alternative FTP port
+            .username("user")
+            .password("pass")
+            .local_file(&test_file)
+            .remote_file("/remote/file.txt")
+            .build()?;
+
+        assert_eq!(tasklet.port, 2121);
+
+        fs::remove_file(&test_file).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn test_passive_mode_configuration() -> Result<(), BatchError> {
+        let temp_dir = temp_dir();
+        let test_file = temp_dir.join("passive_test.txt");
+        fs::write(&test_file, "test content").unwrap();
+
+        // Test passive mode true
+        let tasklet = FtpPutTaskletBuilder::new()
+            .host("localhost")
+            .username("user")
+            .password("pass")
+            .local_file(&test_file)
+            .remote_file("/remote/file.txt")
+            .passive_mode(true)
+            .build()?;
+
+        assert!(tasklet.passive_mode);
+
+        // Test passive mode false (active mode)
+        let tasklet = FtpPutTaskletBuilder::new()
+            .host("localhost")
+            .username("user")
+            .password("pass")
+            .local_file(&test_file)
+            .remote_file("/remote/file.txt")
+            .passive_mode(false)
+            .build()?;
+
+        assert!(!tasklet.passive_mode);
+
+        fs::remove_file(&test_file).ok();
+        Ok(())
     }
 }
