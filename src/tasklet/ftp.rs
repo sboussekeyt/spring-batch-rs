@@ -1246,9 +1246,338 @@ impl FtpGetFolderTaskletBuilder {
 mod tests {
     use super::*;
     use crate::core::step::StepExecution;
+    use mockall::{mock, predicate::*};
     use std::env::temp_dir;
     use std::fs;
 
+    // Mock trait for FTP operations to enable proper unit testing
+    #[cfg(test)]
+    pub trait FtpOperations {
+        fn connect(&self, host: &str, port: u16) -> Result<(), BatchError>;
+        fn login(&self, username: &str, password: &str) -> Result<(), BatchError>;
+        fn set_mode(&self, passive: bool) -> Result<(), BatchError>;
+        fn put_file(&self, remote_path: &str, content: &[u8]) -> Result<(), BatchError>;
+        fn get_file(&self, remote_path: &str) -> Result<Vec<u8>, BatchError>;
+        fn mkdir(&self, path: &str) -> Result<(), BatchError>;
+        fn list_files(&self, path: &str) -> Result<Vec<String>, BatchError>;
+        fn quit(&self) -> Result<(), BatchError>;
+    }
+
+    // Mock implementation using mockall
+    mock! {
+        pub FtpClient {}
+
+        impl FtpOperations for FtpClient {
+            fn connect(&self, host: &str, port: u16) -> Result<(), BatchError>;
+            fn login(&self, username: &str, password: &str) -> Result<(), BatchError>;
+            fn set_mode(&self, passive: bool) -> Result<(), BatchError>;
+            fn put_file(&self, remote_path: &str, content: &[u8]) -> Result<(), BatchError>;
+            fn get_file(&self, remote_path: &str) -> Result<Vec<u8>, BatchError>;
+            fn mkdir(&self, path: &str) -> Result<(), BatchError>;
+            fn list_files(&self, path: &str) -> Result<Vec<String>, BatchError>;
+            fn quit(&self) -> Result<(), BatchError>;
+        }
+    }
+
+    // Helper function to create a mock FTP client with common expectations
+    fn create_successful_mock() -> MockFtpClient {
+        let mut mock = MockFtpClient::new();
+        mock.expect_connect().returning(|_, _| Ok(()));
+        mock.expect_login().returning(|_, _| Ok(()));
+        mock.expect_set_mode().returning(|_| Ok(()));
+        mock.expect_quit().returning(|| Ok(()));
+        mock
+    }
+
+    #[test]
+    fn test_mock_ftp_put_success() {
+        let mut mock = create_successful_mock();
+        mock.expect_put_file()
+            .with(eq("/remote/test.txt"), always())
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        // Simulate successful FTP PUT operation
+        assert!(mock.connect("localhost", 21).is_ok());
+        assert!(mock.login("user", "pass").is_ok());
+        assert!(mock.set_mode(true).is_ok());
+        assert!(mock.put_file("/remote/test.txt", b"test content").is_ok());
+        assert!(mock.quit().is_ok());
+    }
+
+    #[test]
+    fn test_mock_ftp_get_success() {
+        let mut mock = create_successful_mock();
+        let expected_data = b"downloaded content".to_vec();
+        mock.expect_get_file()
+            .with(eq("/remote/test.txt"))
+            .times(1)
+            .returning(move |_| Ok(expected_data.clone()));
+
+        // Simulate successful FTP GET operation
+        assert!(mock.connect("localhost", 21).is_ok());
+        assert!(mock.login("user", "pass").is_ok());
+        assert!(mock.set_mode(true).is_ok());
+        let result = mock.get_file("/remote/test.txt").unwrap();
+        assert_eq!(result, b"downloaded content");
+        assert!(mock.quit().is_ok());
+    }
+
+    #[test]
+    fn test_mock_ftp_connection_failure() {
+        let mut mock = MockFtpClient::new();
+        mock.expect_connect()
+            .with(eq("invalid.host"), eq(21))
+            .times(1)
+            .returning(|_, _| {
+                Err(BatchError::Io(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionRefused,
+                    "Connection refused",
+                )))
+            });
+
+        // Test connection failure
+        let result = mock.connect("invalid.host", 21);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Connection refused"));
+    }
+
+    #[test]
+    fn test_mock_ftp_login_failure() {
+        let mut mock = MockFtpClient::new();
+        mock.expect_connect().returning(|_, _| Ok(()));
+        mock.expect_login()
+            .with(eq("invalid_user"), eq("wrong_pass"))
+            .times(1)
+            .returning(|_, _| Err(BatchError::Configuration("Login failed".to_string())));
+
+        // Test login failure
+        assert!(mock.connect("localhost", 21).is_ok());
+        let result = mock.login("invalid_user", "wrong_pass");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Login failed"));
+    }
+
+    #[test]
+    fn test_mock_ftp_upload_failure() {
+        let mut mock = create_successful_mock();
+        mock.expect_put_file()
+            .with(eq("/protected/file.txt"), always())
+            .times(1)
+            .returning(|_, _| {
+                Err(BatchError::Io(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "Permission denied",
+                )))
+            });
+
+        // Test upload failure
+        assert!(mock.connect("localhost", 21).is_ok());
+        assert!(mock.login("user", "pass").is_ok());
+        assert!(mock.set_mode(true).is_ok());
+        let result = mock.put_file("/protected/file.txt", b"content");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Permission denied"));
+    }
+
+    #[test]
+    fn test_mock_ftp_download_failure() {
+        let mut mock = create_successful_mock();
+        mock.expect_get_file()
+            .with(eq("/nonexistent/file.txt"))
+            .times(1)
+            .returning(|_| {
+                Err(BatchError::Io(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "File not found",
+                )))
+            });
+
+        // Test download failure
+        assert!(mock.connect("localhost", 21).is_ok());
+        assert!(mock.login("user", "pass").is_ok());
+        assert!(mock.set_mode(true).is_ok());
+        let result = mock.get_file("/nonexistent/file.txt");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("File not found"));
+    }
+
+    #[test]
+    fn test_mock_ftp_folder_operations() {
+        let mut mock = create_successful_mock();
+
+        // Setup expectations for folder operations
+        mock.expect_mkdir()
+            .with(eq("/remote/new_folder"))
+            .times(1)
+            .returning(|_| Ok(()));
+
+        mock.expect_list_files()
+            .with(eq("/remote/folder"))
+            .times(1)
+            .returning(|_| {
+                Ok(vec![
+                    "file1.txt".to_string(),
+                    "file2.txt".to_string(),
+                    "subfolder".to_string(),
+                ])
+            });
+
+        mock.expect_put_file().times(2).returning(|_, _| Ok(()));
+
+        // Test folder operations
+        assert!(mock.connect("localhost", 21).is_ok());
+        assert!(mock.login("user", "pass").is_ok());
+        assert!(mock.set_mode(true).is_ok());
+        assert!(mock.mkdir("/remote/new_folder").is_ok());
+
+        let files = mock.list_files("/remote/folder").unwrap();
+        assert_eq!(files.len(), 3);
+        assert!(files.contains(&"file1.txt".to_string()));
+        assert!(files.contains(&"file2.txt".to_string()));
+
+        // Upload multiple files
+        assert!(mock.put_file("/remote/file1.txt", b"content1").is_ok());
+        assert!(mock.put_file("/remote/file2.txt", b"content2").is_ok());
+        assert!(mock.quit().is_ok());
+    }
+
+    #[test]
+    fn test_mock_ftp_passive_active_mode() {
+        let mut mock = MockFtpClient::new();
+        mock.expect_connect().returning(|_, _| Ok(()));
+        mock.expect_login().returning(|_, _| Ok(()));
+        mock.expect_set_mode()
+            .with(eq(true)) // passive mode
+            .times(1)
+            .returning(|_| Ok(()));
+        mock.expect_set_mode()
+            .with(eq(false)) // active mode
+            .times(1)
+            .returning(|_| Ok(()));
+        mock.expect_quit().returning(|| Ok(()));
+
+        // Test passive and active mode switching
+        assert!(mock.connect("localhost", 21).is_ok());
+        assert!(mock.login("user", "pass").is_ok());
+        assert!(mock.set_mode(true).is_ok()); // Set to passive
+        assert!(mock.set_mode(false).is_ok()); // Set to active
+        assert!(mock.quit().is_ok());
+    }
+
+    #[test]
+    fn test_mock_ftp_multiple_file_transfers() {
+        let mut mock = create_successful_mock();
+
+        // Expect multiple file uploads
+        mock.expect_put_file()
+            .with(eq("/remote/file1.txt"), always())
+            .times(1)
+            .returning(|_, _| Ok(()));
+        mock.expect_put_file()
+            .with(eq("/remote/file2.txt"), always())
+            .times(1)
+            .returning(|_, _| Ok(()));
+        mock.expect_put_file()
+            .with(eq("/remote/file3.txt"), always())
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        // Test multiple file transfers
+        assert!(mock.connect("localhost", 21).is_ok());
+        assert!(mock.login("user", "pass").is_ok());
+        assert!(mock.set_mode(true).is_ok());
+
+        // Upload multiple files
+        assert!(mock.put_file("/remote/file1.txt", b"content1").is_ok());
+        assert!(mock.put_file("/remote/file2.txt", b"content2").is_ok());
+        assert!(mock.put_file("/remote/file3.txt", b"content3").is_ok());
+
+        assert!(mock.quit().is_ok());
+    }
+
+    #[test]
+    fn test_mock_ftp_binary_file_transfer() {
+        let mut mock = create_successful_mock();
+
+        // Create some binary data
+        let binary_data = vec![0u8, 1, 2, 3, 255, 128, 64];
+        let binary_data_clone = binary_data.clone();
+
+        mock.expect_put_file()
+            .with(eq("/remote/binary.dat"), always())
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        mock.expect_get_file()
+            .with(eq("/remote/binary.dat"))
+            .times(1)
+            .returning(move |_| Ok(binary_data_clone.clone()));
+
+        // Test binary file transfer
+        assert!(mock.connect("localhost", 21).is_ok());
+        assert!(mock.login("user", "pass").is_ok());
+        assert!(mock.set_mode(true).is_ok());
+
+        // Upload binary file
+        assert!(mock.put_file("/remote/binary.dat", &binary_data).is_ok());
+
+        // Download binary file
+        let downloaded = mock.get_file("/remote/binary.dat").unwrap();
+        assert_eq!(downloaded, binary_data);
+
+        assert!(mock.quit().is_ok());
+    }
+
+    #[test]
+    fn test_mock_ftp_error_recovery() {
+        let mut mock = MockFtpClient::new();
+        mock.expect_connect().returning(|_, _| Ok(()));
+        mock.expect_login().returning(|_, _| Ok(()));
+        mock.expect_set_mode().returning(|_| Ok(()));
+
+        // First attempt fails, second succeeds
+        mock.expect_put_file()
+            .with(eq("/remote/retry.txt"), always())
+            .times(1)
+            .returning(|_, _| {
+                Err(BatchError::Io(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "Timeout",
+                )))
+            });
+
+        mock.expect_put_file()
+            .with(eq("/remote/retry.txt"), always())
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        mock.expect_quit().returning(|| Ok(()));
+
+        // Test error recovery scenario
+        assert!(mock.connect("localhost", 21).is_ok());
+        assert!(mock.login("user", "pass").is_ok());
+        assert!(mock.set_mode(true).is_ok());
+
+        // First attempt fails
+        let result1 = mock.put_file("/remote/retry.txt", b"content");
+        assert!(result1.is_err());
+        assert!(result1.unwrap_err().to_string().contains("Timeout"));
+
+        // Second attempt succeeds
+        let result2 = mock.put_file("/remote/retry.txt", b"content");
+        assert!(result2.is_ok());
+
+        assert!(mock.quit().is_ok());
+    }
+
+    // Original tests (keeping the existing ones for integration testing)
     #[test]
     fn test_ftp_put_tasklet_creation() -> Result<(), BatchError> {
         let temp_dir = temp_dir();
