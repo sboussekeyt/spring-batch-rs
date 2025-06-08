@@ -19,7 +19,7 @@ For comprehensive documentation, tutorials, and examples:
 
 - [Getting Started Guide](https://sboussekeyt.github.io/spring-batch-rs/docs/getting-started)
 - [Feature Tutorials](https://sboussekeyt.github.io/spring-batch-rs/docs/tutorials)
-- [API Reference](https://sboussekeyt.github.io/spring-batch-rs/docs/api)
+- [API Reference](https://docs.rs/spring-batch-rs) - Complete API documentation
 - [Examples Gallery](https://sboussekeyt.github.io/spring-batch-rs/docs/examples)
 
 ## Why Spring Batch for Rust?
@@ -40,21 +40,21 @@ For comprehensive documentation, tutorials, and examples:
 
 ## Features
 
-| **Feature**     | **Description**                                                      |
-| --------------- | -------------------------------------------------------------------- |
-| `mongodb`       | Enables `ItemReader` and `ItemWriter` for MongoDB databases          |
-| `rdbc-postgres` | Enables RDBC `ItemReader` and `ItemWriter` for PostgreSQL            |
-| `rdbc-mysql`    | Enables RDBC `ItemReader` and `ItemWriter` for MySQL and MariaDB     |
-| `rdbc-sqlite`   | Enables RDBC `ItemReader` and `ItemWriter` for SQLite                |
-| `orm`           | Enables ORM `ItemReader` and `ItemWriter` using SeaORM               |
-| `json`          | Enables JSON `ItemReader` and `ItemWriter`                           |
-| `csv`           | Enables CSV `ItemReader` and `ItemWriter`                            |
-| `xml`           | Enables XML `ItemReader` and `ItemWriter`                            |
-| `zip`           | Enables ZIP compression `Tasklet` for file archiving                 |
-| `ftp`           | Enables FTP `Tasklet` for file and folder upload/download operations |
-| `fake`          | Enables a fake `ItemReader`, useful for generating mock datasets     |
-| `logger`        | Enables a logger `ItemWriter`, useful for debugging purposes         |
-| `full`          | Enables all available features                                       |
+| **Feature**     | **Description**                                                    |
+| --------------- | ------------------------------------------------------------------ |
+| `mongodb`       | Enables `ItemReader` and `ItemWriter` for MongoDB databases        |
+| `rdbc-postgres` | Enables RDBC `ItemReader` and `ItemWriter` for PostgreSQL          |
+| `rdbc-mysql`    | Enables RDBC `ItemReader` and `ItemWriter` for MySQL and MariaDB   |
+| `rdbc-sqlite`   | Enables RDBC `ItemReader` and `ItemWriter` for SQLite              |
+| `orm`           | Enables ORM `ItemReader` and `ItemWriter` using SeaORM             |
+| `json`          | Enables JSON `ItemReader` and `ItemWriter`                         |
+| `csv`           | Enables CSV `ItemReader` and `ItemWriter`                          |
+| `xml`           | Enables XML `ItemReader` and `ItemWriter`                          |
+| `zip`           | Enables ZIP compression `Tasklet` for file archiving               |
+| `ftp`           | Enables FTP and FTPS `Tasklet` for secure file transfer operations |
+| `fake`          | Enables a fake `ItemReader`, useful for generating mock datasets   |
+| `logger`        | Enables a logger `ItemWriter`, useful for debugging purposes       |
+| `full`          | Enables all available features                                     |
 
 ## Quick Start
 

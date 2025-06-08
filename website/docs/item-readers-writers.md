@@ -165,41 +165,153 @@ let reader = OrmItemReaderBuilder::new()
 
 ### RDBC (Direct Database Access)
 
-Direct database access for PostgreSQL, MySQL, and SQLite.
+Direct database access for PostgreSQL, MySQL, and SQLite using SQLx's generic database driver.
 
-#### PostgreSQL
+#### Basic Usage
+
+The RDBC module provides a generic database reader and writer that works with any SQL database supported by SQLx. You need to implement a row mapper to convert database rows to your domain objects.
 
 ```rust
-use spring_batch_rs::item::rdbc::postgres::PostgresItemReaderBuilder;
+use spring_batch_rs::item::rdbc::rdbc_reader::{RdbcItemReaderBuilder, RdbcRowMapper};
+use sqlx::{AnyPool, Row};
+use serde::{Deserialize, Serialize};
 
-let reader = PostgresItemReaderBuilder::<Product>::new()
-    .connection_string("postgresql://user:pass@localhost/db")
+#[derive(Serialize, Deserialize, Clone)]
+struct Product {
+    id: i32,
+    name: String,
+    price: f64,
+}
+
+// Implement row mapper to convert database rows to your struct
+struct ProductRowMapper;
+
+impl RdbcRowMapper<Product> for ProductRowMapper {
+    fn map_row(&self, row: &sqlx::any::AnyRow) -> Product {
+        Product {
+            id: row.get("id"),
+            name: row.get("name"),
+            price: row.get("price"),
+        }
+    }
+}
+
+// Create connection pool and reader
+let pool = AnyPool::connect("postgresql://user:pass@localhost/db").await?;
+let row_mapper = ProductRowMapper;
+
+let reader = RdbcItemReaderBuilder::new()
+    .pool(&pool)
     .query("SELECT id, name, price FROM products WHERE active = true")
+    .page_size(1000)  // Optional: enable pagination
+    .row_mapper(&row_mapper)
+    .build();
+```
+
+#### PostgreSQL Example
+
+```rust
+use spring_batch_rs::item::rdbc::rdbc_reader::{RdbcItemReaderBuilder, RdbcRowMapper};
+use sqlx::{AnyPool, Row};
+
+// Install SQLx drivers
+sqlx::any::install_default_drivers();
+
+// Connect to PostgreSQL
+let pool = AnyPool::connect("postgresql://user:pass@localhost/db").await?;
+
+let reader = RdbcItemReaderBuilder::new()
+    .pool(&pool)
+    .query("SELECT id, name, price FROM products ORDER BY id")
+    .page_size(500)
+    .row_mapper(&ProductRowMapper)
+    .build();
+```
+
+#### MySQL Example
+
+```rust
+use spring_batch_rs::item::rdbc::rdbc_reader::{RdbcItemReaderBuilder, RdbcRowMapper};
+use sqlx::AnyPool;
+
+// Connect to MySQL
+let pool = AnyPool::connect("mysql://user:pass@localhost/db").await?;
+
+let reader = RdbcItemReaderBuilder::new()
+    .pool(&pool)
+    .query("SELECT id, name, price FROM products")
+    .row_mapper(&ProductRowMapper)
+    .build();
+```
+
+#### SQLite Example
+
+```rust
+use spring_batch_rs::item::rdbc::rdbc_reader::{RdbcItemReaderBuilder, RdbcRowMapper};
+use sqlx::AnyPool;
+
+// Connect to SQLite
+let pool = AnyPool::connect("sqlite:products.db").await?;
+
+let reader = RdbcItemReaderBuilder::new()
+    .pool(&pool)
+    .query("SELECT id, name, price FROM products")
     .page_size(1000)
-    .build().await?;
+    .row_mapper(&ProductRowMapper)
+    .build();
 ```
 
-#### MySQL
+#### RDBC Writer
+
+For writing data to databases, use the RDBC writer with an item binder:
 
 ```rust
-use spring_batch_rs::item::rdbc::mysql::MysqlItemReaderBuilder;
+use spring_batch_rs::item::rdbc::rdbc_writer::{RdbcItemWriterBuilder, RdbcItemBinder};
+use sqlx::{query_builder::Separated, Any};
 
-let reader = MysqlItemReaderBuilder::<Product>::new()
-    .connection_string("mysql://user:pass@localhost/db")
-    .query("SELECT id, name, price FROM products")
-    .build().await?;
+// Implement item binder to bind your struct fields to SQL parameters
+struct ProductItemBinder;
+
+impl RdbcItemBinder<Product> for ProductItemBinder {
+    fn bind(&self, item: &Product, mut query_builder: Separated<Any, &str>) {
+        query_builder.push_bind(item.id);
+        query_builder.push_bind(&item.name);
+        query_builder.push_bind(item.price);
+    }
+}
+
+let item_binder = ProductItemBinder;
+
+let writer = RdbcItemWriterBuilder::new()
+    .table("products")
+    .add_column("id")
+    .add_column("name")
+    .add_column("price")
+    .pool(&pool)
+    .item_binder(&item_binder)
+    .build();
 ```
 
-#### SQLite
+#### Configuration Options
 
-```rust
-use spring_batch_rs::item::rdbc::sqlite::SqliteItemReaderBuilder;
+- **Connection Pool**: Use `AnyPool::connect()` with your database URL
+- **Pagination**: Set `page_size()` to enable efficient memory usage for large datasets
+- **Row Mapping**: Implement `RdbcRowMapper` trait for custom row-to-object conversion
+- **Item Binding**: Implement `RdbcItemBinder` trait for writing data back to database
 
-let reader = SqliteItemReaderBuilder::<Product>::new()
-    .connection_string("sqlite:products.db")
-    .query("SELECT id, name, price FROM products")
-    .build().await?;
-```
+#### Performance Tips
+
+1. **Use Pagination**: For large datasets, set an appropriate page size:
+
+   ```rust
+   .page_size(1000)  // Fetch 1000 rows at a time
+   ```
+
+2. **Connection Pooling**: Reuse connection pools across multiple readers/writers
+
+3. **Prepared Statements**: SQLx automatically uses prepared statements for better performance
+
+4. **Batch Writes**: Use appropriate chunk sizes for batch inserts
 
 ### MongoDB
 

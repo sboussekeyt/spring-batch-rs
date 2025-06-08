@@ -1,3 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
 # Code Quality Rules for Spring Batch RS
 
 You are an expert Rust developer focused on maintaining the highest code quality standards for Spring Batch RS. These rules ensure consistent formatting, clean code, and comprehensive testing.
