@@ -102,10 +102,9 @@ use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 ///
 /// let archive_path = temp_dir().join("test_archive.zip");
 ///
-/// let tasklet = ZipTasklet::new(
-///     &temp_source_dir,
-///     &archive_path,
-/// )?;
+/// let tasklet = ZipTasklet::new()
+///     .source_path(&temp_source_dir)
+///     .target_path(&archive_path)?;
 ///
 /// let step_execution = StepExecution::new("zip-step");
 /// let result = tasklet.execute(&step_execution)?;
@@ -135,13 +134,12 @@ pub struct ZipTasklet {
 impl ZipTasklet {
     /// Creates a new ZipTasklet with default settings.
     ///
-    /// # Parameters
-    /// - `source_path`: Path to the file or directory to compress
-    /// - `target_path`: Path where the ZIP file will be created
+    /// All parameters must be set using the builder methods before use.
+    /// Use the builder pattern for a more convenient API.
     ///
     /// # Returns
-    /// - `Ok(ZipTasklet)`: Successfully created tasklet
-    /// - `Err(BatchError)`: Error if paths are invalid
+    ///
+    /// A new ZipTasklet instance with default settings.
     ///
     /// # Examples
     ///
@@ -159,25 +157,103 @@ impl ZipTasklet {
     ///
     /// let backup_path = temp_dir().join("backup.zip");
     ///
-    /// let tasklet = ZipTasklet::new(
-    ///     &temp_data_dir,
-    ///     &backup_path,
-    /// )?;
+    /// let tasklet = ZipTasklet::new()
+    ///     .source_path(&temp_data_dir)
+    ///     .target_path(&backup_path)?;
     ///
     /// // Cleanup test files
     /// fs::remove_dir_all(&temp_data_dir).ok();
     /// # Ok(())
     /// # }
     /// ```
-    pub fn new<P: AsRef<Path>>(source_path: P, target_path: P) -> Result<Self, BatchError> {
-        let source = source_path.as_ref().to_path_buf();
-        let target = target_path.as_ref().to_path_buf();
+    fn new() -> Self {
+        Self {
+            source_path: PathBuf::new(),
+            target_path: PathBuf::new(),
+            compression_level: 6, // Default compression level
+            include_pattern: None,
+            exclude_pattern: None,
+            preserve_structure: true,
+        }
+    }
 
-        // Validate source path exists
-        if !source.exists() {
+    /// Sets the source path to compress.
+    ///
+    /// This is a required parameter that must be set before using the tasklet.
+    ///
+    /// # Parameters
+    /// - `path`: Path to the file or directory to compress
+    ///
+    /// # Returns
+    /// The updated ZipTasklet instance.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use spring_batch_rs::tasklet::zip::ZipTasklet;
+    /// use std::path::Path;
+    /// use std::fs;
+    /// use std::env::temp_dir;
+    ///
+    /// # fn example() -> Result<(), spring_batch_rs::BatchError> {
+    /// let temp_data_dir = temp_dir().join("test_data");
+    /// fs::create_dir_all(&temp_data_dir).unwrap();
+    ///
+    /// let tasklet = ZipTasklet::new()
+    ///     .source_path(&temp_data_dir);
+    ///
+    /// fs::remove_dir_all(&temp_data_dir).ok();
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn source_path<P: AsRef<Path>>(mut self, path: P) -> Self {
+        self.source_path = path.as_ref().to_path_buf();
+        self
+    }
+
+    /// Sets the target ZIP file path.
+    ///
+    /// This is a required parameter that must be set before using the tasklet.
+    ///
+    /// # Parameters
+    /// - `path`: Path where the ZIP file will be created
+    ///
+    /// # Returns
+    /// The updated ZipTasklet instance, or an error if path validation fails.
+    ///
+    /// # Errors
+    /// - Returns error if source path doesn't exist (when source_path has been set)
+    /// - Returns error if target directory cannot be created
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use spring_batch_rs::tasklet::zip::ZipTasklet;
+    /// use std::path::Path;
+    /// use std::fs;
+    /// use std::env::temp_dir;
+    ///
+    /// # fn example() -> Result<(), spring_batch_rs::BatchError> {
+    /// let temp_data_dir = temp_dir().join("test_data");
+    /// fs::create_dir_all(&temp_data_dir).unwrap();
+    /// let backup_path = temp_dir().join("backup.zip");
+    ///
+    /// let tasklet = ZipTasklet::new()
+    ///     .source_path(&temp_data_dir)
+    ///     .target_path(&backup_path)?;
+    ///
+    /// fs::remove_dir_all(&temp_data_dir).ok();
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn target_path<P: AsRef<Path>>(mut self, path: P) -> Result<Self, BatchError> {
+        let target = path.as_ref().to_path_buf();
+
+        // Validate source path exists if it has been set
+        if !self.source_path.as_os_str().is_empty() && !self.source_path.exists() {
             return Err(BatchError::Io(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("Source path does not exist: {}", source.display()),
+                format!("Source path does not exist: {}", self.source_path.display()),
             )));
         }
 
@@ -193,14 +269,92 @@ impl ZipTasklet {
             }
         }
 
-        Ok(Self {
-            source_path: source,
-            target_path: target,
-            compression_level: 6, // Default compression level
-            include_pattern: None,
-            exclude_pattern: None,
-            preserve_structure: true,
-        })
+        self.target_path = target;
+        Ok(self)
+    }
+
+    /// Sets the compression level for the ZIP archive.
+    ///
+    /// # Parameters
+    /// - `level`: Compression level (0-9, where 0 is no compression and 9 is maximum)
+    ///
+    /// # Returns
+    /// The updated ZipTasklet instance.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use spring_batch_rs::tasklet::zip::ZipTasklet;
+    ///
+    /// let tasklet = ZipTasklet::new()
+    ///     .compression_level(9); // Maximum compression
+    /// ```
+    pub fn compression_level(mut self, level: i32) -> Self {
+        self.compression_level = level.clamp(0, 9);
+        self
+    }
+
+    /// Sets a pattern for files to include in the archive.
+    ///
+    /// # Parameters
+    /// - `pattern`: Glob pattern for files to include (e.g., "*.txt", "**/*.log")
+    ///
+    /// # Returns
+    /// The updated ZipTasklet instance.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use spring_batch_rs::tasklet::zip::ZipTasklet;
+    ///
+    /// let tasklet = ZipTasklet::new()
+    ///     .include_pattern("*.log");
+    /// ```
+    pub fn include_pattern<S: Into<String>>(mut self, pattern: S) -> Self {
+        self.include_pattern = Some(pattern.into());
+        self
+    }
+
+    /// Sets a pattern for files to exclude from the archive.
+    ///
+    /// # Parameters
+    /// - `pattern`: Glob pattern for files to exclude (e.g., "*.tmp", "**/target/**")
+    ///
+    /// # Returns
+    /// The updated ZipTasklet instance.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use spring_batch_rs::tasklet::zip::ZipTasklet;
+    ///
+    /// let tasklet = ZipTasklet::new()
+    ///     .exclude_pattern("target/**");
+    /// ```
+    pub fn exclude_pattern<S: Into<String>>(mut self, pattern: S) -> Self {
+        self.exclude_pattern = Some(pattern.into());
+        self
+    }
+
+    /// Sets whether to preserve directory structure in the archive.
+    ///
+    /// # Parameters
+    /// - `preserve`: If true, maintains directory structure; if false, flattens all files
+    ///
+    /// # Returns
+    /// The updated ZipTasklet instance.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use spring_batch_rs::tasklet::zip::ZipTasklet;
+    ///
+    /// let tasklet = ZipTasklet::new()
+    ///     .preserve_structure(false); // Flatten all files
+    /// ```
+    pub fn preserve_structure(mut self, preserve: bool) -> Self {
+        self.preserve_structure = preserve;
+        self
     }
 
     /// Sets the compression level for the ZIP archive.
@@ -224,10 +378,9 @@ impl ZipTasklet {
     ///
     /// let backup_path = temp_dir().join("backup_compression.zip");
     ///
-    /// let mut tasklet = ZipTasklet::new(
-    ///     &temp_data_dir,
-    ///     &backup_path,
-    /// )?;
+    /// let mut tasklet = ZipTasklet::new()
+    ///     .source_path(&temp_data_dir)
+    ///     .target_path(&backup_path)?;
     /// tasklet.set_compression_level(9); // Maximum compression
     ///
     /// // Cleanup test files
@@ -237,114 +390,6 @@ impl ZipTasklet {
     /// ```
     pub fn set_compression_level(&mut self, level: i32) {
         self.compression_level = level.clamp(0, 9);
-    }
-
-    /// Sets a pattern for files to include in the archive.
-    ///
-    /// # Parameters
-    /// - `pattern`: Glob pattern for files to include (e.g., "*.txt", "**/*.log")
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use spring_batch_rs::tasklet::zip::ZipTasklet;
-    /// use std::path::Path;
-    /// use std::fs;
-    /// use std::env::temp_dir;
-    ///
-    /// # fn example() -> Result<(), spring_batch_rs::BatchError> {
-    /// // Create test logs directory
-    /// let temp_logs_dir = temp_dir().join("test_logs");
-    /// fs::create_dir_all(&temp_logs_dir).unwrap();
-    /// fs::write(temp_logs_dir.join("app.log"), "log content").unwrap();
-    ///
-    /// let logs_zip_path = temp_dir().join("logs.zip");
-    ///
-    /// let mut tasklet = ZipTasklet::new(
-    ///     &temp_logs_dir,
-    ///     &logs_zip_path,
-    /// )?;
-    /// tasklet.set_include_pattern("*.log");
-    ///
-    /// // Cleanup test files
-    /// fs::remove_dir_all(&temp_logs_dir).ok();
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn set_include_pattern<S: Into<String>>(&mut self, pattern: S) {
-        self.include_pattern = Some(pattern.into());
-    }
-
-    /// Sets a pattern for files to exclude from the archive.
-    ///
-    /// # Parameters
-    /// - `pattern`: Glob pattern for files to exclude (e.g., "*.tmp", "**/target/**")
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use spring_batch_rs::tasklet::zip::ZipTasklet;
-    /// use std::path::Path;
-    /// use std::fs;
-    /// use std::env::temp_dir;
-    ///
-    /// # fn example() -> Result<(), spring_batch_rs::BatchError> {
-    /// // Create test project directory
-    /// let temp_project_dir = temp_dir().join("test_project");
-    /// fs::create_dir_all(&temp_project_dir).unwrap();
-    /// fs::write(temp_project_dir.join("src.rs"), "source code").unwrap();
-    ///
-    /// let project_zip_path = temp_dir().join("project.zip");
-    ///
-    /// let mut tasklet = ZipTasklet::new(
-    ///     &temp_project_dir,
-    ///     &project_zip_path,
-    /// )?;
-    /// tasklet.set_exclude_pattern("target/**");
-    ///
-    /// // Cleanup test files
-    /// fs::remove_dir_all(&temp_project_dir).ok();
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn set_exclude_pattern<S: Into<String>>(&mut self, pattern: S) {
-        self.exclude_pattern = Some(pattern.into());
-    }
-
-    /// Sets whether to preserve directory structure in the archive.
-    ///
-    /// # Parameters
-    /// - `preserve`: If true, maintains directory structure; if false, flattens all files
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use spring_batch_rs::tasklet::zip::ZipTasklet;
-    /// use std::path::Path;
-    /// use std::fs;
-    /// use std::env::temp_dir;
-    ///
-    /// # fn example() -> Result<(), spring_batch_rs::BatchError> {
-    /// // Create test data directory
-    /// let temp_data_dir = temp_dir().join("test_data_flat");
-    /// fs::create_dir_all(&temp_data_dir).unwrap();
-    /// fs::write(temp_data_dir.join("test.txt"), "test content").unwrap();
-    ///
-    /// let flat_zip_path = temp_dir().join("flat.zip");
-    ///
-    /// let mut tasklet = ZipTasklet::new(
-    ///     &temp_data_dir,
-    ///     &flat_zip_path,
-    /// )?;
-    /// tasklet.set_preserve_structure(false); // Flatten all files
-    ///
-    /// // Cleanup test files
-    /// fs::remove_dir_all(&temp_data_dir).ok();
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn set_preserve_structure(&mut self, preserve: bool) {
-        self.preserve_structure = preserve;
     }
 
     /// Checks if a file should be included based on include/exclude patterns.
@@ -559,10 +604,9 @@ impl Tasklet for ZipTasklet {
     /// use std::path::Path;
     ///
     /// # fn example() -> Result<(), spring_batch_rs::BatchError> {
-    /// let tasklet = ZipTasklet::new(
-    ///     Path::new("./data"),
-    ///     Path::new("./archive.zip"),
-    /// )?;
+    /// let tasklet = ZipTasklet::new()
+    ///     .source_path(Path::new("./data"))
+    ///     .target_path(Path::new("./archive.zip"))?;
     ///
     /// let step_execution = StepExecution::new("zip-step");
     /// let result = tasklet.execute(&step_execution)?;
@@ -801,32 +845,6 @@ impl ZipTaskletBuilder {
     /// - Returns error if source_path or target_path are not set
     /// - Returns error if source path doesn't exist
     /// - Returns error if target directory cannot be created
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use spring_batch_rs::tasklet::zip::ZipTaskletBuilder;
-    /// use std::fs;
-    /// use std::env::temp_dir;
-    ///
-    /// # fn example() -> Result<(), spring_batch_rs::BatchError> {
-    /// // Create test data directory
-    /// let temp_data_dir = temp_dir().join("test_data_builder");
-    /// fs::create_dir_all(&temp_data_dir).unwrap();
-    /// fs::write(temp_data_dir.join("test.txt"), "test content").unwrap();
-    ///
-    /// let archive_path = temp_dir().join("archive_builder.zip");
-    ///
-    /// let tasklet = ZipTaskletBuilder::new()
-    ///     .source_path(&temp_data_dir)
-    ///     .target_path(&archive_path)
-    ///     .build()?;
-    ///
-    /// // Cleanup test files
-    /// fs::remove_dir_all(&temp_data_dir).ok();
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn build(self) -> Result<ZipTasklet, BatchError> {
         let source_path = self
             .source_path
@@ -836,18 +854,19 @@ impl ZipTaskletBuilder {
             .target_path
             .ok_or_else(|| BatchError::Configuration("Target path is required".to_string()))?;
 
-        let mut tasklet = ZipTasklet::new(source_path, target_path)?;
-        tasklet.set_compression_level(self.compression_level);
+        let mut tasklet = ZipTasklet::new()
+            .source_path(source_path)
+            .target_path(target_path)?
+            .compression_level(self.compression_level)
+            .preserve_structure(self.preserve_structure);
 
         if let Some(pattern) = self.include_pattern {
-            tasklet.set_include_pattern(pattern);
+            tasklet = tasklet.include_pattern(pattern);
         }
 
         if let Some(pattern) = self.exclude_pattern {
-            tasklet.set_exclude_pattern(pattern);
+            tasklet = tasklet.exclude_pattern(pattern);
         }
-
-        tasklet.set_preserve_structure(self.preserve_structure);
 
         Ok(tasklet)
     }
@@ -887,7 +906,9 @@ mod tests {
         fs::create_dir(&source_path).unwrap();
         fs::write(source_path.join("test.txt"), "test content").unwrap();
 
-        let tasklet = ZipTasklet::new(&source_path, &target_path)?;
+        let tasklet = ZipTasklet::new()
+            .source_path(&source_path)
+            .target_path(&target_path)?;
         assert_eq!(tasklet.source_path, source_path);
         assert_eq!(tasklet.target_path, target_path);
         assert_eq!(tasklet.compression_level, 6);
@@ -929,7 +950,9 @@ mod tests {
 
         fs::write(&source_file, "Hello, World!").unwrap();
 
-        let tasklet = ZipTasklet::new(&source_file, &target_zip)?;
+        let tasklet = ZipTasklet::new()
+            .source_path(&source_file)
+            .target_path(&target_zip)?;
         let step_execution = StepExecution::new("test-step");
 
         let result = tasklet.execute(&step_execution)?;
@@ -948,7 +971,9 @@ mod tests {
         fs::create_dir(&source_dir).unwrap();
         create_test_structure(&source_dir).unwrap();
 
-        let tasklet = ZipTasklet::new(&source_dir, &target_zip)?;
+        let tasklet = ZipTasklet::new()
+            .source_path(&source_dir)
+            .target_path(&target_zip)?;
         let step_execution = StepExecution::new("test-step");
 
         let result = tasklet.execute(&step_execution)?;
@@ -960,14 +985,10 @@ mod tests {
 
     #[test]
     fn test_pattern_matching() {
-        let tasklet = ZipTasklet {
-            source_path: PathBuf::new(),
-            target_path: PathBuf::new(),
-            compression_level: 6,
-            include_pattern: Some("*.txt".to_string()),
-            exclude_pattern: Some("*.tmp".to_string()),
-            preserve_structure: true,
-        };
+        let tasklet = ZipTasklet::new()
+            .include_pattern("*.txt")
+            .exclude_pattern("*.tmp")
+            .preserve_structure(true);
 
         assert!(tasklet.matches_pattern("file.txt", "*.txt"));
         assert!(!tasklet.matches_pattern("file.log", "*.txt"));
@@ -987,7 +1008,9 @@ mod tests {
 
         fs::write(&source_file, "Hello, World!".repeat(1000)).unwrap();
 
-        let mut tasklet = ZipTasklet::new(&source_file, &target_zip)?;
+        let mut tasklet = ZipTasklet::new()
+            .source_path(&source_file)
+            .target_path(&target_zip)?;
         tasklet.set_compression_level(0); // No compression
         assert_eq!(tasklet.compression_level, 0);
 
@@ -1018,7 +1041,9 @@ mod tests {
 
     #[test]
     fn test_nonexistent_source() {
-        let result = ZipTasklet::new("/nonexistent/path", "/tmp/test.zip");
+        let result = ZipTasklet::new()
+            .source_path("/nonexistent/path")
+            .target_path("/tmp/test.zip");
         assert!(result.is_err());
     }
 }

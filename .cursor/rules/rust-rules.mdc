@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: true
 ---
+
 # Cursor Rules for Spring Batch RS
 
 You are an expert Rust developer working on a Spring Batch framework implementation in Rust. This project provides batch processing capabilities with chunk-oriented and tasklet-based processing patterns.
@@ -10,6 +11,7 @@ You are an expert Rust developer working on a Spring Batch framework implementat
 ## Project Overview
 
 This is a Spring Batch framework implementation in Rust that provides:
+
 - Chunk-oriented processing (read-process-write pattern)
 - Tasklet-based processing for single operations
 - Item readers/writers for various formats (JSON, XML, CSV, etc.)
@@ -20,12 +22,14 @@ This is a Spring Batch framework implementation in Rust that provides:
 ## Code Standards & Best Practices
 
 ### Language & Documentation
+
 - All code, comments, and documentation MUST be in English
 - Use clear, descriptive names for types, functions, and variables
 - Follow Rust naming conventions (snake_case for functions/variables, PascalCase for types)
 - Prefer explicit over implicit when it improves clarity
 
 ### Documentation Requirements
+
 - Add comprehensive rustdoc comments for all public APIs
 - Include practical examples in documentation using `/// # Examples`
 - Document error conditions and panics using `/// # Panics` and `/// # Errors`
@@ -34,6 +38,7 @@ This is a Spring Batch framework implementation in Rust that provides:
 - Update README.md when adding new item readers or writers
 
 ### Error Handling
+
 - Use the custom `BatchError` enum for all batch-related errors
 - Implement proper error propagation using `?` operator
 - Provide meaningful error messages with context
@@ -41,6 +46,7 @@ This is a Spring Batch framework implementation in Rust that provides:
 - Handle errors gracefully with appropriate logging levels
 
 ### Testing Strategy
+
 - Generate comprehensive unit tests for all public APIs
 - Test both success and failure scenarios
 - Use mockall for mocking dependencies in tests
@@ -50,6 +56,7 @@ This is a Spring Batch framework implementation in Rust that provides:
 - Test error handling and skip limit behavior
 
 ### Logging
+
 - Use the `log` crate with appropriate levels:
   - `error!()` for critical failures
   - `warn!()` for recoverable issues
@@ -59,6 +66,7 @@ This is a Spring Batch framework implementation in Rust that provides:
 - Include relevant context in log messages (step names, IDs, counts)
 
 ### Code Organization
+
 - Follow the established module structure:
   - `core/` - Core batch processing logic
   - `item/` - Item readers, processors, and writers
@@ -68,6 +76,7 @@ This is a Spring Batch framework implementation in Rust that provides:
 - Keep functions focused and single-purpose
 
 ### Performance & Memory
+
 - Use appropriate data structures for the use case
 - Implement chunked processing to manage memory usage
 - Use `RefCell` and `Cell` for interior mutability when needed
@@ -75,6 +84,7 @@ This is a Spring Batch framework implementation in Rust that provides:
 - Use buffered I/O for file operations
 
 ### Type Safety & Generics
+
 - Leverage Rust's type system for compile-time safety
 - Use generics appropriately for reusable components
 - Implement proper trait bounds
@@ -82,12 +92,14 @@ This is a Spring Batch framework implementation in Rust that provides:
 - Prefer owned types in public APIs when lifetime management is complex
 
 ### Serialization & Deserialization
+
 - Use serde for JSON/XML serialization with proper derive macros
 - Handle serialization errors gracefully
 - Support custom formatting options (pretty printing, indentation)
 - Use appropriate serde attributes for field mapping
 
 ### Concurrency & Safety
+
 - Use `RefCell` for single-threaded interior mutability
 - Document thread safety guarantees in public APIs
 - Use appropriate synchronization primitives when needed
@@ -96,6 +108,7 @@ This is a Spring Batch framework implementation in Rust that provides:
 ## Specific Patterns to Follow
 
 ### Builder Pattern Implementation
+
 ```rust
 pub struct ComponentBuilder<'a> {
     // Required fields as Option<T>
@@ -115,21 +128,23 @@ impl<'a> ComponentBuilder<'a> {
 ```
 
 ### Error Handling Pattern
+
 ```rust
 pub fn operation(&self) -> Result<T, BatchError> {
     let result = fallible_operation()
         .map_err(|e| BatchError::ItemReader(format!("Context: {}", e)))?;
-    
+
     debug!("Operation completed successfully");
     Ok(result)
 }
 ```
 
 ### Trait Implementation Pattern
+
 ```rust
 pub trait ItemReader<T> {
     /// Reads the next item from the source.
-    /// 
+    ///
     /// # Returns
     /// - `Ok(Some(item))` if an item was read successfully
     /// - `Ok(None)` if there are no more items
@@ -139,28 +154,29 @@ pub trait ItemReader<T> {
 ```
 
 ### Testing Pattern
+
 ```rust
 #[cfg(test)]
 mod tests {
     use super::*;
     use mockall::mock;
-    
+
     mock! {
         TestComponent {}
         impl Trait for TestComponent {
             fn method(&self) -> Result<T, BatchError>;
         }
     }
-    
+
     #[test]
     fn should_handle_success_case() -> Result<()> {
         // Arrange
         let mut mock = MockTestComponent::new();
         mock.expect_method().returning(|| Ok(expected_value));
-        
+
         // Act
         let result = component.operation(&mock);
-        
+
         // Assert
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), expected_value);
@@ -172,6 +188,7 @@ mod tests {
 ## Code Quality Checks
 
 ### Before Committing
+
 - Run `cargo test` to ensure all tests pass
 - Run `cargo clippy --all-features` to check for lints
 - Run `cargo fmt` to format code consistently
@@ -179,6 +196,7 @@ mod tests {
 - Verify examples compile and run correctly
 
 ### Performance Considerations
+
 - Profile memory usage for large datasets
 - Benchmark critical paths when making changes
 - Consider chunk size impact on memory and performance
@@ -187,6 +205,7 @@ mod tests {
 ## Examples and Documentation
 
 ### When Adding New Components
+
 1. Create a comprehensive example in `examples/` directory
 2. Use descriptive filename (e.g., `json_processing_example.rs`)
 3. Include error handling in examples
@@ -194,6 +213,7 @@ mod tests {
 5. Update README.md with new capabilities
 
 ### Documentation Style
+
 - Start with a brief description of what the component does
 - Explain when and why to use it
 - Provide complete, runnable examples

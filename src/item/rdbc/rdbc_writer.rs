@@ -38,37 +38,189 @@ pub trait RdbcItemBinder<O> {
 /// - Performs insert operations but does not support update or upsert operations
 /// - Does not handle database-specific SQL syntax differences (relies on SQLx's Any driver)
 pub struct RdbcItemWriter<'a, O> {
-    pool: &'a Pool<Any>,
-    table: &'a str,
+    pool: Option<&'a Pool<Any>>,
+    table: Option<&'a str>,
     columns: Vec<&'a str>,
-    item_binder: &'a dyn RdbcItemBinder<O>,
+    item_binder: Option<&'a dyn RdbcItemBinder<O>>,
 }
 
 impl<'a, O> RdbcItemWriter<'a, O> {
-    /// Creates a new instance of `RdbcItemWriter`.
+    /// Creates a new `RdbcItemWriter` with default configuration.
+    ///
+    /// All parameters must be set using the builder methods before use.
+    /// Use the builder pattern for a more convenient API.
+    ///
+    /// # Returns
+    ///
+    /// A new `RdbcItemWriter` instance with default settings.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use spring_batch_rs::item::rdbc::rdbc_writer::{RdbcItemWriter, RdbcItemBinder};
+    /// use sqlx::{AnyPool, query_builder::Separated, Any};
+    /// use serde::Serialize;
+    ///
+    /// #[derive(Clone, Serialize)]
+    /// struct User {
+    ///     id: i32,
+    ///     name: String,
+    /// }
+    ///
+    /// struct UserBinder;
+    /// impl RdbcItemBinder<User> for UserBinder {
+    ///     fn bind(&self, item: &User, mut query_builder: Separated<Any, &str>) {
+    ///         query_builder.push_bind(item.id);
+    ///         query_builder.push_bind(&item.name);
+    ///     }
+    /// }
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let pool = AnyPool::connect("sqlite::memory:").await?;
+    /// let binder = UserBinder;
+    ///
+    /// let writer = RdbcItemWriter::<User>::new()
+    ///     .pool(&pool)
+    ///     .table("users")
+    ///     .add_column("id")
+    ///     .add_column("name")
+    ///     .item_binder(&binder);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn new() -> Self {
+        Self {
+            pool: None,
+            table: None,
+            columns: Vec::new(),
+            item_binder: None,
+        }
+    }
+
+    /// Sets the database connection pool for the writer.
+    ///
+    /// This is a required parameter that must be set before using the writer.
     ///
     /// # Arguments
     ///
     /// * `pool` - A reference to the connection pool.
+    ///
+    /// # Returns
+    ///
+    /// The updated `RdbcItemWriter` instance.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use spring_batch_rs::item::rdbc::rdbc_writer::RdbcItemWriter;
+    /// use sqlx::AnyPool;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let pool = AnyPool::connect("sqlite::memory:").await?;
+    /// let writer = RdbcItemWriter::<String>::new()
+    ///     .pool(&pool);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn pool(mut self, pool: &'a Pool<Any>) -> Self {
+        self.pool = Some(pool);
+        self
+    }
+
+    /// Sets the table name for the writer.
+    ///
+    /// This is a required parameter that must be set before using the writer.
+    ///
+    /// # Arguments
+    ///
     /// * `table` - The name of the database table.
-    /// * `columns` - A vector of column names.
+    ///
+    /// # Returns
+    ///
+    /// The updated `RdbcItemWriter` instance.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use spring_batch_rs::item::rdbc::rdbc_writer::RdbcItemWriter;
+    ///
+    /// let writer = RdbcItemWriter::<String>::new()
+    ///     .table("users");
+    /// ```
+    pub fn table(mut self, table: &'a str) -> Self {
+        self.table = Some(table);
+        self
+    }
+
+    /// Adds a column to the writer.
+    ///
+    /// This method can be called multiple times to add multiple columns.
+    /// At least one column must be added before using the writer.
+    ///
+    /// # Arguments
+    ///
+    /// * `column` - The name of the column to add.
+    ///
+    /// # Returns
+    ///
+    /// The updated `RdbcItemWriter` instance.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use spring_batch_rs::item::rdbc::rdbc_writer::RdbcItemWriter;
+    ///
+    /// let writer = RdbcItemWriter::<String>::new()
+    ///     .add_column("id")
+    ///     .add_column("name")
+    ///     .add_column("email");
+    /// ```
+    pub fn add_column(mut self, column: &'a str) -> Self {
+        self.columns.push(column);
+        self
+    }
+
+    /// Sets the item binder for the writer.
+    ///
+    /// This is a required parameter that must be set before using the writer.
+    /// The item binder is responsible for mapping item properties to SQL parameters.
+    ///
+    /// # Arguments
+    ///
     /// * `item_binder` - A reference to the item binder.
     ///
     /// # Returns
     ///
-    /// A new instance of `RdbcItemWriter`.
-    pub fn new(
-        pool: &'a Pool<Any>,
-        table: &'a str,
-        columns: Vec<&'a str>,
-        item_binder: &'a dyn RdbcItemBinder<O>,
-    ) -> Self {
-        Self {
-            pool,
-            table,
-            columns,
-            item_binder,
-        }
+    /// The updated `RdbcItemWriter` instance.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use spring_batch_rs::item::rdbc::rdbc_writer::{RdbcItemWriter, RdbcItemBinder};
+    /// use sqlx::{query_builder::Separated, Any};
+    /// use serde::Serialize;
+    ///
+    /// #[derive(Clone, Serialize)]
+    /// struct User {
+    ///     id: i32,
+    ///     name: String,
+    /// }
+    ///
+    /// struct UserBinder;
+    /// impl RdbcItemBinder<User> for UserBinder {
+    ///     fn bind(&self, item: &User, mut query_builder: Separated<Any, &str>) {
+    ///         query_builder.push_bind(item.id);
+    ///         query_builder.push_bind(&item.name);
+    ///     }
+    /// }
+    ///
+    /// let binder = UserBinder;
+    /// let writer = RdbcItemWriter::<User>::new()
+    ///     .item_binder(&binder);
+    /// ```
+    pub fn item_binder(mut self, item_binder: &'a dyn RdbcItemBinder<O>) -> Self {
+        self.item_binder = Some(item_binder);
+        self
     }
 }
 
@@ -97,7 +249,7 @@ impl<O: Serialize + Clone> ItemWriter<O> for RdbcItemWriter<'_, O> {
         // Build the base INSERT statement with table and column names
         let mut query_builder = QueryBuilder::new("INSERT INTO ");
 
-        query_builder.push(self.table);
+        query_builder.push(self.table.as_ref().unwrap());
         query_builder.push(" (");
         query_builder.push(self.columns.join(","));
         query_builder.push(") ");
@@ -107,7 +259,7 @@ impl<O: Serialize + Clone> ItemWriter<O> for RdbcItemWriter<'_, O> {
         query_builder.push_values(
             items.iter().take(BIND_LIMIT / self.columns.len()),
             |b, item| {
-                self.item_binder.bind(item, b);
+                self.item_binder.as_ref().unwrap().bind(item, b);
             },
         );
 
@@ -117,7 +269,7 @@ impl<O: Serialize + Clone> ItemWriter<O> for RdbcItemWriter<'_, O> {
         let _result = tokio::task::block_in_place(|| {
             tokio::runtime::Runtime::new()
                 .unwrap()
-                .block_on(async { query.execute(self.pool).await.unwrap() })
+                .block_on(async { query.execute(self.pool.unwrap()).await.unwrap() })
         });
 
         Ok(())
@@ -277,11 +429,15 @@ impl<'a, O> RdbcItemWriterBuilder<'a, O> {
             panic!("One or more columns are required");
         }
 
-        RdbcItemWriter::new(
-            self.pool.unwrap(),
-            self.table.unwrap(),
-            self.columns.clone(),
-            self.item_binder.unwrap(),
-        )
+        let mut writer = RdbcItemWriter::new()
+            .pool(self.pool.unwrap())
+            .table(self.table.unwrap())
+            .item_binder(self.item_binder.unwrap());
+
+        for column in self.columns {
+            writer = writer.add_column(column);
+        }
+
+        writer
     }
 }
