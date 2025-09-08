@@ -89,7 +89,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           CRATE_VERSION: ${{ env.CRATE_VERSION }}
         with:
