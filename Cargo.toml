@@ -33,7 +33,7 @@ fake = { version = "4.3", features = ["time"], optional = true }
 rand = { version = "0.9"}
 time = { version = "0.3", features = ["serde-human-readable"], optional = true }
 serde_json = { version = "1.0" }
-tokio = { version = "1.45", features = ["full"] }
+tokio = { version = "1.48", features = ["full"] }
 sqlx = { version = "0.8", optional = true, features = ["runtime-tokio"] }
 anyhow = { version = "1.0" }
 mongodb = { version = "3.2", optional = true, features = ["sync"] }
@@ -51,7 +51,7 @@ rand = { version = "0.9" }
 mockall = "0.13"
 testcontainers = "0.24"
 testcontainers-modules = { version = "0.12", features = ["postgres", "mysql", "mongo", "blocking"] }
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.48", features = ["full"] }
 env_logger = "0.11"
 
 [features]
