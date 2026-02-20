@@ -165,6 +165,7 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 ```rust
 use spring_batch_rs::prelude::*;
 
+// 1. Define your data shape — Rust enforces type safety at compile time
 #[derive(Deserialize, Serialize)]
 struct Product {
     id: u32,
@@ -172,7 +173,7 @@ struct Product {
     price: f64,
 }
 
-// Configure readers and writers with builder pattern
+// 2. Configure source and destination using builder patterns
 let reader = CsvItemReaderBuilder::<Product>::new()
     .from_path("products.csv")
     .has_headers(true)
@@ -181,14 +182,17 @@ let reader = CsvItemReaderBuilder::<Product>::new()
 let writer = JsonItemWriterBuilder::<Product>::new()
     .from_path("products.json");
 
-// Build and execute your job
+// 3. Build the pipeline
+//    chunk(100)      → accumulate 100 items, then write once (balances I/O vs memory)
+//    skip_limit(10)  → tolerate up to 10 bad records before the job fails
 let step = StepBuilder::new("convert-products")
     .reader(&reader)
     .writer(&writer)
-    .chunk(100)       // Process 100 items at a time
-    .skip_limit(10)   // Tolerate up to 10 errors
+    .chunk(100)
+    .skip_limit(10)
     .build();
 
+// 4. Run — the job tracks status, counts, and errors automatically
 JobBuilder::new().start(&step).build().run();
 ```
   <div class="showcase-footer">
