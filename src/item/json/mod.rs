@@ -124,7 +124,7 @@
 ///
 /// // Create a writer with a memory buffer and pretty formatting
 /// let buffer = Cursor::new(Vec::new());
-/// let writer = JsonItemWriterBuilder::new()
+/// let writer = JsonItemWriterBuilder::<User>::new()
 ///     .pretty_formatter(true)
 ///     .from_writer(buffer);
 ///

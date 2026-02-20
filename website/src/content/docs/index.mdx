@@ -1,0 +1,436 @@
+---
+title: Spring Batch RS
+description: Build enterprise-grade batch applications with the speed of Rust and the reliability of proven patterns
+template: splash
+hero:
+  title: |
+    Enterprise Batch Processing
+    <span class="hero-gradient">Powered by Rust</span>
+  tagline: High-performance data processing framework with type safety, fault tolerance, and zero-cost abstractions. Process millions of records with minimal memory footprint.
+  actions:
+    - text: Get Started →
+      link: /spring-batch-rs/getting-started/
+      icon: right-arrow
+      variant: primary
+    - text: View Examples
+      link: /spring-batch-rs/quick-examples/
+      icon: document
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+<div class="pipeline-flow">
+  <div class="flow-node">
+    <div class="node-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+    </div>
+    <div class="node-label">PERFORMANCE</div>
+    <div class="node-value">Zero-Cost</div>
+  </div>
+  <div class="flow-connector"></div>
+  <div class="flow-node">
+    <div class="node-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    </div>
+    <div class="node-label">RELIABILITY</div>
+    <div class="node-value">96% Coverage</div>
+  </div>
+  <div class="flow-connector"></div>
+  <div class="flow-node">
+    <div class="node-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <path d="M9 9h6v6H9z"/>
+      </svg>
+    </div>
+    <div class="node-label">EXTENSIBLE</div>
+    <div class="node-value">24+ Examples</div>
+  </div>
+</div>
+
+<div class="tech-specs">
+  <div class="spec-card spec-primary">
+    <div class="spec-header">
+      <div class="spec-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 6v6l4 2"/>
+        </svg>
+      </div>
+      <div class="spec-meta">
+        <span class="spec-tag">CORE</span>
+        <h3>Blazing Fast Performance</h3>
+      </div>
+    </div>
+    <p>Built in Rust for maximum throughput. Process millions of records with minimal memory footprint and zero-cost abstractions. No GC pauses, no runtime overhead.</p>
+    <div class="spec-metrics">
+      <div class="metric">
+        <span class="metric-value">10M+</span>
+        <span class="metric-label">Records/sec</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value">&lt;50MB</span>
+        <span class="metric-label">Memory</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="spec-card">
+    <div class="spec-header">
+      <div class="spec-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+          <polyline points="2 17 12 22 22 17"/>
+          <polyline points="2 12 12 17 22 12"/>
+        </svg>
+      </div>
+      <div class="spec-meta">
+        <span class="spec-tag">ARCHITECTURE</span>
+        <h3>Chunk-Oriented Processing</h3>
+      </div>
+    </div>
+    <p>Read, process, and write data in configurable chunks for optimal memory usage and performance. Balance throughput with resource constraints.</p>
+  </div>
+
+  <div class="spec-card">
+    <div class="spec-header">
+      <div class="spec-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="7.5 4.21 12 6.81 16.5 4.21"/>
+          <polyline points="7.5 19.79 7.5 14.6 3 12"/>
+          <polyline points="21 12 16.5 14.6 16.5 19.79"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+          <line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+      </div>
+      <div class="spec-meta">
+        <span class="spec-tag">TYPE SAFETY</span>
+        <h3>Compile-Time Guarantees</h3>
+      </div>
+    </div>
+    <p>Catch errors at compile time with Rust's powerful type system. No runtime surprises, no null pointer exceptions.</p>
+  </div>
+</div>
+
+<div class="integration-matrix">
+  <h2>Integration Ecosystem</h2>
+  <div class="matrix-grid">
+    <div class="matrix-section">
+      <div class="matrix-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/>
+          <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+        </svg>
+        <span>Databases</span>
+      </div>
+      <div class="matrix-items">
+        <span class="matrix-tag">PostgreSQL</span>
+        <span class="matrix-tag">MySQL</span>
+        <span class="matrix-tag">SQLite</span>
+        <span class="matrix-tag">MongoDB</span>
+        <span class="matrix-tag">SeaORM</span>
+      </div>
+    </div>
+
+    <div class="matrix-section">
+      <div class="matrix-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+          <polyline points="13 2 13 9 20 9"/>
+        </svg>
+        <span>Formats</span>
+      </div>
+      <div class="matrix-items">
+        <span class="matrix-tag">CSV</span>
+        <span class="matrix-tag">JSON</span>
+        <span class="matrix-tag">XML</span>
+      </div>
+    </div>
+
+    <div class="matrix-section">
+      <div class="matrix-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"/>
+        </svg>
+        <span>Runtime</span>
+      </div>
+      <div class="matrix-items">
+        <span class="matrix-tag">Tokio Async</span>
+        <span class="matrix-tag">Fault Tolerance</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="code-showcase">
+  <div class="showcase-header">
+    <div class="header-badge">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="16 18 22 12 16 6"/>
+        <polyline points="8 6 2 12 8 18"/>
+      </svg>
+      <span>LIVE EXAMPLE</span>
+    </div>
+    <h2>CSV → JSON Pipeline</h2>
+    <p>Transform data in just a few lines of elegant, type-safe code</p>
+  </div>
+
+```rust
+use spring_batch_rs::prelude::*;
+
+#[derive(Deserialize, Serialize)]
+struct Product {
+    id: u32,
+    name: String,
+    price: f64,
+}
+
+// Configure readers and writers with builder pattern
+let reader = CsvItemReaderBuilder::<Product>::new()
+    .from_path("products.csv")
+    .has_headers(true)
+    .build();
+
+let writer = JsonItemWriterBuilder::<Product>::new()
+    .from_path("products.json");
+
+// Build and execute your job
+let step = StepBuilder::new("convert-products")
+    .reader(&reader)
+    .writer(&writer)
+    .chunk(100)       // Process 100 items at a time
+    .skip_limit(10)   // Tolerate up to 10 errors
+    .build();
+
+JobBuilder::new().start(&step).build().run();
+```
+  <div class="showcase-footer">
+    <div class="footer-metric">
+      <span class="metric-icon">⚙️</span>
+      <span>Type-Safe</span>
+    </div>
+    <div class="footer-metric">
+      <span class="metric-icon">⚡</span>
+      <span>Zero-Cost</span>
+    </div>
+    <div class="footer-metric">
+      <span class="metric-icon">🛡️</span>
+      <span>Fault Tolerant</span>
+    </div>
+  </div>
+</div>
+
+<div class="capabilities-grid">
+  <h2>Enterprise Capabilities</h2>
+  <div class="capability-row">
+    <div class="capability-card">
+      <div class="capability-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v20M2 12h20"/>
+          <circle cx="12" cy="12" r="4"/>
+        </svg>
+      </div>
+      <h3>Retry & Skip Policies</h3>
+      <p>Handle transient failures gracefully with configurable retry logic and skip limits</p>
+    </div>
+
+    <div class="capability-card">
+      <div class="capability-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        </svg>
+      </div>
+      <h3>Async-First Runtime</h3>
+      <p>Built on Tokio for non-blocking I/O and concurrent data processing at scale</p>
+    </div>
+
+    <div class="capability-card">
+      <div class="capability-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"/>
+          <rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+        </svg>
+      </div>
+      <h3>Extensible Traits</h3>
+      <p>Implement ItemReader, ItemWriter, or ItemProcessor to connect to any data source</p>
+    </div>
+  </div>
+
+  <div class="capability-row">
+    <div class="capability-card">
+      <div class="capability-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+      </div>
+      <h3>Comprehensive Logging</h3>
+      <p>Track job execution with detailed logging and monitoring capabilities built-in</p>
+    </div>
+
+    <div class="capability-card">
+      <div class="capability-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+      </div>
+      <h3>Battle-Tested</h3>
+      <p>Production-ready with 96% test coverage and real-world deployment experience</p>
+    </div>
+
+    <div class="capability-card">
+      <div class="capability-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <h3>Developer Friendly</h3>
+      <p>Intuitive builder patterns and extensive documentation for rapid development</p>
+    </div>
+  </div>
+</div>
+
+<div class="use-case-section">
+  <h2>Production Use Cases</h2>
+  <div class="use-case-pipeline">
+    <div class="pipeline-card">
+      <div class="pipeline-number">01</div>
+      <div class="pipeline-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+      </div>
+      <h3>Data Migration</h3>
+      <p>Migrate millions of records between systems with robust error handling and transaction support</p>
+    </div>
+
+    <div class="pipeline-card">
+      <div class="pipeline-number">02</div>
+      <div class="pipeline-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+      </div>
+      <h3>ETL Pipelines</h3>
+      <p>Build efficient extract-transform-load pipelines with configurable processing steps</p>
+    </div>
+
+    <div class="pipeline-card">
+      <div class="pipeline-number">03</div>
+      <div class="pipeline-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <line x1="10" y1="9" x2="8" y2="9"/>
+        </svg>
+      </div>
+      <h3>Report Generation</h3>
+      <p>Generate complex reports from multiple data sources with flexible formatting</p>
+    </div>
+
+    <div class="pipeline-card">
+      <div class="pipeline-number">04</div>
+      <div class="pipeline-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <h3>Data Import/Export</h3>
+      <p>Import and export data in various formats with validation and transformation</p>
+    </div>
+  </div>
+</div>
+
+<div class="terminal-cta">
+  <div class="terminal-header">
+    <div class="terminal-dots">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+    <div class="terminal-title">spring-batch-rs/</div>
+  </div>
+  <div class="terminal-body">
+    <div class="terminal-line">
+      <span class="terminal-prompt">$</span>
+      <span class="terminal-command">cargo new my-batch-app</span>
+    </div>
+    <div class="terminal-line">
+      <span class="terminal-prompt">$</span>
+      <span class="terminal-command">cd my-batch-app</span>
+    </div>
+    <div class="terminal-line">
+      <span class="terminal-prompt">$</span>
+      <span class="terminal-command typing">cargo add spring-batch-rs --features full</span>
+    </div>
+    <div class="terminal-output">
+      <span class="output-success">✓</span> Added spring-batch-rs v0.3.0
+    </div>
+  </div>
+  <div class="terminal-cta-actions">
+    <a href="/spring-batch-rs/getting-started/" class="terminal-btn terminal-primary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      </svg>
+      <span>Read Documentation</span>
+    </a>
+    <a href="/spring-batch-rs/quick-examples/" class="terminal-btn terminal-secondary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="16 18 22 12 16 6"/>
+        <polyline points="8 6 2 12 8 18"/>
+      </svg>
+      <span>Browse Examples</span>
+    </a>
+    <a href="https://github.com/sboussekeyt/spring-batch-rs" class="terminal-btn terminal-outline">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+      </svg>
+      <span>View on GitHub</span>
+    </a>
+  </div>
+</div>
+
+<div class="resource-grid">
+  <LinkCard
+    title="API Reference"
+    description="Complete API documentation with examples"
+    href="/spring-batch-rs/api/"
+  />
+  <LinkCard
+    title="Architecture Guide"
+    description="Core concepts & design patterns"
+    href="/spring-batch-rs/architecture/"
+  />
+  <LinkCard
+    title="Quick Start"
+    description="Get up and running in 5 minutes"
+    href="/spring-batch-rs/getting-started/"
+  />
+  <LinkCard
+    title="Examples Gallery"
+    description="24+ real-world code examples"
+    href="/spring-batch-rs/quick-examples/"
+  />
+</div>

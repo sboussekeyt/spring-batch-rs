@@ -1,0 +1,236 @@
+---
+title: Overview
+description: Comprehensive guide to all available readers and writers in Spring Batch RS
+sidebar:
+  order: 1
+---
+
+import { Card, CardGrid, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Spring Batch RS provides a rich set of item readers and writers for various data sources and formats. All readers and writers use the builder pattern for easy, type-safe configuration.
+
+## Available Features
+
+Enable only the features you need to keep your dependencies minimal:
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| `csv` | CSV file reading and writing | ✅ Stable |
+| `json` | JSON file reading and writing | ✅ Stable |
+| `xml` | XML file reading and writing | ✅ Stable |
+| `mongodb` | MongoDB database integration | ✅ Stable |
+| `rdbc-postgres` | PostgreSQL via RDBC | ✅ Stable |
+| `rdbc-mysql` | MySQL/MariaDB via RDBC | ✅ Stable |
+| `rdbc-sqlite` | SQLite via RDBC | ✅ Stable |
+| `orm` | SeaORM integration | ✅ Stable |
+| `fake` | Mock data generation | ✅ Stable |
+| `logger` | Debug logging writer | ✅ Stable |
+
+## File-Based Readers & Writers
+
+<CardGrid>
+  <Card title="CSV" icon="document">
+    Read and write CSV files with configurable delimiters, headers, and quoting
+
+    [Learn More →](/item-readers-writers/csv/)
+  </Card>
+  <Card title="JSON" icon="seti:json">
+    Handle JSON arrays and objects with pretty printing support
+
+    [Learn More →](/item-readers-writers/json/)
+  </Card>
+  <Card title="XML" icon="seti:xml">
+    Process XML documents with custom root and item elements
+
+    [Learn More →](/item-readers-writers/xml/)
+  </Card>
+</CardGrid>
+
+## Database Readers & Writers
+
+<CardGrid>
+  <Card title="RDBC (Generic SQL)" icon="seti:db">
+    Direct database access for PostgreSQL, MySQL, and SQLite using SQLx
+
+    [Learn More →](/item-readers-writers/rdbc/)
+  </Card>
+  <Card title="SeaORM" icon="seti:db">
+    Type-safe ORM with pagination and filtering
+
+    [Learn More →](/item-readers-writers/orm/)
+  </Card>
+  <Card title="MongoDB" icon="seti:db">
+    Native MongoDB document operations
+
+    [Learn More →](/item-readers-writers/mongodb/)
+  </Card>
+</CardGrid>
+
+## Utility Readers & Writers
+
+<CardGrid>
+  <Card title="Fake Data Generator" icon="star">
+    Generate realistic mock data for testing
+
+    [Learn More →](/item-readers-writers/fake/)
+  </Card>
+  <Card title="Logger Writer" icon="information">
+    Debug output for development
+
+    [Learn More →](/item-readers-writers/logger/)
+  </Card>
+</CardGrid>
+
+## Quick Examples
+
+### CSV Reader
+
+```rust
+use spring_batch_rs::item::csv::CsvItemReaderBuilder;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct Product {
+    id: u32,
+    name: String,
+    price: f64,
+}
+
+let reader = CsvItemReaderBuilder::<Product>::new()
+    .has_headers(true)
+    .delimiter(b',')
+    .from_path("products.csv")?;
+```
+
+### JSON Writer
+
+```rust
+use spring_batch_rs::item::json::JsonItemWriterBuilder;
+
+let writer = JsonItemWriterBuilder::<MyType>::new()
+    .pretty_formatter(true)
+    .from_path("output.json")?;
+```
+
+### Database Reader (RDBC)
+
+```rust
+use spring_batch_rs::item::rdbc::rdbc_reader::{RdbcItemReaderBuilder, RdbcRowMapper};
+use sqlx::{AnyPool, Row};
+
+struct ProductRowMapper;
+
+impl RdbcRowMapper<Product> for ProductRowMapper {
+    fn map_row(&self, row: &sqlx::any::AnyRow) -> Product {
+        Product {
+            id: row.get("id"),
+            name: row.get("name"),
+            price: row.get("price"),
+        }
+    }
+}
+
+let pool = AnyPool::connect("postgresql://user:pass@localhost/db").await?;
+
+let reader = RdbcItemReaderBuilder::new()
+    .pool(&pool)
+    .query("SELECT id, name, price FROM products")
+    .page_size(1000)
+    .row_mapper(&ProductRowMapper)
+    .build();
+```
+
+## Custom Readers & Writers
+
+You can create custom implementations by implementing the respective traits:
+
+<Tabs>
+  <TabItem label="Custom Reader" icon="document">
+    ```rust
+    use spring_batch_rs::core::item::ItemReader;
+    use spring_batch_rs::BatchError;
+
+    struct MyCustomReader {
+        data: Vec<String>,
+        index: usize,
+    }
+
+    impl ItemReader<String> for MyCustomReader {
+        fn read(&mut self) -> Result<Option<String>, BatchError> {
+            if self.index < self.data.len() {
+                let item = self.data[self.index].clone();
+                self.index += 1;
+                Ok(Some(item))
+            } else {
+                Ok(None)  // No more items
+            }
+        }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Custom Writer" icon="seti:db">
+    ```rust
+    use spring_batch_rs::core::item::ItemWriter;
+    use spring_batch_rs::BatchError;
+
+    struct MyCustomWriter {
+        output: Vec<String>,
+    }
+
+    impl ItemWriter<String> for MyCustomWriter {
+        fn write(&mut self, items: &[String]) -> Result<(), BatchError> {
+            for item in items {
+                self.output.push(item.clone());
+                // Custom write logic here
+            }
+            Ok(())
+        }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## Performance Considerations
+
+### Chunk Size
+
+Choose appropriate chunk sizes based on your data and memory:
+
+```rust
+// Small chunks (10-50): Memory-constrained environments
+.chunk(25)
+
+// Medium chunks (100-500): Balanced performance
+.chunk(250)
+
+// Large chunks (1000+): High-throughput scenarios
+.chunk(1000)
+```
+
+### Database Pagination
+
+For database readers, configure page sizes to optimize memory:
+
+```rust
+let reader = RdbcItemReaderBuilder::new()
+    .page_size(500)  // Fetch 500 records at a time
+    .build();
+```
+
+### Buffered I/O
+
+File-based readers and writers use buffered I/O by default for optimal performance.
+
+## Next Steps
+
+Explore detailed documentation for each reader and writer type:
+
+- [CSV →](/item-readers-writers/csv/)
+- [JSON →](/item-readers-writers/json/)
+- [XML →](/item-readers-writers/xml/)
+- [RDBC (SQL Databases) →](/item-readers-writers/rdbc/)
+- [SeaORM →](/item-readers-writers/orm/)
+- [MongoDB →](/item-readers-writers/mongodb/)
+- [Fake Data →](/item-readers-writers/fake/)
+- [Logger →](/item-readers-writers/logger/)

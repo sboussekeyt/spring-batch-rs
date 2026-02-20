@@ -15,12 +15,13 @@ Inspired by the robust Java Spring Batch framework, **Spring Batch for Rust** br
 
 For comprehensive documentation, tutorials, and examples:
 
-**🌐 [Visit our Website](https://sboussekeyt.github.io/spring-batch-rs/)**
+**🌐 [Visit our Documentation Website](https://sboussekeyt.github.io/spring-batch-rs/)**
 
-- [Getting Started Guide](https://sboussekeyt.github.io/spring-batch-rs/docs/getting-started)
-- [Feature Tutorials](https://sboussekeyt.github.io/spring-batch-rs/docs/tutorials)
+- [Getting Started Guide](https://sboussekeyt.github.io/spring-batch-rs/getting-started/) - Build your first batch job
+- [Item Readers & Writers](https://sboussekeyt.github.io/spring-batch-rs/item-readers-writers/overview/) - Work with CSV, JSON, XML, databases
+- [Examples Gallery](https://sboussekeyt.github.io/spring-batch-rs/examples/) - Real-world code examples
 - [API Reference](https://docs.rs/spring-batch-rs) - Complete API documentation
-- [Examples Gallery](https://sboussekeyt.github.io/spring-batch-rs/docs/examples)
+- [Architecture Overview](https://sboussekeyt.github.io/spring-batch-rs/architecture/) - Understand core concepts
 
 ## Why Spring Batch for Rust?
 
@@ -106,6 +107,76 @@ fn main() -> Result<(), BatchError> {
     job.run().map(|_| ())
 }
 ```
+
+## Development
+
+### Using the Makefile
+
+This project includes a comprehensive Makefile that provides convenient commands for development workflows:
+
+#### Quick Commands
+
+```bash
+# Run all quality checks and tests
+make check
+
+# Generate and open documentation
+make doc
+
+# Run all tests
+make test
+
+# Build the project
+make build
+
+# Clean build artifacts
+make clean
+```
+
+#### Development Workflows
+
+```bash
+# Complete development cycle (format, lint, test)
+make dev
+
+# Pre-commit checks
+make pre-commit
+
+# All-in-one verification
+make all
+```
+
+#### Advanced Commands
+
+```bash
+# Run tests with specific feature combinations
+make test-features
+
+# Generate test coverage report
+make coverage
+
+# Build and run examples
+make examples
+make run-example-generate-csv-from-json
+
+# Website development
+make website-serve
+make website-build
+```
+
+For a complete list of available commands, run:
+
+```bash
+make help
+```
+
+### Build Tools
+
+The project also includes individual build scripts in the `build-tools/` directory:
+
+- `cargo-check.sh` - Code quality checks (format, clippy, audit)
+- `cargo-doc.sh` - Documentation generation
+- `cargo-test.sh` - Test execution
 
 ## More Examples
 

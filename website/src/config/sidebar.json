@@ -1,0 +1,63 @@
+{
+  "main": [
+    {
+      "label": "Examples",
+      "items": [
+        {
+          "label": "[book-open] Overview",
+          "link": "/examples/"
+        },
+        {
+          "label": "[table] CSV",
+          "link": "/examples/csv/"
+        },
+        {
+          "label": "[code] JSON",
+          "link": "/examples/json/"
+        },
+        {
+          "label": "[file-code] XML",
+          "link": "/examples/xml/"
+        },
+        {
+          "label": "[database] Database",
+          "link": "/examples/database/"
+        },
+        {
+          "label": "[globe] MongoDB",
+          "link": "/examples/mongodb/"
+        },
+        {
+          "label": "[layers] ORM",
+          "link": "/examples/orm/"
+        },
+        {
+          "label": "[terminal] Tasklets",
+          "link": "/examples/tasklets/"
+        },
+        {
+          "label": "[zap] Advanced Patterns",
+          "link": "/examples/advanced-patterns/"
+        }
+      ]
+    },
+    {
+      "label": "Tasklets",
+      "autogenerate": { "directory": "tasklets" }
+    },
+    {
+      "label": "Tutorials",
+      "autogenerate": { "directory": "tutorials" }
+    },
+    {
+      "label": "Reference",
+      "items": [
+        {
+          "label": "[external-link] API Documentation",
+          "link": "https://docs.rs/spring-batch-rs",
+          "badge": "external"
+        }
+      ]
+    }
+  ]
+}

@@ -346,7 +346,8 @@ impl<R: Read, I: DeserializeOwned> XmlItemReader<R, I> {
     fn with_tag<S: AsRef<[u8]>>(rdr: R, capacity: usize, tag: S) -> Self {
         let buf_reader = BufReader::with_capacity(capacity, rdr);
         let mut xml_reader = XmlReader::from_reader(buf_reader);
-        xml_reader.config_mut().trim_text(true);
+        // Don't trim text to preserve spaces around entity references
+        xml_reader.config_mut().trim_text(false);
 
         Self {
             reader: RefCell::new(xml_reader),
@@ -437,10 +438,20 @@ impl<R: Read, I: DeserializeOwned> ItemReader<I> for XmlItemReader<R, I> {
                                     }
                                 }
                                 Ok(Event::Text(ref text)) => {
-                                    // For text nodes, just add their raw content
+                                    // For text nodes, add the raw text content
                                     let bytes = text.as_ref();
                                     if let Ok(s) = str::from_utf8(bytes) {
                                         xml_string.push_str(s);
+                                    }
+                                }
+                                Ok(Event::GeneralRef(ref entity_ref)) => {
+                                    // In quick-xml 0.38+, entity references are reported as separate events
+                                    // Reconstruct the escaped form for proper XML serialization
+                                    let entity_name = entity_ref.as_ref();
+                                    if let Ok(name) = str::from_utf8(entity_name) {
+                                        xml_string.push('&');
+                                        xml_string.push_str(name);
+                                        xml_string.push(';');
                                     }
                                 }
                                 Ok(Event::CData(ref cdata)) => {

@@ -298,51 +298,51 @@ impl<'a> JobBuilder<'a> {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-
-    use std::{
-        env::{self, temp_dir},
-        fs::File,
-        path::Path,
-    };
-
-    use serde::{Deserialize, Serialize};
-
-    use crate::{
-        core::{item::PassThroughProcessor, step::StepBuilder},
-        item::{
-            csv::csv_writer::{CsvItemWriter, CsvItemWriterBuilder},
-            json::{json_reader::JsonItemReaderBuilder, JsonItemReader},
-        },
-    };
-
     use super::{Job, JobBuilder};
+    use crate::core::{
+        item::{ItemReader, ItemReaderResult, ItemWriter, ItemWriterResult, PassThroughProcessor},
+        step::{StepBuilder, StepStatus},
+    };
+    use crate::BatchError;
+    use mockall::mock;
 
-    #[derive(Serialize, Deserialize, Clone)]
-    pub struct Person {
-        first_name: String,
-        last_name: String,
-        title: String,
-        email: String,
+    mock! {
+        TestItemReader {}
+        impl ItemReader<i32> for TestItemReader {
+            fn read(&self) -> ItemReaderResult<i32>;
+        }
+    }
+
+    mock! {
+        TestItemWriter {}
+        impl ItemWriter<i32> for TestItemWriter {
+            fn open(&self) -> ItemWriterResult;
+            fn write(&self, items: &[i32]) -> ItemWriterResult;
+            fn flush(&self) -> ItemWriterResult;
+            fn close(&self) -> ItemWriterResult;
+        }
     }
 
     #[test]
-    fn this_test_will_pass() -> Result<()> {
-        env::set_var("RUST_LOG", "INFO");
-        env_logger::init();
+    fn job_should_run_steps_in_sequence() {
+        let mut reader = MockTestItemReader::default();
+        let mut call_count = 0;
+        reader.expect_read().returning(move || {
+            call_count += 1;
+            if call_count <= 2 {
+                Ok(Some(call_count))
+            } else {
+                Ok(None)
+            }
+        });
 
-        let path = Path::new("examples/data/persons.json");
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_open().times(1).returning(|| Ok(()));
+        writer.expect_write().returning(|_| Ok(()));
+        writer.expect_flush().returning(|| Ok(()));
+        writer.expect_close().times(1).returning(|| Ok(()));
 
-        let file = File::open(path).expect("Unable to open file");
-
-        let reader: JsonItemReader<Person, File> = JsonItemReaderBuilder::new().from_reader(file);
-
-        let writer: CsvItemWriter<Person, File> = CsvItemWriterBuilder::new()
-            .has_headers(true)
-            .from_path(temp_dir().join("persons.csv"));
-
-        let processor = PassThroughProcessor::<Person>::new();
-
+        let processor = PassThroughProcessor::<i32>::new();
         let step = StepBuilder::new("test")
             .chunk(2)
             .reader(&reader)
@@ -351,12 +351,67 @@ mod tests {
             .build();
 
         let job = JobBuilder::new()
-            .name("test".to_string())
+            .name("test-job".to_string())
             .start(&step)
             .build();
 
-        let _result = job.run();
+        let result = job.run();
+        assert!(result.is_ok());
+    }
 
-        Ok(())
+    #[test]
+    fn job_should_fail_when_step_fails() {
+        let mut reader = MockTestItemReader::default();
+        reader
+            .expect_read()
+            .returning(|| Err(BatchError::ItemReader("read error".to_string())));
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_open().times(1).returning(|| Ok(()));
+        writer.expect_close().times(1).returning(|| Ok(()));
+
+        let processor = PassThroughProcessor::<i32>::new();
+        let step = StepBuilder::new("failing-step")
+            .chunk(2)
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .build();
+
+        let job = JobBuilder::new()
+            .name("test-job".to_string())
+            .start(&step)
+            .build();
+
+        let result = job.run();
+        assert!(matches!(result.unwrap_err(), BatchError::Step(name) if name == "failing-step"));
+    }
+
+    #[test]
+    fn job_should_store_step_executions() {
+        let mut reader = MockTestItemReader::default();
+        reader.expect_read().returning(|| Ok(None));
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_open().times(1).returning(|| Ok(()));
+        writer.expect_close().times(1).returning(|| Ok(()));
+
+        let processor = PassThroughProcessor::<i32>::new();
+        let step = StepBuilder::new("named-step")
+            .chunk(2)
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .build();
+
+        let job = JobBuilder::new()
+            .name("test-job".to_string())
+            .start(&step)
+            .build();
+
+        let _ = job.run();
+        let execution = job.get_step_execution("named-step");
+        assert!(execution.is_some());
+        assert_eq!(execution.unwrap().status, StepStatus::Success);
     }
 }

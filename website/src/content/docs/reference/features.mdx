@@ -1,0 +1,445 @@
+---
+title: Feature Flags Reference
+description: Complete guide to Spring Batch RS feature flags and optional dependencies
+sidebar:
+  order: 1
+---
+
+import { Card, CardGrid, Aside } from '@astrojs/starlight/components';
+
+Spring Batch RS uses feature flags to enable optional functionality. This keeps the core library lean while allowing you to opt into specific capabilities.
+
+## Core Features (Always Available)
+
+These features are always included and require no feature flags:
+
+<CardGrid>
+  <Card title="Core Traits" icon="star">
+    ItemReader, ItemWriter, ItemProcessor, Tasklet
+  </Card>
+  <Card title="Job & Step" icon="puzzle">
+    JobBuilder, StepBuilder, execution management
+  </Card>
+  <Card title="Error Handling" icon="warning">
+    BatchError, fault tolerance, skip/retry logic
+  </Card>
+  <Card title="Logger Writer" icon="pencil">
+    LoggerWriter for debugging output
+  </Card>
+</CardGrid>
+
+---
+
+## File Format Features
+
+### CSV
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["csv"] }
+```
+
+**Provides:**
+- `CsvItemReader<R>` - Read CSV files and strings
+- `CsvItemWriter<O, W>` - Write CSV files
+
+**Use for:**
+- Comma/tab/custom-delimited files
+- Headers or headerless CSV
+- Data import/export pipelines
+
+**Dependencies:**
+- `csv` crate
+
+---
+
+### JSON
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["json"] }
+```
+
+**Provides:**
+- `JsonItemReader<I, R>` - Streaming JSON array reader
+- `JsonItemWriter<O, W>` - JSON array writer with pretty-printing
+
+**Use for:**
+- REST API data processing
+- Configuration file manipulation
+- JSON data transformation
+
+**Dependencies:**
+- `serde_json` crate
+
+---
+
+### XML
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["xml"] }
+```
+
+**Provides:**
+- `XmlItemReader<R, I>` - Extract elements by tag name
+- `XmlItemWriter<O, W>` - Generate XML documents
+
+**Use for:**
+- SOAP/XML API integration
+- RSS/Atom feed processing
+- Legacy XML data migration
+
+**Dependencies:**
+- `quick-xml` crate
+- `serde-xml-rs` crate
+
+---
+
+## Database Features
+
+### PostgreSQL
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["rdbc-postgres"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres"] }
+```
+
+**Provides:**
+- `PostgresRdbcItemReader<I>` - Paginated PostgreSQL queries
+- `PostgresItemWriter<O>` - Bulk PostgreSQL inserts
+
+**Use for:**
+- Reading from PostgreSQL tables
+- ETL from PostgreSQL to other systems
+- Bulk data loading
+
+**Dependencies:**
+- `sqlx` with PostgreSQL support
+- `tokio` async runtime
+
+---
+
+### MySQL
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["rdbc-mysql"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "mysql"] }
+```
+
+**Provides:**
+- `MysqlRdbcItemReader<I>` - Paginated MySQL queries
+- `MysqlItemWriter<O>` - Bulk MySQL inserts
+
+**Use for:**
+- MySQL/MariaDB data extraction
+- Database migrations
+- Reporting queries
+
+**Dependencies:**
+- `sqlx` with MySQL support
+- `tokio` async runtime
+
+---
+
+### SQLite
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["rdbc-sqlite"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "sqlite"] }
+```
+
+**Provides:**
+- `SqliteRdbcItemReader<I>` - Paginated SQLite queries
+- `SqliteItemWriter<O>` - Bulk SQLite inserts
+
+**Use for:**
+- Embedded database processing
+- Local data stores
+- Testing and development
+
+**Dependencies:**
+- `sqlx` with SQLite support
+- `tokio` async runtime
+
+---
+
+## NoSQL Features
+
+### MongoDB
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["mongodb"] }
+mongodb = "2.8"
+```
+
+**Provides:**
+- `MongodbItemReader<I>` - Cursor-based MongoDB queries
+- `MongodbItemWriter<O>` - Bulk MongoDB inserts
+
+**Use for:**
+- Document database processing
+- MongoDB data migration
+- Collection transformations
+
+**Dependencies:**
+- `mongodb` official driver
+- Requires `WithObjectId` trait implementation
+
+---
+
+## ORM Feature
+
+### SeaORM
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["orm"] }
+sea-orm = { version = "0.12", features = ["sqlx-postgres", "runtime-tokio-native-tls"] }
+```
+
+**Provides:**
+- `OrmItemReader<I>` - Read using SeaORM entities
+- `OrmItemWriter<O>` - Write using SeaORM entities
+
+**Use for:**
+- Type-safe database access
+- Working with existing SeaORM models
+- Complex query building
+
+**Dependencies:**
+- `sea-orm` with appropriate database backend
+
+---
+
+## Tasklet Features
+
+### ZIP Compression
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["zip"] }
+```
+
+**Provides:**
+- `ZipTasklet` - Compress files and directories
+
+**Capabilities:**
+- Configurable compression levels (0-9)
+- File filtering with glob patterns
+- Directory structure preservation
+- Single file or directory compression
+
+**Use for:**
+- Backup operations
+- Log file archival
+- Report packaging
+
+**Dependencies:**
+- `zip` crate
+
+---
+
+### FTP Transfers
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["ftp"] }
+```
+
+**Provides:**
+- `FtpTasklet` - Upload/download via FTP/FTPS
+
+**Capabilities:**
+- FTP and FTPS (TLS) support
+- Upload and download operations
+- Authentication support
+- Connection management
+
+**Use for:**
+- File distribution
+- Remote backup
+- Legacy system integration
+
+**Dependencies:**
+- `ftp` crate
+
+---
+
+## Testing Feature
+
+### Fake Data Generation
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["fake"] }
+```
+
+**Provides:**
+- `PersonReader` - Generate fake person data
+- `Person` struct with realistic test data
+
+**Use for:**
+- Testing batch jobs
+- Development without real data
+- Performance testing
+
+**Dependencies:**
+- `fake` crate
+
+---
+
+## Feature Combinations
+
+### Common Combinations
+
+<Card title="File Processing">
+  ```toml
+  features = ["csv", "json", "xml"]
+  ```
+  Process all common file formats
+</Card>
+
+<Card title="Database ETL">
+  ```toml
+  features = ["rdbc-postgres", "rdbc-mysql", "csv", "json"]
+  ```
+  Database to file exports and imports
+</Card>
+
+<Card title="Complete Pipeline">
+  ```toml
+  features = ["csv", "json", "rdbc-postgres", "zip", "ftp"]
+  ```
+  End-to-end data pipeline with delivery
+</Card>
+
+<Card title="NoSQL Processing">
+  ```toml
+  features = ["mongodb", "json", "csv"]
+  ```
+  MongoDB data transformation
+</Card>
+
+---
+
+## Dependency Impact
+
+### Compile Time
+
+| Feature Combination | Additional Compile Time |
+|---------------------|------------------------|
+| Core only | Baseline |
+| + csv, json, xml | +10-15 seconds |
+| + Single database | +30-45 seconds (sqlx) |
+| + All databases | +45-60 seconds |
+| + mongodb | +20-30 seconds |
+| + All features | +60-90 seconds |
+
+### Binary Size
+
+| Feature Combination | Approximate Size (Release) |
+|---------------------|---------------------------|
+| Core only | ~1 MB |
+| + File formats | ~2 MB |
+| + Single database | ~4-5 MB |
+| + All databases | ~7-9 MB |
+| + All features | ~10-12 MB |
+
+<Aside type="tip">
+  Enable only the features you need to minimize compile times and binary size.
+</Aside>
+
+---
+
+## Advanced Configuration
+
+### Feature-Gated Code
+
+Use conditional compilation for feature-specific code:
+
+```rust
+#[cfg(feature = "csv")]
+use spring_batch_rs::item::csv::CsvItemReaderBuilder;
+
+#[cfg(feature = "rdbc-postgres")]
+use spring_batch_rs::item::rdbc::postgres::PostgresItemWriterBuilder;
+
+fn create_reader() -> Box<dyn ItemReader<MyType>> {
+    #[cfg(feature = "csv")]
+    {
+        Box::new(CsvItemReaderBuilder::new().from_path("data.csv").unwrap())
+    }
+
+    #[cfg(not(feature = "csv"))]
+    {
+        panic!("CSV feature not enabled")
+    }
+}
+```
+
+### Runtime Feature Detection
+
+Check available features at runtime:
+
+```rust
+fn check_features() {
+    println!("CSV support: {}", cfg!(feature = "csv"));
+    println!("JSON support: {}", cfg!(feature = "json"));
+    println!("PostgreSQL support: {}", cfg!(feature = "rdbc-postgres"));
+}
+```
+
+---
+
+## Migration Guide
+
+### Upgrading from Minimal to Full Features
+
+**Before:**
+```toml
+[dependencies]
+spring-batch-rs = "0.1"
+```
+
+**After:**
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["csv", "json", "rdbc-postgres"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres"] }
+```
+
+### Removing Unused Features
+
+If your project grows and you want to optimize:
+
+1. Audit your imports and identify which readers/writers you use
+2. Map them to feature flags using the tables above
+3. Remove unused features from `Cargo.toml`
+4. Run `cargo clean` and rebuild
+
+---
+
+## Feature Request Guidelines
+
+Can't find a feature you need? We welcome contributions!
+
+<Aside type="note">
+**Contribution Areas:**
+
+- Additional database backends (Oracle, MSSQL, etc.)
+- Cloud storage (S3, Azure Blob, GCS)
+- Message queues (Kafka, RabbitMQ, Redis)
+- Additional file formats (Parquet, Avro, Protobuf)
+- Network protocols (SFTP, SCP, HTTP/S)
+</Aside>
+
+## See Also
+
+- [Getting Started](/spring-batch-rs/getting-started/) - Basic setup
+- [Examples](/spring-batch-rs/examples/) - Feature-specific examples
+- [API Reference](/spring-batch-rs/api/) - Complete API documentation

@@ -1,0 +1,667 @@
+---
+title: Error Types Reference
+description: Complete reference for BatchError variants and error handling patterns
+sidebar:
+  order: 3
+---
+
+import { Card, CardGrid, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Spring Batch RS uses the `BatchError` enum for all error conditions. This guide covers all error types and handling strategies.
+
+## BatchError Enum
+
+```rust
+pub enum BatchError {
+    ItemReader(String),
+    ItemProcessor(String),
+    ItemWriter(String),
+    Tasklet(String),
+    Io(std::io::Error),
+    Database(String),
+    Configuration(String),
+    Validation(String),
+    Fatal(String),
+}
+```
+
+---
+
+## Error Variants
+
+### ItemReader Errors
+
+**When:** Reading data from sources fails
+
+**Common Causes:**
+- File not found
+- Invalid file format
+- Database connection issues
+- Network timeouts
+- Parse errors
+
+**Example:**
+```rust
+impl ItemReader<Record> for MyReader {
+    fn read(&self) -> ItemReaderResult<Record> {
+        // File not found
+        Err(BatchError::ItemReader(
+            "Could not open file: data.csv".to_string()
+        ))
+
+        // Parse error
+        Err(BatchError::ItemReader(
+            format!("Invalid CSV format at line {}", line_num)
+        ))
+
+        // Database error
+        Err(BatchError::ItemReader(
+            format!("Query failed: {}", db_error)
+        ))
+    }
+}
+```
+
+**Best Practices:**
+- Include context (file name, line number, query)
+- Wrap underlying errors with context
+- Use descriptive messages
+
+---
+
+### ItemProcessor Errors
+
+**When:** Item transformation or validation fails
+
+**Common Causes:**
+- Validation failures
+- Type conversion errors
+- Business rule violations
+- External API errors
+
+**Example:**
+```rust
+impl ItemProcessor<Input, Output> for MyProcessor {
+    fn process(&self, item: &Input) -> ItemProcessorResult<Output> {
+        // Validation error
+        if item.age < 0 {
+            return Err(BatchError::ItemProcessor(
+                format!("Invalid age: {} for item {}", item.age, item.id)
+            ));
+        }
+
+        // Parse error
+        let value = item.price.parse::<f64>()
+            .map_err(|e| BatchError::ItemProcessor(
+                format!("Cannot parse price '{}': {}", item.price, e)
+            ))?;
+
+        // Business rule violation
+        if value > 1000.0 && !item.approved {
+            return Err(BatchError::ItemProcessor(
+                "High-value items require approval".to_string()
+            ));
+        }
+
+        Ok(Output { value, /* ... */ })
+    }
+}
+```
+
+**Handling Strategy:**
+```rust
+let step = StepBuilder::new("validate")
+    .chunk::<Input, Output>(100)
+    .reader(&reader)
+    .processor(&processor)
+    .writer(&writer)
+    .skip_limit(10)  // Skip up to 10 processor errors
+    .build();
+```
+
+---
+
+### ItemWriter Errors
+
+**When:** Writing data to destinations fails
+
+**Common Causes:**
+- Disk full
+- Permission denied
+- Database constraints violated
+- Network failures
+- Transaction failures
+
+**Example:**
+```rust
+impl ItemWriter<Record> for MyWriter {
+    fn write(&self, items: &[Record]) -> ItemWriterResult {
+        // Disk space error
+        Err(BatchError::ItemWriter(
+            "Insufficient disk space".to_string()
+        ))
+
+        // Permission error
+        Err(BatchError::ItemWriter(
+            format!("Cannot write to {}: Permission denied", path)
+        ))
+
+        // Database constraint
+        Err(BatchError::ItemWriter(
+            format!("Duplicate key violation: {}", key)
+        ))
+
+        // Transaction error
+        Err(BatchError::ItemWriter(
+            format!("Transaction failed: {}", db_error)
+        ))
+    }
+
+    fn close(&self) -> ItemWriterResult {
+        // Cleanup error
+        Err(BatchError::ItemWriter(
+            "Failed to flush buffers".to_string()
+        ))
+    }
+}
+```
+
+**Best Practices:**
+- Include item identifiers in errors
+- Distinguish between recoverable and fatal errors
+- Ensure cleanup in close() even on errors
+
+---
+
+### Tasklet Errors
+
+**When:** Single-task operations fail
+
+**Common Causes:**
+- File operations fail
+- External command errors
+- Network operations fail
+- Resource unavailable
+
+**Example:**
+```rust
+impl Tasklet for MyTasklet {
+    fn execute(&self, _step_execution: &StepExecution) -> Result<RepeatStatus, BatchError> {
+        // File operation error
+        fs::copy(src, dst)
+            .map_err(|e| BatchError::Tasklet(
+                format!("Failed to copy {} to {}: {}", src, dst, e)
+            ))?;
+
+        // Command execution error
+        let output = Command::new("zip")
+            .arg("archive.zip")
+            .arg("data/")
+            .output()
+            .map_err(|e| BatchError::Tasklet(
+                format!("Zip command failed: {}", e)
+            ))?;
+
+        if !output.status.success() {
+            return Err(BatchError::Tasklet(
+                format!("Zip failed: {}", String::from_utf8_lossy(&output.stderr))
+            ));
+        }
+
+        // Network operation error
+        ftp_client.upload(file)
+            .map_err(|e| BatchError::Tasklet(
+                format!("FTP upload failed: {}", e)
+            ))?;
+
+        Ok(RepeatStatus::Finished)
+    }
+}
+```
+
+---
+
+### I/O Errors
+
+**When:** File system operations fail
+
+**Automatically Converted From:** `std::io::Error`
+
+**Common Causes:**
+- File not found
+- Permission denied
+- Disk full
+- Invalid path
+
+**Example:**
+```rust
+use std::fs::File;
+
+// Automatic conversion
+let file = File::open("data.csv")?;  // io::Error -> BatchError::Io
+
+// Manual conversion
+let file = File::open("data.csv")
+    .map_err(|e| BatchError::Io(e))?;
+
+// With context
+let file = File::open(&path)
+    .map_err(|e| BatchError::ItemReader(
+        format!("Cannot open {}: {}", path, e)
+    ))?;
+```
+
+---
+
+### Database Errors
+
+**When:** Database operations fail
+
+**Common Causes:**
+- Connection failures
+- Query syntax errors
+- Constraint violations
+- Deadlocks
+- Timeout
+
+**Example:**
+```rust
+// Query error
+sqlx::query("SELECT * FROM users")
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| BatchError::Database(
+        format!("Query failed: {}", e)
+    ))?;
+
+// Connection error
+PgPool::connect(&url)
+    .await
+    .map_err(|e| BatchError::Database(
+        format!("Cannot connect to database: {}", e)
+    ))?;
+
+// Constraint violation
+sqlx::query("INSERT INTO users VALUES ($1, $2)")
+    .bind(id)
+    .bind(email)
+    .execute(&pool)
+    .await
+    .map_err(|e| BatchError::Database(
+        format!("Insert failed: {}", e)
+    ))?;
+```
+
+---
+
+### Configuration Errors
+
+**When:** Invalid configuration detected
+
+**Common Causes:**
+- Missing required parameters
+- Invalid parameter values
+- Conflicting settings
+- Builder validation failures
+
+**Example:**
+```rust
+pub struct MyBuilder {
+    source: Option<String>,
+    target: Option<String>,
+}
+
+impl MyBuilder {
+    pub fn build(self) -> Result<MyReader, BatchError> {
+        let source = self.source.ok_or_else(|| {
+            BatchError::Configuration(
+                "source path is required".to_string()
+            )
+        })?;
+
+        let target = self.target.ok_or_else(|| {
+            BatchError::Configuration(
+                "target path is required".to_string()
+            )
+        })?;
+
+        if source == target {
+            return Err(BatchError::Configuration(
+                "source and target cannot be the same".to_string()
+            ));
+        }
+
+        Ok(MyReader { source, target })
+    }
+}
+```
+
+---
+
+### Validation Errors
+
+**When:** Data validation fails
+
+**Common Causes:**
+- Invalid data format
+- Out-of-range values
+- Missing required fields
+- Failed business rules
+
+**Example:**
+```rust
+fn validate_record(record: &Record) -> Result<(), BatchError> {
+    // Required field
+    if record.email.is_empty() {
+        return Err(BatchError::Validation(
+            format!("Email is required for record {}", record.id)
+        ));
+    }
+
+    // Format validation
+    if !record.email.contains('@') {
+        return Err(BatchError::Validation(
+            format!("Invalid email format: {}", record.email)
+        ));
+    }
+
+    // Range validation
+    if record.age < 0 || record.age > 150 {
+        return Err(BatchError::Validation(
+            format!("Age {} is out of valid range (0-150)", record.age)
+        ));
+    }
+
+    // Business rule
+    if record.amount > 10000.0 && !record.approved {
+        return Err(BatchError::Validation(
+            format!("Record {} exceeds limit without approval", record.id)
+        ));
+    }
+
+    Ok(())
+}
+```
+
+---
+
+### Fatal Errors
+
+**When:** Unrecoverable errors that should stop the job immediately
+
+**Common Causes:**
+- Critical system failures
+- Corrupted data structures
+- Security violations
+- Unrecoverable state
+
+**Example:**
+```rust
+impl ItemProcessor<Record, Record> for MyProcessor {
+    fn process(&self, item: &Record) -> ItemProcessorResult<Record> {
+        // Recoverable error (can skip)
+        if item.age < 0 {
+            return Err(BatchError::ItemProcessor(
+                "Invalid age".to_string()
+            ));
+        }
+
+        // Fatal error (must stop)
+        if self.config.is_corrupted() {
+            return Err(BatchError::Fatal(
+                "Configuration corrupted - cannot continue".to_string()
+            ));
+        }
+
+        // Security violation (fatal)
+        if !self.verify_signature(&item.data) {
+            return Err(BatchError::Fatal(
+                "Signature verification failed - potential security breach".to_string()
+            ));
+        }
+
+        Ok(item.clone())
+    }
+}
+```
+
+<Aside type="caution">
+  Fatal errors bypass skip_limit and immediately terminate the job. Use sparingly for truly unrecoverable conditions.
+</Aside>
+
+---
+
+## Error Handling Patterns
+
+### Pattern 1: Skip on Error
+
+```rust
+let step = StepBuilder::new("with-skips")
+    .chunk::<Input, Output>(100)
+    .reader(&reader)
+    .processor(&processor)
+    .writer(&writer)
+    .skip_limit(10)  // Skip up to 10 errors
+    .build();
+```
+
+**When to Use:**
+- Data quality issues are expected
+- Individual failures shouldn't stop the job
+- You log skipped items separately
+
+### Pattern 2: Fail Fast
+
+```rust
+let step = StepBuilder::new("strict")
+    .chunk::<Input, Output>(100)
+    .reader(&reader)
+    .processor(&processor)
+    .writer(&writer)
+    // No skip_limit - any error stops the job
+    .build();
+```
+
+**When to Use:**
+- Data must be perfect
+- Any error indicates a serious problem
+- Rollback and manual intervention required
+
+### Pattern 3: Wrap and Add Context
+
+```rust
+impl ItemReader<Record> for MyReader {
+    fn read(&self) -> ItemReaderResult<Record> {
+        let line = self.read_line()
+            .map_err(|e| BatchError::ItemReader(
+                format!("Failed to read line {} from {}: {}",
+                    self.line_number,
+                    self.file_path,
+                    e
+                )
+            ))?;
+
+        self.parse_line(&line)
+            .map_err(|e| BatchError::ItemReader(
+                format!("Parse error at line {} in {}: {}",
+                    self.line_number,
+                    self.file_path,
+                    e
+                )
+            ))
+    }
+}
+```
+
+### Pattern 4: Error Logging
+
+```rust
+use log::{error, warn};
+
+impl ItemProcessor<Record, Record> for MyProcessor {
+    fn process(&self, item: &Record) -> ItemProcessorResult<Record> {
+        if let Err(e) = self.validate(item) {
+            // Log error details
+            error!("Validation failed for record {}: {}", item.id, e);
+
+            // Also include in BatchError
+            return Err(BatchError::ItemProcessor(
+                format!("Validation failed: {}", e)
+            ));
+        }
+
+        Ok(item.clone())
+    }
+}
+```
+
+### Pattern 5: Retry Logic
+
+```rust
+use std::thread;
+use std::time::Duration;
+
+fn write_with_retry<T>(
+    items: &[T],
+    writer: &dyn ItemWriter<T>,
+    max_retries: u32,
+) -> ItemWriterResult {
+    let mut attempts = 0;
+
+    loop {
+        match writer.write(items) {
+            Ok(()) => return Ok(()),
+            Err(e) if attempts < max_retries => {
+                attempts += 1;
+                warn!("Write failed (attempt {}): {}. Retrying...", attempts, e);
+                thread::sleep(Duration::from_secs(2_u64.pow(attempts)));
+            }
+            Err(e) => {
+                return Err(BatchError::ItemWriter(
+                    format!("Write failed after {} attempts: {}", attempts, e)
+                ));
+            }
+        }
+    }
+}
+```
+
+---
+
+## Error Inspection
+
+### Getting Error Details
+
+```rust
+use spring_batch_rs::error::BatchError;
+
+fn handle_error(error: BatchError) {
+    match error {
+        BatchError::ItemReader(msg) => {
+            eprintln!("Read error: {}", msg);
+            // Maybe retry or skip
+        }
+        BatchError::ItemProcessor(msg) => {
+            eprintln!("Process error: {}", msg);
+            // Log to error file
+        }
+        BatchError::ItemWriter(msg) => {
+            eprintln!("Write error: {}", msg);
+            // Rollback transaction
+        }
+        BatchError::Fatal(msg) => {
+            eprintln!("FATAL: {}", msg);
+            std::process::exit(1);
+        }
+        _ => {
+            eprintln!("Other error: {}", error);
+        }
+    }
+}
+```
+
+### Error Metrics from StepExecution
+
+```rust
+let mut execution = StepExecution::new("my-step");
+step.execute(&mut execution)?;
+
+// Check for errors
+if execution.skip_count() > 0 {
+    println!("Skipped {} items due to errors", execution.skip_count());
+}
+
+if let Some(failure) = execution.failure_exceptions().first() {
+    eprintln!("First failure: {}", failure);
+}
+
+// Status check
+match execution.status() {
+    StepStatus::Completed => println!("Success!"),
+    StepStatus::Failed => eprintln!("Step failed"),
+    StepStatus::Stopped => println!("Step stopped"),
+    _ => {}
+}
+```
+
+---
+
+## Custom Error Types
+
+### Converting to BatchError
+
+```rust
+#[derive(Debug)]
+pub enum MyAppError {
+    InvalidFormat(String),
+    RateLimitExceeded,
+    ApiError(String),
+}
+
+impl From<MyAppError> for BatchError {
+    fn from(err: MyAppError) -> Self {
+        match err {
+            MyAppError::InvalidFormat(msg) => {
+                BatchError::ItemProcessor(format!("Format error: {}", msg))
+            }
+            MyAppError::RateLimitExceeded => {
+                BatchError::ItemReader("API rate limit exceeded".to_string())
+            }
+            MyAppError::ApiError(msg) => {
+                BatchError::ItemReader(format!("API error: {}", msg))
+            }
+        }
+    }
+}
+
+// Usage
+fn process_item(item: &Item) -> ItemProcessorResult<ProcessedItem> {
+    let result = call_api(item)?;  // MyAppError automatically converts
+    Ok(result)
+}
+```
+
+---
+
+## Best Practices
+
+<CardGrid>
+  <Card title="Descriptive Messages" icon="pencil">
+    Include item IDs, file names, line numbers in error messages
+  </Card>
+  <Card title="Context Propagation" icon="star">
+    Wrap lower-level errors with context about what you were doing
+  </Card>
+  <Card title="Appropriate Variants" icon="setting">
+    Use the right BatchError variant for the situation
+  </Card>
+  <Card title="Logging" icon="list">
+    Log errors before returning them for debugging
+  </Card>
+</CardGrid>
+
+## See Also
+
+- [Error Handling Guide](/spring-batch-rs/error-handling/) - Comprehensive error handling strategies
+- [Fault Tolerance](/spring-batch-rs/processing-models/) - Skip and retry configuration
+- [Examples](/spring-batch-rs/examples/) - Error handling in practice

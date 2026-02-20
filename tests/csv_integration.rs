@@ -114,6 +114,7 @@ P003,Smart Watch,149.99,"Fitness tracking smart watch with heart rate monitor",t
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 struct EnhancedProduct {
     id: String,
     sku: String,

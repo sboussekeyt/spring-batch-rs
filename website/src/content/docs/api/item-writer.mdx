@@ -1,0 +1,617 @@
+---
+title: ItemWriter API
+description: Complete reference for the ItemWriter trait and all implementations
+sidebar:
+  order: 2
+---
+
+import { Aside, Card, CardGrid, Tabs, TabItem } from '@astrojs/starlight/components';
+
+The `ItemWriter<O>` trait defines how to write batches of items to any destination. Writers receive chunks of items for efficient batch operations.
+
+## Trait Definition
+
+```rust
+pub trait ItemWriter<O> {
+    /// Writes a batch of items
+    fn write(&self, items: &[O]) -> Result<(), BatchError>;
+
+    /// Opens the writer (called once at start)
+    fn open(&self) -> Result<(), BatchError> { Ok(()) }
+
+    /// Closes the writer (called once at end)
+    fn close(&self) -> Result<(), BatchError> { Ok(()) }
+
+    /// Flushes any buffered data
+    fn flush(&self) -> Result<(), BatchError> { Ok(()) }
+}
+```
+
+<Aside type="tip">
+  Writers receive slices of items (chunks) rather than individual items for optimal I/O performance.
+</Aside>
+
+## Type Alias
+
+```rust
+pub type ItemWriterResult = Result<(), BatchError>;
+```
+
+## Lifecycle Methods
+
+| Method | Called When | Purpose |
+|--------|------------|---------|
+| `open()` | Before first write | Initialize resources (files, connections) |
+| `write()` | For each chunk | Write batch of items |
+| `flush()` | After each write | Flush buffers to ensure data persistence |
+| `close()` | After all writes | Release resources and finalize output |
+
+## Available Implementations
+
+Spring Batch RS provides 9 built-in writer implementations:
+
+| Writer | Feature Flag | Destination | Description |
+|--------|-------------|------------|-------------|
+| `CsvItemWriter<O, W>` | `csv` | CSV files | Writes CSV records with headers |
+| `JsonItemWriter<O, W>` | `json` | JSON files | Writes JSON arrays |
+| `XmlItemWriter<O, W>` | `xml` | XML files | Writes XML documents |
+| `PostgresItemWriter<O>` | `rdbc-postgres` | PostgreSQL | Bulk inserts to PostgreSQL |
+| `MysqlItemWriter<O>` | `rdbc-mysql` | MySQL/MariaDB | Bulk inserts to MySQL |
+| `SqliteItemWriter<O>` | `rdbc-sqlite` | SQLite | Bulk inserts to SQLite |
+| `MongodbItemWriter<O>` | `mongodb` | MongoDB | Bulk inserts to MongoDB |
+| `OrmItemWriter<O>` | `orm` | SeaORM | ORM-based database writing |
+| `LoggerWriter` | *built-in* | Logs | Debug output via logging |
+
+---
+
+## CSV Writer
+
+<Aside type="note">
+  **Feature flag:** `csv`
+</Aside>
+
+### Builder Methods
+
+```rust
+pub struct CsvItemWriterBuilder<O: Serialize, W: Write> { /* ... */ }
+```
+
+| Method | Type | Default | Description |
+|--------|------|---------|-------------|
+| `has_headers(bool)` | `bool` | `true` | Write header row |
+| `delimiter(u8)` | `u8` | `b','` | Field delimiter character |
+| `from_path(&str)` | - | - | Write to file path |
+| `from_writer(W)` | - | - | Write to any `Write` destination |
+
+### Example
+
+<Tabs>
+  <TabItem label="To File">
+    ```rust
+    use spring_batch_rs::item::csv::CsvItemWriterBuilder;
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    struct Product {
+        id: u32,
+        name: String,
+        price: f64,
+    }
+
+    let writer = CsvItemWriterBuilder::new()
+        .has_headers(true)
+        .delimiter(b',')
+        .from_path("products.csv")?;
+    ```
+  </TabItem>
+  <TabItem label="To Buffer">
+    ```rust
+    use std::io::Cursor;
+
+    let buffer = Cursor::new(Vec::new());
+
+    let writer = CsvItemWriterBuilder::<Product>::new()
+        .has_headers(true)
+        .from_writer(buffer);
+    ```
+  </TabItem>
+  <TabItem label="Custom Delimiter">
+    ```rust
+    let writer = CsvItemWriterBuilder::new()
+        .has_headers(true)
+        .delimiter(b';')  // Semicolon-separated
+        .from_path("data.csv")?;
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="caution">
+  If the file exists, it will be overwritten. Use append mode if you need to add to existing files.
+</Aside>
+
+---
+
+## JSON Writer
+
+<Aside type="note">
+  **Feature flag:** `json`
+</Aside>
+
+### Builder Methods
+
+```rust
+pub struct JsonItemWriterBuilder<O: Serialize, W: Write> { /* ... */ }
+```
+
+| Method | Type | Default | Description |
+|--------|------|---------|-------------|
+| `pretty_formatter(bool)` | `bool` | `false` | Enable pretty-printing |
+| `from_path(&str)` | - | - | Write to file path |
+| `from_writer(W)` | - | - | Write to any `Write` destination |
+
+### Example
+
+<Tabs>
+  <TabItem label="Pretty JSON">
+    ```rust
+    use spring_batch_rs::item::json::JsonItemWriterBuilder;
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    struct User {
+        id: u32,
+        name: String,
+        email: String,
+    }
+
+    let writer = JsonItemWriterBuilder::<User>::new()
+        .pretty_formatter(true)  // Indented, readable output
+        .from_path("users.json")?;
+    ```
+  </TabItem>
+  <TabItem label="Compact JSON">
+    ```rust
+    let writer = JsonItemWriterBuilder::<User>::new()
+        .pretty_formatter(false)  // Minified output
+        .from_path("users.json")?;
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+  Use `pretty_formatter(true)` for human-readable output, `false` for production/API consumption.
+</Aside>
+
+---
+
+## XML Writer
+
+<Aside type="note">
+  **Feature flag:** `xml`
+</Aside>
+
+### Builder Methods
+
+```rust
+pub struct XmlItemWriterBuilder<O: Serialize, W: Write> { /* ... */ }
+```
+
+| Method | Type | Default | Description |
+|--------|------|---------|-------------|
+| `root_tag(&str)` | `&str` | `"root"` | Root element name |
+| `item_tag(&str)` | `&str` | **required** | Item element name |
+| `from_path(&str)` | - | - | Write to file path |
+| `from_writer(W)` | - | - | Write to any `Write` destination |
+
+### Example
+
+```rust
+use spring_batch_rs::item::xml::XmlItemWriterBuilder;
+use serde::Serialize;
+
+#[derive(Serialize)]
+#[serde(rename = "vehicle")]
+struct Vehicle {
+    #[serde(rename = "@type")]
+    vehicle_type: String,
+    make: String,
+    model: String,
+    year: i32,
+}
+
+let writer = XmlItemWriterBuilder::new()
+    .root_tag("vehicles")
+    .item_tag("vehicle")
+    .from_path("output.xml")?;
+```
+
+**Output:**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<vehicles>
+  <vehicle type="car">
+    <make>Toyota</make>
+    <model>Camry</model>
+    <year>2023</year>
+  </vehicle>
+</vehicles>
+```
+
+<Aside type="tip">
+  Use `#[serde(rename = "@field")]` for XML attributes in your structs.
+</Aside>
+
+---
+
+## PostgreSQL Writer
+
+<Aside type="note">
+  **Feature flag:** `rdbc-postgres`
+</Aside>
+
+### Builder Methods
+
+```rust
+pub struct PostgresItemWriterBuilder<O> { /* ... */ }
+```
+
+| Method | Type | Description |
+|--------|------|-------------|
+| `pool(PgPool)` | `PgPool` | PostgreSQL connection pool |
+| `table(&str)` | `&str` | Target table name |
+| `binder(Fn)` | `Fn(&mut QueryBuilder, &O)` | Function to bind item fields |
+
+### Example
+
+```rust
+use spring_batch_rs::item::rdbc::postgres::PostgresItemWriterBuilder;
+use sqlx::PgPool;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct Person {
+    first_name: String,
+    last_name: String,
+    email: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let pool = PgPool::connect("postgres://user:pass@localhost/db").await?;
+
+    let writer = PostgresItemWriterBuilder::new()
+        .pool(pool)
+        .table("persons")
+        .binder(|query, person: &Person| {
+            query
+                .push_values([person], |mut b, p| {
+                    b.push_bind(&p.first_name)
+                     .push_bind(&p.last_name)
+                     .push_bind(&p.email);
+                });
+        })
+        .build();
+
+    Ok(())
+}
+```
+
+<Aside type="note">
+  The writer uses PostgreSQL's bulk insert capabilities for optimal performance.
+</Aside>
+
+---
+
+## MySQL Writer
+
+<Aside type="note">
+  **Feature flag:** `rdbc-mysql`
+</Aside>
+
+### Builder Methods
+
+Same as PostgreSQL writer, but use `MySqlPool`:
+
+```rust
+use spring_batch_rs::item::rdbc::mysql::MysqlItemWriterBuilder;
+use sqlx::MySqlPool;
+
+let pool = MySqlPool::connect("mysql://user:pass@localhost/db").await?;
+
+let writer = MysqlItemWriterBuilder::new()
+    .pool(pool)
+    .table("persons")
+    .binder(|query, person: &Person| {
+        query.push_values([person], |mut b, p| {
+            b.push_bind(&p.first_name)
+             .push_bind(&p.last_name)
+             .push_bind(&p.email);
+        });
+    })
+    .build();
+```
+
+---
+
+## SQLite Writer
+
+<Aside type="note">
+  **Feature flag:** `rdbc-sqlite`
+</Aside>
+
+### Builder Methods
+
+Same as PostgreSQL writer, but use `SqlitePool`:
+
+```rust
+use spring_batch_rs::item::rdbc::sqlite::SqliteItemWriterBuilder;
+use sqlx::SqlitePool;
+
+let pool = SqlitePool::connect("sqlite::memory:").await?;
+
+let writer = SqliteItemWriterBuilder::new()
+    .pool(pool)
+    .table("persons")
+    .binder(|query, person: &Person| {
+        query.push_values([person], |mut b, p| {
+            b.push_bind(&p.first_name)
+             .push_bind(&p.last_name)
+             .push_bind(&p.email);
+        });
+    })
+    .build();
+```
+
+---
+
+## MongoDB Writer
+
+<Aside type="note">
+  **Feature flag:** `mongodb`
+</Aside>
+
+### Builder Methods
+
+```rust
+pub struct MongodbItemWriterBuilder<O> { /* ... */ }
+```
+
+| Method | Type | Description |
+|--------|------|-------------|
+| `collection(&Collection<O>)` | `&Collection<O>` | MongoDB collection |
+
+### Example
+
+```rust
+use spring_batch_rs::item::mongodb::MongodbItemWriterBuilder;
+use mongodb::{sync::Client, bson::doc};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct Book {
+    title: String,
+    author: String,
+    isbn: String,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::with_uri_str("mongodb://localhost:27017")?;
+    let db = client.database("library");
+    let collection = db.collection::<Book>("books");
+
+    let writer = MongodbItemWriterBuilder::new()
+        .collection(&collection)
+        .build();
+
+    Ok(())
+}
+```
+
+<Aside type="tip">
+  The writer uses MongoDB's `insert_many()` for efficient bulk inserts.
+</Aside>
+
+---
+
+## ORM Writer
+
+<Aside type="note">
+  **Feature flag:** `orm`
+</Aside>
+
+Writes entities using SeaORM. Your entity must implement SeaORM's `ActiveModelTrait`.
+
+### Example
+
+```rust
+use spring_batch_rs::item::orm::OrmItemWriterBuilder;
+use sea_orm::{Database, DatabaseConnection};
+
+// Assuming you have a SeaORM entity
+use entity::person::{Entity as PersonEntity, ActiveModel};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let db: DatabaseConnection = Database::connect("sqlite::memory:").await?;
+
+    let writer = OrmItemWriterBuilder::new()
+        .entity(PersonEntity)
+        .connection(&db)
+        .build();
+
+    Ok(())
+}
+```
+
+---
+
+## Logger Writer
+
+<Aside type="note">
+  **Built-in** - No feature flag required
+</Aside>
+
+Writes items to logs for debugging purposes.
+
+### Builder Methods
+
+```rust
+pub struct LoggerItemWriterBuilder { /* ... */ }
+```
+
+| Method | Type | Default | Description |
+|--------|------|---------|-------------|
+| `log_level(Level)` | `log::Level` | `Info` | Logging level |
+
+### Example
+
+```rust
+use spring_batch_rs::item::logger::LoggerItemWriterBuilder;
+use log::Level;
+
+// Log at INFO level
+let writer = LoggerItemWriterBuilder::new()
+    .log_level(Level::Info)
+    .build();
+
+// Log at DEBUG level
+let writer = LoggerItemWriterBuilder::new()
+    .log_level(Level::Debug)
+    .build();
+```
+
+<Aside type="tip">
+  Perfect for development and debugging without writing to actual files.
+</Aside>
+
+---
+
+## Custom Implementation
+
+You can implement `ItemWriter` for any destination:
+
+```rust
+use spring_batch_rs::core::item::{ItemWriter, ItemWriterResult};
+use spring_batch_rs::error::BatchError;
+use std::sync::Mutex;
+
+struct MyCustomWriter {
+    data: Mutex<Vec<String>>,
+}
+
+impl ItemWriter<String> for MyCustomWriter {
+    fn write(&self, items: &[String]) -> ItemWriterResult {
+        let mut data = self.data.lock().unwrap();
+        data.extend_from_slice(items);
+        Ok(())
+    }
+
+    fn open(&self) -> ItemWriterResult {
+        println!("Opening writer");
+        Ok(())
+    }
+
+    fn close(&self) -> ItemWriterResult {
+        println!("Closing writer, wrote {} items", self.data.lock().unwrap().len());
+        Ok(())
+    }
+
+    fn flush(&self) -> ItemWriterResult {
+        println!("Flushing writer");
+        Ok(())
+    }
+}
+
+impl MyCustomWriter {
+    fn new() -> Self {
+        Self {
+            data: Mutex::new(Vec::new()),
+        }
+    }
+}
+```
+
+<Aside type="caution">
+  **Thread Safety**: Writers must be `Send + Sync`. Use `Mutex`, `RwLock`, or atomic types for internal state.
+</Aside>
+
+## Transaction Handling
+
+Writers can implement transactional behavior:
+
+```rust
+use std::sync::Mutex;
+
+struct TransactionalWriter {
+    buffer: Mutex<Vec<String>>,
+    committed: Mutex<Vec<String>>,
+}
+
+impl ItemWriter<String> for TransactionalWriter {
+    fn write(&self, items: &[String]) -> ItemWriterResult {
+        // Write to buffer (transaction)
+        let mut buffer = self.buffer.lock().unwrap();
+        buffer.extend_from_slice(items);
+        Ok(())
+    }
+
+    fn flush(&self) -> ItemWriterResult {
+        // Commit transaction
+        let mut buffer = self.buffer.lock().unwrap();
+        let mut committed = self.committed.lock().unwrap();
+        committed.append(&mut buffer);
+        Ok(())
+    }
+
+    fn close(&self) -> ItemWriterResult {
+        // Final flush on close
+        self.flush()
+    }
+}
+```
+
+## Best Practices
+
+<CardGrid>
+  <Card title="Batch Operations" icon="rocket">
+    Use bulk insert/write APIs when available for better performance
+  </Card>
+  <Card title="Buffer Management" icon="list">
+    Implement `flush()` to ensure data is persisted, especially for buffered writers
+  </Card>
+  <Card title="Resource Cleanup" icon="warning">
+    Always release resources in `close()` even if errors occurred
+  </Card>
+  <Card title="Error Context" icon="setting">
+    Return descriptive `BatchError::ItemWriter` errors with details about what failed
+  </Card>
+</CardGrid>
+
+## Performance Tips
+
+<Tabs>
+  <TabItem label="File Writers">
+    - Use buffered I/O (`BufWriter`) for file-based writers
+    - Consider chunk size when writing large files
+    - Use appropriate buffer sizes (8KB-64KB typical)
+  </TabItem>
+  <TabItem label="Database Writers">
+    - Use bulk insert statements instead of individual inserts
+    - Enable connection pooling
+    - Consider batch size vs transaction overhead
+    - Use prepared statements when possible
+  </TabItem>
+  <TabItem label="Network Writers">
+    - Implement retry logic for transient failures
+    - Use connection pooling
+    - Consider timeout settings
+    - Implement proper error handling for network issues
+  </TabItem>
+</Tabs>
+
+## See Also
+
+- [ItemReader API](/spring-batch-rs/api/item-reader/) - Reading data sources
+- [ItemProcessor API](/spring-batch-rs/api/item-processor/) - Transforming data
+- [Database Examples](/spring-batch-rs/examples/database/) - Database writer examples
+- [JSON Examples](/spring-batch-rs/examples/json/) - JSON writer examples

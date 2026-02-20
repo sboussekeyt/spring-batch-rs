@@ -1,0 +1,14 @@
+{
+  "main": [
+    {
+      "icon": "github",
+      "label": "GitHub",
+      "href": "https://github.com/sboussekeyt/spring-batch-rs"
+    },
+    {
+      "icon": "discord",
+      "label": "Discord",
+      "href": "https://discord.gg/9FNhawNsG6"
+    }
+  ]
+}

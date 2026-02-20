@@ -1,0 +1,32 @@
+{
+  "site": {
+    "title": "Spring Batch RS",
+    "logo": "/src/assets/spring_batch_rs_v3_icon.png",
+    "logo_darkmode": "/src/assets/spring_batch_rs_v3_icon.png",
+    "logo_width": "32",
+    "logo_height": "32",
+    "logo_text": "Spring Batch RS"
+  },
+
+  "settings": {
+    "search": true,
+    "theme_switcher": true
+  },
+
+  "params": {
+    "footer_contact": {
+      "enable": false,
+      "action": "#"
+    },
+    "copyright": "Spring Batch RS - A comprehensive toolkit for building enterprise-grade batch applications in Rust. Copyright &copy; 2025."
+  },
+
+  "navigation_button": {
+    "enable": true,
+    "label": "Getting Started",
+    "translations": {
+      "fr": "Erste Schritte"
+    },
+    "link": "/examples/"
+  }
+}

@@ -401,32 +401,27 @@ impl<I: DeserializeOwned> JsonItemReaderBuilder<I> {
 
 #[cfg(test)]
 mod tests {
-    use std::{error::Error, fs::File, io::Cursor, path::Path};
+    use std::{error::Error, io::Cursor};
 
     use crate::{
         core::item::{ItemReader, ItemReaderResult},
         item::{fake::person_reader::Person, json::json_reader::JsonItemReaderBuilder},
     };
 
-    /// Tests reading JSON data from a file
-    ///
-    /// This test verifies that the reader can correctly parse and deserialize
-    /// JSON data from a file into Person objects.
+    const PERSONS_JSON: &str = r#"[
+  {"first_name": "Océane", "last_name": "Dupond", "title": "Mr.", "email": "leopold_enim@orange.fr", "birth_date": "1963-05-16"},
+  {"first_name": "Amandine", "last_name": "Évrat", "title": "Mrs.", "email": "amandine_iure@outlook.fr", "birth_date": "1933-07-12"},
+  {"first_name": "Ugo", "last_name": "Niels", "title": "Sir.", "email": "xavier_voluptatem@sfr.fr", "birth_date": "1980-04-05"},
+  {"first_name": "Léo", "last_name": "Zola", "title": "Dr.", "email": "ugo_praesentium@orange.fr", "birth_date": "1914-08-13"}
+]"#;
+
     #[test]
-    fn content_from_file_should_be_deserialized() -> Result<(), Box<dyn Error>> {
-        let path = Path::new("examples/data/persons.json");
-
-        let file = File::options()
-            .append(true)
-            .read(true)
-            .create(false)
-            .open(path)
-            .expect("Unable to open file");
-
-        let reader = JsonItemReaderBuilder::new().capacity(320).from_reader(file);
+    fn content_from_reader_should_be_deserialized() -> Result<(), Box<dyn Error>> {
+        let reader = JsonItemReaderBuilder::new()
+            .capacity(320)
+            .from_reader(Cursor::new(PERSONS_JSON));
 
         let result: ItemReaderResult<Person> = reader.read();
-
         assert!(result.is_ok());
         assert_eq!(
             "first_name:Océane, last_name:Dupond, birth_date:1963-05-16",
@@ -454,6 +449,10 @@ mod tests {
             result.unwrap().unwrap().to_string()
         );
 
+        let result: ItemReaderResult<Person> = reader.read();
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+
         Ok(())
     }
 
@@ -472,6 +471,7 @@ mod tests {
         let result: ItemReaderResult<Person> = reader.read();
 
         assert!(result.is_ok());
+        assert!(result.unwrap().is_none()); // Non-JSON input yields no items
 
         Ok(())
     }

@@ -41,7 +41,7 @@ use crate::{
 ///
 /// // Create a writer to an in-memory buffer
 /// let buffer = Cursor::new(Vec::new());
-/// let writer = JsonItemWriterBuilder::new()
+/// let writer = JsonItemWriterBuilder::<Product>::new()
 ///     .from_writer(buffer);
 ///
 /// // Write the products to JSON
@@ -203,7 +203,7 @@ impl<O: serde::Serialize, W: Write> ItemWriter<O> for JsonItemWriter<O, W> {
 ///
 /// // Create a writer with pretty formatting
 /// let buffer = Cursor::new(Vec::new());
-/// let writer = JsonItemWriterBuilder::new()
+/// let writer = JsonItemWriterBuilder::<Person>::new()
 ///     .pretty_formatter(true)
 ///     .from_writer(buffer);
 ///
@@ -219,20 +219,22 @@ impl<O: serde::Serialize, W: Write> ItemWriter<O> for JsonItemWriter<O, W> {
 /// writer_ref.write(&[person]).unwrap();
 /// writer_ref.close().unwrap();
 /// ```
-pub struct JsonItemWriterBuilder {
+pub struct JsonItemWriterBuilder<O> {
     /// Indentation to use when pretty-printing (default is two spaces)
     indent: Box<[u8]>,
     /// Whether to use pretty formatting with indentation and newlines
     pretty_formatter: bool,
+    /// Phantom data for the output type
+    _pd: PhantomData<O>,
 }
 
-impl Default for JsonItemWriterBuilder {
+impl<O> Default for JsonItemWriterBuilder<O> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl JsonItemWriterBuilder {
+impl<O> JsonItemWriterBuilder<O> {
     /// Creates a new JSON item writer builder with default settings.
     ///
     /// By default, the writer uses compact formatting (not pretty-printed)
@@ -243,12 +245,13 @@ impl JsonItemWriterBuilder {
     /// ```
     /// use spring_batch_rs::item::json::json_writer::JsonItemWriterBuilder;
     ///
-    /// let builder = JsonItemWriterBuilder::new();
+    /// let builder = JsonItemWriterBuilder::<String>::new();
     /// ```
     pub fn new() -> Self {
         Self {
             indent: Box::from(b"  ".to_vec()),
             pretty_formatter: false,
+            _pd: PhantomData,
         }
     }
 
@@ -262,7 +265,7 @@ impl JsonItemWriterBuilder {
     /// use spring_batch_rs::item::json::json_writer::JsonItemWriterBuilder;
     ///
     /// // Use 4 spaces for indentation
-    /// let builder = JsonItemWriterBuilder::new()
+    /// let builder = JsonItemWriterBuilder::<String>::new()
     ///     .indent(b"    ")
     ///     .pretty_formatter(true);
     /// ```
@@ -283,11 +286,11 @@ impl JsonItemWriterBuilder {
     /// use spring_batch_rs::item::json::json_writer::JsonItemWriterBuilder;
     ///
     /// // Enable pretty printing
-    /// let pretty_builder = JsonItemWriterBuilder::new()
+    /// let pretty_builder = JsonItemWriterBuilder::<String>::new()
     ///     .pretty_formatter(true);
     ///
     /// // Disable pretty printing for compact output
-    /// let compact_builder = JsonItemWriterBuilder::new()
+    /// let compact_builder = JsonItemWriterBuilder::<String>::new()
     ///     .pretty_formatter(false);
     /// ```
     pub fn pretty_formatter(mut self, yes: bool) -> Self {
@@ -324,7 +327,7 @@ impl JsonItemWriterBuilder {
     /// }
     ///
     /// // Create a writer to a file
-    /// let writer = JsonItemWriterBuilder::new()
+    /// let writer = JsonItemWriterBuilder::<Record>::new()
     ///     .pretty_formatter(true)
     ///     .from_path("output.json");
     ///
@@ -340,7 +343,7 @@ impl JsonItemWriterBuilder {
     /// writer_ref.write(&records).unwrap();
     /// writer_ref.close().unwrap();
     /// ```
-    pub fn from_path<O, W: AsRef<Path>>(self, path: W) -> JsonItemWriter<O, File> {
+    pub fn from_path<W: AsRef<Path>>(self, path: W) -> JsonItemWriter<O, File> {
         let file = File::create(path).expect("Unable to open file");
 
         let buf_writer = BufWriter::new(file);
@@ -380,7 +383,7 @@ impl JsonItemWriterBuilder {
     ///
     /// // Create a writer to an in-memory buffer
     /// let buffer = Cursor::new(Vec::new());
-    /// let writer = JsonItemWriterBuilder::new()
+    /// let writer = JsonItemWriterBuilder::<Event>::new()
     ///     .from_writer(buffer);
     ///
     /// // Generate some data
@@ -395,7 +398,7 @@ impl JsonItemWriterBuilder {
     /// writer_ref.write(&events).unwrap();
     /// writer_ref.close().unwrap();
     /// ```
-    pub fn from_writer<O, W: Write>(self, wtr: W) -> JsonItemWriter<O, W> {
+    pub fn from_writer<W: Write>(self, wtr: W) -> JsonItemWriter<O, W> {
         let buf_writer = BufWriter::new(wtr);
 
         JsonItemWriter {
@@ -425,32 +428,38 @@ mod tests {
 
     #[test]
     fn json_writer_builder_should_create_with_defaults() {
-        let builder = JsonItemWriterBuilder::new();
+        let builder = JsonItemWriterBuilder::<TestItem>::new();
         assert!(!builder.pretty_formatter);
         assert_eq!(builder.indent, b"  ".to_vec().into_boxed_slice());
     }
 
     #[test]
     fn json_writer_builder_should_set_pretty_formatter() {
-        let builder = JsonItemWriterBuilder::new().pretty_formatter(true);
+        let builder = JsonItemWriterBuilder::<TestItem>::new().pretty_formatter(true);
         assert!(builder.pretty_formatter);
     }
 
     #[test]
     fn json_writer_builder_should_set_custom_indent() {
         let custom_indent = b"    ";
-        let builder = JsonItemWriterBuilder::new().indent(custom_indent);
+        let builder = JsonItemWriterBuilder::<TestItem>::new().indent(custom_indent);
         assert_eq!(builder.indent, custom_indent.to_vec().into_boxed_slice());
     }
 
     #[test]
     fn json_writer_builder_should_implement_default() {
-        let builder1 = JsonItemWriterBuilder::new();
-        let builder2 = JsonItemWriterBuilder::default();
+        let builder1 = JsonItemWriterBuilder::<TestItem>::new();
+        let builder2 = JsonItemWriterBuilder::<TestItem>::default();
 
         assert_eq!(builder1.pretty_formatter, builder2.pretty_formatter);
         // Both should have the same default indent
         assert_eq!(builder1.indent, builder2.indent);
+    }
+
+    #[test]
+    fn json_writer_builder_should_support_generic_type() {
+        let _builder = JsonItemWriterBuilder::<TestItem>::new();
+        let _builder_default = JsonItemWriterBuilder::<TestItem>::default();
     }
 
     #[test]

@@ -532,29 +532,20 @@ mod tests {
     }
 
     #[test]
-    fn test_entity_inference() {
-        // Verify that we can infer the Entity type from ActiveModel
-        fn check_entity_inference<A>()
-        where
-            A: ActiveModelTrait + Send,
-            <A as ActiveModelTrait>::Entity: EntityTrait,
-        {
-            // This function will only compile if we can access the Entity type
-            // through the ActiveModel's associated type
-        }
+    fn test_write_empty_slice_skips_database_operation() {
+        use sea_orm::{DatabaseBackend, MockDatabase};
 
-        check_entity_inference::<ActiveModel>();
+        let db = MockDatabase::new(DatabaseBackend::Sqlite).into_connection();
+        let writer = OrmItemWriter::<ActiveModel>::new(&db);
+
+        // open/flush/close are no-ops
+        assert!(writer.open().is_ok());
+        assert!(writer.flush().is_ok());
+
+        // write with empty slice should return Ok(()) without any DB interaction
+        assert!(writer.write(&[]).is_ok());
+
+        assert!(writer.close().is_ok());
     }
 
-    #[test]
-    fn test_simplified_builder_pattern() {
-        // This test demonstrates that the builder pattern works with our simplified bounds
-        // Note: We can't actually build without a real database connection,
-        // but we can test that the types compile correctly
-
-        let builder = OrmItemWriterBuilder::<ActiveModel>::new();
-
-        // The builder should have the correct type with only one generic parameter
-        assert!(builder.connection.is_none());
-    }
 }

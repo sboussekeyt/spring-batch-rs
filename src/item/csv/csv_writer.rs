@@ -490,3 +490,118 @@ impl<O> CsvItemWriterBuilder<O> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::item::ItemWriter;
+    use serde::Serialize;
+
+    #[derive(Serialize, Clone)]
+    struct Row {
+        name: String,
+        value: u32,
+    }
+
+    fn sample_rows() -> Vec<Row> {
+        vec![
+            Row { name: "alpha".into(), value: 1 },
+            Row { name: "beta".into(), value: 2 },
+        ]
+    }
+
+    #[test]
+    fn should_write_records_with_headers() {
+        let mut buf = Vec::new();
+        {
+            let writer = CsvItemWriterBuilder::<Row>::new()
+                .has_headers(true)
+                .from_writer(&mut buf);
+            writer.write(&sample_rows()).unwrap();
+            ItemWriter::<Row>::flush(&writer).unwrap();
+        }
+        let out = String::from_utf8(buf).unwrap();
+        assert!(out.contains("name,value"), "header row missing: {out}");
+        assert!(out.contains("alpha,1"), "first data row missing: {out}");
+        assert!(out.contains("beta,2"), "second data row missing: {out}");
+    }
+
+    #[test]
+    fn should_write_records_without_headers() {
+        let mut buf = Vec::new();
+        {
+            let writer = CsvItemWriterBuilder::<Row>::new()
+                .has_headers(false)
+                .from_writer(&mut buf);
+            writer.write(&sample_rows()).unwrap();
+            ItemWriter::<Row>::flush(&writer).unwrap();
+        }
+        let out = String::from_utf8(buf).unwrap();
+        assert!(!out.contains("name"), "header row should be absent: {out}");
+        assert!(out.contains("alpha,1"), "data row missing from headerless output: {out}");
+    }
+
+    #[test]
+    fn should_write_with_custom_delimiter() {
+        let mut buf = Vec::new();
+        {
+            let writer = CsvItemWriterBuilder::<Row>::new()
+                .has_headers(true)
+                .delimiter(b';')
+                .from_writer(&mut buf);
+            writer.write(&sample_rows()).unwrap();
+            ItemWriter::<Row>::flush(&writer).unwrap();
+        }
+        let out = String::from_utf8(buf).unwrap();
+        assert!(out.contains("name;value"), "semicolon header missing: {out}");
+        assert!(out.contains("alpha;1"), "semicolon data missing: {out}");
+    }
+
+    #[test]
+    fn should_write_empty_chunk_without_error() {
+        let mut buf = Vec::new();
+        {
+            let writer = CsvItemWriterBuilder::<Row>::new()
+                .has_headers(true)
+                .from_writer(&mut buf);
+            writer.write(&[]).unwrap();
+            ItemWriter::<Row>::flush(&writer).unwrap();
+        }
+        let out = String::from_utf8(buf).unwrap();
+        assert!(out.is_empty(), "writing an empty chunk should produce no output, got: {out:?}");
+    }
+
+    #[test]
+    fn should_write_single_record() {
+        let mut buf = Vec::new();
+        {
+            let writer = CsvItemWriterBuilder::<Row>::new()
+                .has_headers(false)
+                .from_writer(&mut buf);
+            writer.write(&[Row { name: "only".into(), value: 99 }]).unwrap();
+            ItemWriter::<Row>::flush(&writer).unwrap();
+        }
+        let out = String::from_utf8(buf).unwrap();
+        assert!(out.contains("only,99"), "single record missing: {out}");
+    }
+
+    #[test]
+    fn should_write_to_file() {
+        use std::fs;
+        use tempfile::NamedTempFile;
+
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+
+        let writer = CsvItemWriterBuilder::<Row>::new()
+            .has_headers(true)
+            .from_path(&path);
+        writer.write(&sample_rows()).unwrap();
+        ItemWriter::<Row>::flush(&writer).unwrap();
+        drop(writer);
+
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.contains("name,value"), "file header missing");
+        assert!(content.contains("alpha,1"), "file data missing");
+    }
+}
