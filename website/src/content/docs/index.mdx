@@ -181,6 +181,9 @@ let reader = CsvItemReaderBuilder::<Product>::new()
     .has_headers(true)
     .build();
 
+// Passthrough processor — forwards items unchanged (swap in your own logic here)
+let processor = PassThroughProcessor::<Product>::new();
+
 let writer = JsonItemWriterBuilder::<Product>::new()
     .from_path("products.json");
 
@@ -189,6 +192,7 @@ let writer = JsonItemWriterBuilder::<Product>::new()
 //    skip_limit(10)  → tolerate up to 10 bad records before the job fails
 let step = StepBuilder::new("convert-products")
     .reader(&reader)
+    .processor(&processor)
     .writer(&writer)
     .chunk(100)
     .skip_limit(10)

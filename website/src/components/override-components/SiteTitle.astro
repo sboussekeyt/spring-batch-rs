@@ -22,40 +22,62 @@ const {
     logo_text: string;
     title: string;
 } = config.site;
+
+const logoSrc = src ? src : logo;
+const logoDarkSrc = srcDarkmode ? srcDarkmode : logo_darkmode;
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const isPublicPath = (p: string) => p.startsWith("/");
+const withBase = (p: string) => isPublicPath(p) ? `${base}${p}` : p;
+const w = logo_width.replace("px", "");
+const h = logo_height.replace("px", "");
 ---
 
 <a href={siteTitleHref} class="navbar-brand inline-block">
     {
-        src || srcDarkmode || logo || logo_darkmode ? (
+        logoSrc || logoDarkSrc ? (
             <>
-                <ImageMod
-                    src={src ? src : logo}
-                    class={`inline-block  ${theme_switcher && "dark:hidden"}`}
-                    width={logo_width.replace("px", "") * 2}
-                    height={logo_height.replace("px", "") * 2}
-                    alt={title}
-                    style={{
-                        height: logo_height.replace("px", "") + "px",
-                        width: logo_width.replace("px", "") + "px",
-                        objectFit: "contain",
-                    }}
-                    format="webp"
-                />
-
-                {theme_switcher && (
-                    <ImageMod
-                        src={srcDarkmode ? srcDarkmode : logo_darkmode}
-                        class={`hidden dark:inline-block`}
-                        width={logo_width.replace("px", "") * 2}
-                        height={logo_height.replace("px", "") * 2}
+                {isPublicPath(logoSrc) ? (
+                    <img
+                        src={withBase(logoSrc)}
+                        class={`inline-block ${theme_switcher && "dark:hidden"}`}
                         alt={title}
-                        style={{
-                            height: logo_height.replace("px", "") + "px",
-                            width: logo_width.replace("px", "") + "px",
-                            objectFit: "contain",
-                        }}
+                        width={w}
+                        height={h}
+                        style={{ height: h + "px", width: w + "px", objectFit: "contain" }}
+                    />
+                ) : (
+                    <ImageMod
+                        src={logoSrc}
+                        class={`inline-block  ${theme_switcher && "dark:hidden"}`}
+                        width={Number(w) * 2}
+                        height={Number(h) * 2}
+                        alt={title}
+                        style={{ height: h + "px", width: w + "px", objectFit: "contain" }}
                         format="webp"
                     />
+                )}
+
+                {theme_switcher && (
+                    isPublicPath(logoDarkSrc) ? (
+                        <img
+                            src={withBase(logoDarkSrc)}
+                            class="hidden dark:inline-block"
+                            alt={title}
+                            width={w}
+                            height={h}
+                            style={{ height: h + "px", width: w + "px", objectFit: "contain" }}
+                        />
+                    ) : (
+                        <ImageMod
+                            src={logoDarkSrc}
+                            class="hidden dark:inline-block"
+                            width={Number(w) * 2}
+                            height={Number(h) * 2}
+                            alt={title}
+                            style={{ height: h + "px", width: w + "px", objectFit: "contain" }}
+                            format="webp"
+                        />
+                    )
                 )}
             </>
         ) : logo_text ? (
@@ -63,5 +85,5 @@ const {
         ) : (
             siteTitle || title
         )
-    }</a
->
+    }
+</a>
