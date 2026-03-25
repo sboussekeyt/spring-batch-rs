@@ -21,9 +21,21 @@ mod tests {
         assert_eq!(DatabaseType::Postgres, DatabaseType::Postgres);
         assert_eq!(DatabaseType::MySql, DatabaseType::MySql);
         assert_eq!(DatabaseType::Sqlite, DatabaseType::Sqlite);
-        assert_ne!(DatabaseType::Postgres, DatabaseType::MySql, "Postgres should differ from MySql");
-        assert_ne!(DatabaseType::MySql, DatabaseType::Sqlite, "MySql should differ from Sqlite");
-        assert_ne!(DatabaseType::Postgres, DatabaseType::Sqlite, "Postgres should differ from Sqlite");
+        assert_ne!(
+            DatabaseType::Postgres,
+            DatabaseType::MySql,
+            "Postgres should differ from MySql"
+        );
+        assert_ne!(
+            DatabaseType::MySql,
+            DatabaseType::Sqlite,
+            "MySql should differ from Sqlite"
+        );
+        assert_ne!(
+            DatabaseType::Postgres,
+            DatabaseType::Sqlite,
+            "Postgres should differ from Sqlite"
+        );
     }
 
     #[test]

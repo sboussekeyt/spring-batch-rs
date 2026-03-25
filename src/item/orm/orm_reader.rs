@@ -834,7 +834,10 @@ mod tests {
     #[test]
     fn should_create_reader_with_default_state() {
         let reader = OrmItemReader::<Entity>::new();
-        assert!(reader.connection.is_none(), "connection should start as None");
+        assert!(
+            reader.connection.is_none(),
+            "connection should start as None"
+        );
         assert_eq!(reader.page_size, None);
         assert_eq!(reader.offset.get(), 0);
         assert_eq!(reader.current_page.get(), 0);
@@ -866,7 +869,10 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn should_read_single_item_then_return_none() {
         let db = MockDatabase::new(DatabaseBackend::Sqlite)
-            .append_query_results([vec![Model { id: 1, name: "Alice".to_string() }]])
+            .append_query_results([vec![Model {
+                id: 1,
+                name: "Alice".to_string(),
+            }]])
             .into_connection();
 
         let reader = OrmItemReader::<Entity>::new()
@@ -885,8 +891,14 @@ mod tests {
     async fn should_read_multiple_items_without_pagination() {
         let db = MockDatabase::new(DatabaseBackend::Sqlite)
             .append_query_results([vec![
-                Model { id: 1, name: "Alice".to_string() },
-                Model { id: 2, name: "Bob".to_string() },
+                Model {
+                    id: 1,
+                    name: "Alice".to_string(),
+                },
+                Model {
+                    id: 2,
+                    name: "Bob".to_string(),
+                },
             ]])
             .into_connection();
 
@@ -906,8 +918,14 @@ mod tests {
         // page_size=1: two DB calls, each returning one item, then empty
         let db = MockDatabase::new(DatabaseBackend::Sqlite)
             .append_query_results([
-                vec![Model { id: 1, name: "P1".to_string() }],
-                vec![Model { id: 2, name: "P2".to_string() }],
+                vec![Model {
+                    id: 1,
+                    name: "P1".to_string(),
+                }],
+                vec![Model {
+                    id: 2,
+                    name: "P2".to_string(),
+                }],
                 vec![], // signals end of data
             ])
             .into_connection();
@@ -919,12 +937,19 @@ mod tests {
 
         let first = reader.read().unwrap().unwrap();
         assert_eq!(first.name, "P1");
-        assert_eq!(reader.current_page.get(), 1, "page should advance after full page");
+        assert_eq!(
+            reader.current_page.get(),
+            1,
+            "page should advance after full page"
+        );
 
         let second = reader.read().unwrap().unwrap();
         assert_eq!(second.name, "P2");
 
-        assert!(reader.read().unwrap().is_none(), "should stop after all pages");
+        assert!(
+            reader.read().unwrap().is_none(),
+            "should stop after all pages"
+        );
     }
 
     // --- OrmItemReaderBuilder unit tests ---

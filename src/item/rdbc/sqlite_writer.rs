@@ -322,7 +322,10 @@ mod tests {
         let result = writer.write(&["x".to_string()]);
         match result.err().unwrap() {
             BatchError::ItemWriter(msg) => {
-                assert!(msg.contains("SQLite"), "error should mention SQLite, got: {msg}")
+                assert!(
+                    msg.contains("SQLite"),
+                    "error should mention SQLite, got: {msg}"
+                )
             }
             e => panic!("expected ItemWriter error, got {e:?}"),
         }

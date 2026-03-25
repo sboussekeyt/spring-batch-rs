@@ -224,8 +224,8 @@ async fn postgres_reader_should_build_with_page_size() -> Result<(), Box<dyn std
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn postgres_reader_should_build_without_page_size(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn postgres_reader_should_build_without_page_size() -> Result<(), Box<dyn std::error::Error>>
+{
     let (pool, _container) = setup_reader_test_db().await?;
 
     let reader = RdbcItemReaderBuilder::<TestUser>::new()
@@ -305,15 +305,12 @@ async fn postgres_reader_should_read_items_with_pagination(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn postgres_reader_should_handle_empty_result_set(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn postgres_reader_should_handle_empty_result_set() -> Result<(), Box<dyn std::error::Error>>
+{
     let (pool, _container) = setup_reader_test_db().await?;
 
-    let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
-        pool,
-        "SELECT * FROM test_users WHERE id > 1000",
-        Some(5),
-    );
+    let reader: PostgresRdbcItemReader<TestUser> =
+        PostgresRdbcItemReader::new(pool, "SELECT * FROM test_users WHERE id > 1000", Some(5));
 
     let result = reader.read()?;
     assert!(result.is_none());
@@ -322,8 +319,8 @@ async fn postgres_reader_should_handle_empty_result_set(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn postgres_reader_should_handle_single_page_result(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn postgres_reader_should_handle_single_page_result() -> Result<(), Box<dyn std::error::Error>>
+{
     let (pool, _container) = setup_reader_test_db().await?;
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
@@ -366,8 +363,8 @@ async fn postgres_reader_should_handle_page_size_larger_than_result_set(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn postgres_reader_should_handle_page_size_of_one(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn postgres_reader_should_handle_page_size_of_one() -> Result<(), Box<dyn std::error::Error>>
+{
     let (pool, _container) = setup_reader_test_db().await?;
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
@@ -540,11 +537,8 @@ async fn postgres_reader_should_handle_large_result_sets_efficiently(
             .await?;
     }
 
-    let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
-        pool,
-        "SELECT * FROM test_users ORDER BY id",
-        Some(10),
-    );
+    let reader: PostgresRdbcItemReader<TestUser> =
+        PostgresRdbcItemReader::new(pool, "SELECT * FROM test_users ORDER BY id", Some(10));
 
     let mut count = 0;
     while let Some(_item) = reader.read()? {

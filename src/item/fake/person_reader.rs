@@ -207,9 +207,18 @@ mod tests {
         let reader = PersonReaderBuilder::new().number_of_items(1).build();
         let person = reader.read().unwrap().unwrap();
         let text = format!("{}", person);
-        assert!(text.contains("first_name:"), "Display missing first_name: {text}");
-        assert!(text.contains("last_name:"), "Display missing last_name: {text}");
-        assert!(text.contains("birth_date:"), "Display missing birth_date: {text}");
+        assert!(
+            text.contains("first_name:"),
+            "Display missing first_name: {text}"
+        );
+        assert!(
+            text.contains("last_name:"),
+            "Display missing last_name: {text}"
+        );
+        assert!(
+            text.contains("birth_date:"),
+            "Display missing birth_date: {text}"
+        );
     }
 
     #[test]
@@ -217,7 +226,10 @@ mod tests {
         let reader = PersonReaderBuilder::new().number_of_items(1).build();
         let person = reader.read().unwrap().unwrap();
         let json = serde_json::to_string(&person).expect("serialization must succeed");
-        assert!(json.contains("birth_date"), "missing birth_date key: {json}");
+        assert!(
+            json.contains("birth_date"),
+            "missing birth_date key: {json}"
+        );
         // Date must follow YYYY-MM-DD pattern (at least two hyphens)
         let hyphen_count = json.chars().filter(|&c| c == '-').count();
         assert!(hyphen_count >= 2, "date should contain hyphens: {json}");

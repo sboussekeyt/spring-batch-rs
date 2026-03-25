@@ -505,8 +505,14 @@ mod tests {
 
     fn sample_rows() -> Vec<Row> {
         vec![
-            Row { name: "alpha".into(), value: 1 },
-            Row { name: "beta".into(), value: 2 },
+            Row {
+                name: "alpha".into(),
+                value: 1,
+            },
+            Row {
+                name: "beta".into(),
+                value: 2,
+            },
         ]
     }
 
@@ -538,7 +544,10 @@ mod tests {
         }
         let out = String::from_utf8(buf).unwrap();
         assert!(!out.contains("name"), "header row should be absent: {out}");
-        assert!(out.contains("alpha,1"), "data row missing from headerless output: {out}");
+        assert!(
+            out.contains("alpha,1"),
+            "data row missing from headerless output: {out}"
+        );
     }
 
     #[test]
@@ -553,7 +562,10 @@ mod tests {
             ItemWriter::<Row>::flush(&writer).unwrap();
         }
         let out = String::from_utf8(buf).unwrap();
-        assert!(out.contains("name;value"), "semicolon header missing: {out}");
+        assert!(
+            out.contains("name;value"),
+            "semicolon header missing: {out}"
+        );
         assert!(out.contains("alpha;1"), "semicolon data missing: {out}");
     }
 
@@ -568,7 +580,10 @@ mod tests {
             ItemWriter::<Row>::flush(&writer).unwrap();
         }
         let out = String::from_utf8(buf).unwrap();
-        assert!(out.is_empty(), "writing an empty chunk should produce no output, got: {out:?}");
+        assert!(
+            out.is_empty(),
+            "writing an empty chunk should produce no output, got: {out:?}"
+        );
     }
 
     #[test]
@@ -578,7 +593,12 @@ mod tests {
             let writer = CsvItemWriterBuilder::<Row>::new()
                 .has_headers(false)
                 .from_writer(&mut buf);
-            writer.write(&[Row { name: "only".into(), value: 99 }]).unwrap();
+            writer
+                .write(&[Row {
+                    name: "only".into(),
+                    value: 99,
+                }])
+                .unwrap();
             ItemWriter::<Row>::flush(&writer).unwrap();
         }
         let out = String::from_utf8(buf).unwrap();
@@ -626,7 +646,10 @@ mod tests {
             _phantom: PhantomData,
         };
         let result = ItemWriter::<Row>::flush(&csv_writer);
-        assert!(result.is_err(), "flush should fail when underlying writer fails");
+        assert!(
+            result.is_err(),
+            "flush should fail when underlying writer fails"
+        );
         match result {
             Err(BatchError::ItemWriter(_)) => {}
             other => panic!("expected ItemWriter error, got {other:?}"),

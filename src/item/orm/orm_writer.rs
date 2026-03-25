@@ -577,7 +577,10 @@ mod tests {
         }];
 
         let result = writer.write(&items);
-        assert!(result.is_ok(), "write should succeed with mock DB: {result:?}");
+        assert!(
+            result.is_ok(),
+            "write should succeed with mock DB: {result:?}"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -597,7 +600,10 @@ mod tests {
         }];
 
         let result = writer.write(&items);
-        assert!(result.is_err(), "write should fail when database returns error");
+        assert!(
+            result.is_err(),
+            "write should fail when database returns error"
+        );
         match result {
             Err(BatchError::ItemWriter(msg)) => {
                 assert!(msg.contains("Failed to insert"), "unexpected error: {msg}")

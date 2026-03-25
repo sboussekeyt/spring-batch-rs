@@ -1208,7 +1208,8 @@ mod tests {
     #[test]
     fn should_derive_tag_from_type_name_when_not_set_in_from_reader() {
         // This test calls from_reader() without .tag() → exercises the None branch (line 221)
-        let xml_content = r#"<root><TestItem><name>derived</name><value>7</value></TestItem></root>"#;
+        let xml_content =
+            r#"<root><TestItem><name>derived</name><value>7</value></TestItem></root>"#;
         let cursor = Cursor::new(xml_content);
 
         // No .tag() call → tag derived from type name "TestItem"

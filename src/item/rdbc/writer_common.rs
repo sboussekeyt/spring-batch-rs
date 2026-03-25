@@ -158,8 +158,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn should_return_error_when_binder_is_missing() {
         let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
-        let result =
-            validate_config::<String, Sqlite>(Some(&pool), Some("tbl"), &["col"], None);
+        let result = validate_config::<String, Sqlite>(Some(&pool), Some("tbl"), &["col"], None);
         match result.err().unwrap() {
             BatchError::ItemWriter(msg) => assert!(msg.contains("binder"), "unexpected: {msg}"),
             e => panic!("expected ItemWriter, got {e:?}"),
@@ -184,7 +183,10 @@ mod tests {
             &["col"],
             Some(&binder as &dyn DatabaseItemBinder<String, Sqlite>),
         );
-        assert!(result.is_ok(), "should return Ok when all config is provided");
+        assert!(
+            result.is_ok(),
+            "should return Ok when all config is provided"
+        );
     }
 
     #[test]

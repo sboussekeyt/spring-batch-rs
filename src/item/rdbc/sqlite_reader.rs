@@ -45,11 +45,7 @@ where
         let mut query_builder = QueryBuilder::<Sqlite>::new(self.query);
 
         if let Some(page_size) = self.page_size {
-            query_builder.push(format!(
-                " LIMIT {} OFFSET {}",
-                page_size,
-                self.offset.get()
-            ));
+            query_builder.push(format!(" LIMIT {} OFFSET {}", page_size, self.offset.get()));
         }
 
         let query = query_builder.build();
@@ -124,7 +120,10 @@ mod tests {
         let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
         let reader = SqliteRdbcItemReader::<Row>::new(pool, "SELECT id, name FROM items", None);
         assert_eq!(reader.offset.get(), 0, "initial offset should be 0");
-        assert!(reader.buffer.borrow().is_empty(), "initial buffer should be empty");
+        assert!(
+            reader.buffer.borrow().is_empty(),
+            "initial buffer should be empty"
+        );
         assert_eq!(reader.page_size, None);
     }
 
@@ -139,11 +138,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn should_read_all_items_without_pagination() {
         let pool = pool_with_rows(&[(1, "alice"), (2, "bob")]).await;
-        let reader = SqliteRdbcItemReader::<Row>::new(
-            pool,
-            "SELECT id, name FROM items ORDER BY id",
-            None,
-        );
+        let reader =
+            SqliteRdbcItemReader::<Row>::new(pool, "SELECT id, name FROM items ORDER BY id", None);
 
         let first = reader.read().unwrap().expect("first item should exist");
         assert_eq!(first.name, "alice");
@@ -151,21 +147,25 @@ mod tests {
         let second = reader.read().unwrap().expect("second item should exist");
         assert_eq!(second.name, "bob");
 
-        assert!(reader.read().unwrap().is_none(), "should return None after all items");
+        assert!(
+            reader.read().unwrap().is_none(),
+            "should return None after all items"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn should_advance_offset_on_each_read() {
         let pool = pool_with_rows(&[(1, "x"), (2, "y")]).await;
-        let reader = SqliteRdbcItemReader::<Row>::new(
-            pool,
-            "SELECT id, name FROM items ORDER BY id",
-            None,
-        );
+        let reader =
+            SqliteRdbcItemReader::<Row>::new(pool, "SELECT id, name FROM items ORDER BY id", None);
 
         assert_eq!(reader.offset.get(), 0);
         reader.read().unwrap();
-        assert_eq!(reader.offset.get(), 1, "offset should increment after each read");
+        assert_eq!(
+            reader.offset.get(),
+            1,
+            "offset should increment after each read"
+        );
         reader.read().unwrap();
         assert_eq!(reader.offset.get(), 2);
     }
@@ -191,9 +191,15 @@ mod tests {
         let pool = pool_with_rows(&[(42, "only")]).await;
         let reader = SqliteRdbcItemReader::<Row>::new(pool, "SELECT id, name FROM items", None);
 
-        let item = reader.read().unwrap().expect("should return the single item");
+        let item = reader
+            .read()
+            .unwrap()
+            .expect("should return the single item");
         assert_eq!(item.id, 42);
         assert_eq!(item.name, "only");
-        assert!(reader.read().unwrap().is_none(), "should return None after the only item");
+        assert!(
+            reader.read().unwrap().is_none(),
+            "should return None after the only item"
+        );
     }
 }

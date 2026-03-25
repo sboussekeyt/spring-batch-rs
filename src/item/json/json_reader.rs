@@ -469,11 +469,13 @@ mod tests {
 
         // Object is syntactically valid JSON but missing required field `id`
         let json = r#"[{"wrong_field": 42}]"#;
-        let reader = JsonItemReaderBuilder::<StrictItem>::new()
-            .from_reader(Cursor::new(json));
+        let reader = JsonItemReaderBuilder::<StrictItem>::new().from_reader(Cursor::new(json));
 
         let result = reader.read();
-        assert!(result.is_err(), "should fail when JSON doesn't match target type");
+        assert!(
+            result.is_err(),
+            "should fail when JSON doesn't match target type"
+        );
         match result {
             Err(BatchError::ItemReader(_)) => {}
             other => panic!("expected ItemReader error, got {other:?}"),

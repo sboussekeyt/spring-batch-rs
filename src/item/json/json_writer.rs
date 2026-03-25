@@ -559,8 +559,16 @@ mod tests {
 
         let writer = JsonItemWriterBuilder::new().from_path(&file_path);
 
-        let item1 = TestItem { id: 1, name: "first".to_string(), value: 10.0 };
-        let item2 = TestItem { id: 2, name: "second".to_string(), value: 20.0 };
+        let item1 = TestItem {
+            id: 1,
+            name: "first".to_string(),
+            value: 10.0,
+        };
+        let item2 = TestItem {
+            id: 2,
+            name: "second".to_string(),
+            value: 20.0,
+        };
 
         writer.open().unwrap();
         writer.write(&[item1]).unwrap();
@@ -580,7 +588,11 @@ mod tests {
         let buf = Cursor::new(Vec::new());
         let writer = JsonItemWriterBuilder::<TestItem>::new().from_writer(buf);
 
-        let item = TestItem { id: 7, name: "cursor".to_string(), value: 0.5 };
+        let item = TestItem {
+            id: 7,
+            name: "cursor".to_string(),
+            value: 0.5,
+        };
         writer.open().unwrap();
         writer.write(&[item]).unwrap();
         writer.close().unwrap();
@@ -610,17 +622,26 @@ mod tests {
         writer.close().unwrap();
 
         let content = fs::read_to_string(&file_path).unwrap();
-        assert_eq!(content, "[]\n", "compact format should produce []\\n, got: {content:?}");
+        assert_eq!(
+            content, "[]\n",
+            "compact format should produce []\\n, got: {content:?}"
+        );
     }
 
     // A writer that always fails on any write or flush
     struct FailWriter;
     impl std::io::Write for FailWriter {
         fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
-            Err(std::io::Error::new(std::io::ErrorKind::Other, "write failed"))
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "write failed",
+            ))
         }
         fn flush(&mut self) -> std::io::Result<()> {
-            Err(std::io::Error::new(std::io::ErrorKind::Other, "flush failed"))
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "flush failed",
+            ))
         }
     }
 
@@ -661,7 +682,10 @@ mod tests {
         // write() serializes first (into a String), then writes to stream
         // With capacity-0 BufWriter, write_all on the stream fails
         let result = ((&writer) as &dyn ItemWriter<String>).write(&["hello".to_string()]);
-        assert!(result.is_err(), "write should fail when underlying IO fails");
+        assert!(
+            result.is_err(),
+            "write should fail when underlying IO fails"
+        );
     }
 
     #[test]
@@ -671,7 +695,9 @@ mod tests {
         struct NonSerializable;
         impl Serialize for NonSerializable {
             fn serialize<S: serde::Serializer>(&self, _s: S) -> Result<S::Ok, S::Error> {
-                Err(serde::ser::Error::custom("intentional serialization failure"))
+                Err(serde::ser::Error::custom(
+                    "intentional serialization failure",
+                ))
             }
         }
 

@@ -779,10 +779,16 @@ mod tests {
         };
 
         let result = writer.flush();
-        assert!(result.is_err(), "flush should fail when underlying writer fails");
+        assert!(
+            result.is_err(),
+            "flush should fail when underlying writer fails"
+        );
         match result.err().unwrap() {
             BatchError::ItemWriter(msg) => {
-                assert!(msg.contains("flush"), "error message should mention flush, got: {msg}")
+                assert!(
+                    msg.contains("flush"),
+                    "error message should mention flush, got: {msg}"
+                )
             }
             e => panic!("expected ItemWriter error, got {e:?}"),
         }

@@ -420,7 +420,10 @@ mod tests {
         let writer = RdbcItemWriterBuilder::<String>::new()
             .postgres_binder(&binder)
             .build_postgres();
-        assert!(writer.item_binder.is_some(), "postgres binder should be set");
+        assert!(
+            writer.item_binder.is_some(),
+            "postgres binder should be set"
+        );
     }
 
     #[test]

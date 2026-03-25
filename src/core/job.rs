@@ -448,10 +448,7 @@ mod tests {
             .writer(&writer2)
             .build();
 
-        let job = JobBuilder::new()
-            .start(&step1)
-            .next(&step2)
-            .build();
+        let job = JobBuilder::new().start(&step1).next(&step2).build();
 
         let result = job.run();
         assert!(result.is_ok(), "job with two steps should succeed");

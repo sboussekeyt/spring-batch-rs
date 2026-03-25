@@ -45,11 +45,7 @@ where
         let mut query_builder = QueryBuilder::<MySql>::new(self.query);
 
         if let Some(page_size) = self.page_size {
-            query_builder.push(format!(
-                " LIMIT {} OFFSET {}",
-                page_size,
-                self.offset.get()
-            ));
+            query_builder.push(format!(" LIMIT {} OFFSET {}", page_size, self.offset.get()));
         }
 
         let query = query_builder.build();

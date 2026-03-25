@@ -151,11 +151,7 @@ where
         // Add pagination clauses only if page_size is configured
         // This allows the same reader to work with both paginated and non-paginated queries
         if let Some(page_size) = self.page_size {
-            query_builder.push(format!(
-                " LIMIT {} OFFSET {}",
-                page_size,
-                self.offset.get()
-            ));
+            query_builder.push(format!(" LIMIT {} OFFSET {}", page_size, self.offset.get()));
         }
 
         let query = query_builder.build();
@@ -266,4 +262,3 @@ where
         Ok(result.cloned())
     }
 }
-
