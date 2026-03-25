@@ -807,3 +807,178 @@ where
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::item::ItemReader;
+    use sea_orm::{
+        entity::prelude::*, ActiveValue::Set, DatabaseBackend, MockDatabase, MockExecResult,
+    };
+
+    // Minimal entity definition for testing
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[sea_orm(table_name = "record")]
+    pub struct Model {
+        #[sea_orm(primary_key)]
+        pub id: i32,
+        pub name: String,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+
+    // --- OrmItemReader unit tests ---
+
+    #[test]
+    fn should_create_reader_with_default_state() {
+        let reader = OrmItemReader::<Entity>::new();
+        assert!(reader.connection.is_none(), "connection should start as None");
+        assert_eq!(reader.page_size, None);
+        assert_eq!(reader.offset.get(), 0);
+        assert_eq!(reader.current_page.get(), 0);
+        assert!(reader.buffer.borrow().is_empty());
+    }
+
+    #[test]
+    fn should_set_page_size_via_method() {
+        let reader = OrmItemReader::<Entity>::new().page_size(50);
+        assert_eq!(reader.page_size, Some(50));
+        // buffer capacity should be pre-allocated
+        assert_eq!(reader.buffer.borrow().capacity(), 50);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_return_none_when_database_is_empty() {
+        let db = MockDatabase::new(DatabaseBackend::Sqlite)
+            .append_query_results([Vec::<Model>::new()])
+            .into_connection();
+
+        let reader = OrmItemReader::<Entity>::new()
+            .connection(&db)
+            .query(Entity::find());
+
+        let result = reader.read().unwrap();
+        assert!(result.is_none(), "empty DB should yield None");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_read_single_item_then_return_none() {
+        let db = MockDatabase::new(DatabaseBackend::Sqlite)
+            .append_query_results([vec![Model { id: 1, name: "Alice".to_string() }]])
+            .into_connection();
+
+        let reader = OrmItemReader::<Entity>::new()
+            .connection(&db)
+            .query(Entity::find());
+
+        let first = reader.read().unwrap().expect("first item should exist");
+        assert_eq!(first.name, "Alice");
+        assert_eq!(reader.offset.get(), 1);
+
+        let second = reader.read().unwrap();
+        assert!(second.is_none(), "should return None after the only item");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_read_multiple_items_without_pagination() {
+        let db = MockDatabase::new(DatabaseBackend::Sqlite)
+            .append_query_results([vec![
+                Model { id: 1, name: "Alice".to_string() },
+                Model { id: 2, name: "Bob".to_string() },
+            ]])
+            .into_connection();
+
+        let reader = OrmItemReader::<Entity>::new()
+            .connection(&db)
+            .query(Entity::find());
+
+        let a = reader.read().unwrap().unwrap();
+        assert_eq!(a.name, "Alice");
+        let b = reader.read().unwrap().unwrap();
+        assert_eq!(b.name, "Bob");
+        assert!(reader.read().unwrap().is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_paginate_across_multiple_pages() {
+        // page_size=1: two DB calls, each returning one item, then empty
+        let db = MockDatabase::new(DatabaseBackend::Sqlite)
+            .append_query_results([
+                vec![Model { id: 1, name: "P1".to_string() }],
+                vec![Model { id: 2, name: "P2".to_string() }],
+                vec![], // signals end of data
+            ])
+            .into_connection();
+
+        let reader = OrmItemReader::<Entity>::new()
+            .connection(&db)
+            .query(Entity::find())
+            .page_size(1);
+
+        let first = reader.read().unwrap().unwrap();
+        assert_eq!(first.name, "P1");
+        assert_eq!(reader.current_page.get(), 1, "page should advance after full page");
+
+        let second = reader.read().unwrap().unwrap();
+        assert_eq!(second.name, "P2");
+
+        assert!(reader.read().unwrap().is_none(), "should stop after all pages");
+    }
+
+    // --- OrmItemReaderBuilder unit tests ---
+
+    #[test]
+    fn should_create_builder_with_default_state() {
+        let builder = OrmItemReaderBuilder::<Entity>::new();
+        assert!(builder.connection.is_none());
+        assert!(builder.query.is_none());
+        assert_eq!(builder.page_size, None);
+    }
+
+    #[test]
+    fn should_set_page_size_on_builder() {
+        let builder = OrmItemReaderBuilder::<Entity>::new().page_size(100);
+        assert_eq!(builder.page_size, Some(100));
+    }
+
+    #[test]
+    #[should_panic(expected = "Database connection is required")]
+    fn should_panic_when_building_without_connection() {
+        OrmItemReaderBuilder::<Entity>::new()
+            .query(Entity::find())
+            .build();
+    }
+
+    #[test]
+    #[should_panic(expected = "Query is required")]
+    fn should_panic_when_building_without_query() {
+        let db = MockDatabase::new(DatabaseBackend::Sqlite).into_connection();
+        OrmItemReaderBuilder::<Entity>::new()
+            .connection(&db)
+            .build();
+    }
+
+    #[test]
+    fn should_build_reader_with_connection_and_query() {
+        let db = MockDatabase::new(DatabaseBackend::Sqlite).into_connection();
+        let reader = OrmItemReaderBuilder::<Entity>::new()
+            .connection(&db)
+            .query(Entity::find())
+            .build();
+        assert!(reader.connection.is_some());
+        assert_eq!(reader.page_size, None);
+    }
+
+    #[test]
+    fn should_build_reader_with_page_size() {
+        let db = MockDatabase::new(DatabaseBackend::Sqlite).into_connection();
+        let reader = OrmItemReaderBuilder::<Entity>::new()
+            .connection(&db)
+            .query(Entity::find())
+            .page_size(50)
+            .build();
+        assert_eq!(reader.page_size, Some(50));
+    }
+}

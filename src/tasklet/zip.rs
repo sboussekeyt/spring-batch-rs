@@ -1000,6 +1000,91 @@ mod tests {
         assert!(tasklet.should_include_file(Path::new("test.txt")));
         assert!(!tasklet.should_include_file(Path::new("test.tmp")));
         assert!(!tasklet.should_include_file(Path::new("test.log")));
+
+        // Wildcard patterns: * and ** alone match everything
+        assert!(tasklet.matches_pattern("anything", "*"));
+        assert!(tasklet.matches_pattern("deep/path/file.txt", "**"));
+
+        // ** pattern where full path doesn't match but a segment does
+        // e.g. "a/dir" vs "**/dir" — full path != "dir", but segment "dir" == "dir"
+        assert!(tasklet.matches_pattern("a/dir", "**/dir"));
+
+        // ** pattern with non-empty prefix like "src/**.rs"
+        assert!(tasklet.matches_pattern("src/main.rs", "src/**.rs"));
+        assert!(!tasklet.matches_pattern("lib/main.rs", "src/**.rs"));
+
+        // Exact match (no wildcard in pattern)
+        assert!(tasklet.matches_pattern("file.txt", "file.txt"));
+        assert!(!tasklet.matches_pattern("other.txt", "file.txt"));
+    }
+
+    #[test]
+    fn should_create_zip_tasklet_builder_via_default() {
+        let _b = ZipTaskletBuilder::default();
+    }
+
+    #[test]
+    fn should_zip_file_with_stored_compression() -> Result<(), BatchError> {
+        let temp_dir = TempDir::new().unwrap();
+        let source_file = temp_dir.path().join("data.txt");
+        let target_zip = temp_dir.path().join("stored.zip");
+
+        fs::write(&source_file, "content for stored compression").unwrap();
+
+        let mut tasklet = ZipTasklet::new()
+            .source_path(&source_file)
+            .target_path(&target_zip)?;
+        tasklet.set_compression_level(0); // Stored (no compression)
+
+        let step_execution = StepExecution::new("test-step");
+        let result = tasklet.execute(&step_execution)?;
+        assert_eq!(result, RepeatStatus::Finished);
+        assert!(target_zip.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn should_zip_directory_without_preserving_structure() -> Result<(), BatchError> {
+        let temp_dir = TempDir::new().unwrap();
+        let source_dir = temp_dir.path().join("source");
+        let target_zip = temp_dir.path().join("flat.zip");
+
+        fs::create_dir(&source_dir).unwrap();
+        fs::write(source_dir.join("a.txt"), "file a").unwrap();
+        fs::write(source_dir.join("b.txt"), "file b").unwrap();
+
+        let tasklet = ZipTasklet::new()
+            .source_path(&source_dir)
+            .preserve_structure(false)
+            .target_path(&target_zip)?;
+
+        let step_execution = StepExecution::new("test-step");
+        let result = tasklet.execute(&step_execution)?;
+        assert_eq!(result, RepeatStatus::Finished);
+        assert!(target_zip.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn should_exclude_file_when_filter_does_not_match() -> Result<(), BatchError> {
+        let temp_dir = TempDir::new().unwrap();
+        let source_file = temp_dir.path().join("data.log");
+        let target_zip = temp_dir.path().join("filtered.zip");
+
+        fs::write(&source_file, "log content").unwrap();
+
+        // Only include .txt files → data.log is excluded
+        let tasklet = ZipTasklet::new()
+            .source_path(&source_file)
+            .include_pattern("*.txt")
+            .target_path(&target_zip)?;
+
+        let step_execution = StepExecution::new("test-step");
+        let result = tasklet.execute(&step_execution)?;
+        assert_eq!(result, RepeatStatus::Finished);
+        // ZIP exists but contains 0 files (the source was excluded)
+        assert!(target_zip.exists());
+        Ok(())
     }
 
     #[test]

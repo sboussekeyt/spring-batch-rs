@@ -350,60 +350,137 @@ impl<'a, O> Default for RdbcItemWriterBuilder<'a, O> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::item::ItemWriter;
+    use sqlx::query_builder::Separated;
 
-    /// `build_postgres` transfers the `table` value into a `PostgresItemWriter`
-    /// whose `table` field is `pub(crate)`, so we can assert on it directly.
+    struct NopBinder;
+    impl DatabaseItemBinder<String, Postgres> for NopBinder {
+        fn bind(&self, _: &String, _: Separated<Postgres, &str>) {}
+    }
+    impl DatabaseItemBinder<String, MySql> for NopBinder {
+        fn bind(&self, _: &String, _: Separated<MySql, &str>) {}
+    }
+    impl DatabaseItemBinder<String, Sqlite> for NopBinder {
+        fn bind(&self, _: &String, _: Separated<Sqlite, &str>) {}
+    }
+
     #[test]
-    fn should_set_table_name() {
+    fn should_set_table_name_in_postgres_writer() {
         let writer = RdbcItemWriterBuilder::<String>::new()
             .table("users")
             .build_postgres();
-
         assert_eq!(writer.table, Some("users"));
     }
 
-    /// Each call to `add_column` appends one entry; after two calls the
-    /// resulting writer's `columns` vec must contain exactly those two values.
     #[test]
-    fn should_accumulate_columns() {
+    fn should_accumulate_columns_in_postgres_writer() {
         let writer = RdbcItemWriterBuilder::<String>::new()
             .add_column("id")
             .add_column("name")
             .build_postgres();
-
         assert_eq!(writer.columns, vec!["id", "name"]);
     }
 
-    /// A freshly created builder has no columns configured, so the writer it
-    /// produces should start with an empty columns list.
     #[test]
-    fn should_start_with_empty_columns() {
-        let writer = RdbcItemWriterBuilder::<String>::new().build_mysql();
-
-        assert!(writer.columns.is_empty());
-    }
-
-    /// A freshly created builder has no table configured, so the writer it
-    /// produces should have `table` set to `None`.
-    #[test]
-    fn should_have_no_table_by_default() {
-        let writer = RdbcItemWriterBuilder::<String>::new().build_mysql();
-
-        assert!(writer.table.is_none());
-    }
-
-    /// Chaining `table` and multiple `add_column` calls must all be reflected
-    /// together in the built writer.
-    #[test]
-    fn should_chain_table_and_columns() {
+    fn should_transfer_table_and_columns_to_mysql_writer() {
         let writer = RdbcItemWriterBuilder::<String>::new()
             .table("orders")
             .add_column("order_id")
-            .add_column("customer_id")
             .add_column("total")
-            .build_postgres();
-
+            .build_mysql();
         assert_eq!(writer.table, Some("orders"));
-        assert_eq!(writer.columns, vec!["order_id", "customer_id", "total"]);
+        assert_eq!(writer.columns, vec!["order_id", "total"]);
+    }
+
+    #[test]
+    fn should_transfer_table_and_columns_to_sqlite_writer() {
+        use crate::BatchError;
+        // No pool configured → validate_config will fail on "pool", not on table/columns.
+        // If table or columns were missing the error would mention those instead,
+        // so reaching the "pool" error proves both were transferred correctly.
+        let binder = NopBinder;
+        let writer = RdbcItemWriterBuilder::<String>::new()
+            .table("items")
+            .add_column("sku")
+            .sqlite_binder(&binder)
+            .build_sqlite();
+        let result = writer.write(&["x".to_string()]);
+        match result.err().unwrap() {
+            BatchError::ItemWriter(msg) => assert!(
+                msg.contains("pool"),
+                "table and columns were set so error should be about pool, got: {msg}"
+            ),
+            e => panic!("expected ItemWriter, got {e:?}"),
+        }
+    }
+
+    #[test]
+    fn should_set_postgres_binder() {
+        let binder = NopBinder;
+        let writer = RdbcItemWriterBuilder::<String>::new()
+            .postgres_binder(&binder)
+            .build_postgres();
+        assert!(writer.item_binder.is_some(), "postgres binder should be set");
+    }
+
+    #[test]
+    fn should_set_mysql_binder() {
+        let binder = NopBinder;
+        let writer = RdbcItemWriterBuilder::<String>::new()
+            .mysql_binder(&binder)
+            .build_mysql();
+        assert!(writer.item_binder.is_some(), "mysql binder should be set");
+    }
+
+    #[test]
+    fn should_transfer_sqlite_binder_to_writer() {
+        use crate::BatchError;
+        // With binder set but no pool, write() should fail on "pool" not on "binder"
+        let binder = NopBinder;
+        let writer = RdbcItemWriterBuilder::<String>::new()
+            .table("t")
+            .add_column("v")
+            .sqlite_binder(&binder)
+            .build_sqlite();
+        let result = writer.write(&["x".to_string()]);
+        match result.err().unwrap() {
+            BatchError::ItemWriter(msg) => assert!(
+                msg.contains("pool"),
+                "binder was set so error should be about pool, got: {msg}"
+            ),
+            e => panic!("expected ItemWriter, got {e:?}"),
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_transfer_sqlite_pool_to_writer() {
+        use crate::BatchError;
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
+        // Pool set but no binder → error is "binder not configured"
+        let writer = RdbcItemWriterBuilder::<String>::new()
+            .sqlite(&pool)
+            .table("t")
+            .add_column("v")
+            .build_sqlite();
+        let result = writer.write(&["x".to_string()]);
+        match result.err().unwrap() {
+            BatchError::ItemWriter(msg) => assert!(
+                msg.contains("binder"),
+                "pool was set so error should be about binder, got: {msg}"
+            ),
+            e => panic!("expected ItemWriter, got {e:?}"),
+        }
+    }
+
+    #[test]
+    fn should_have_no_table_by_default_in_mysql_writer() {
+        let writer = RdbcItemWriterBuilder::<String>::new().build_mysql();
+        assert!(writer.table.is_none());
+        assert!(writer.columns.is_empty());
+    }
+
+    #[test]
+    fn should_create_via_default() {
+        let _b = RdbcItemWriterBuilder::<String>::default();
     }
 }

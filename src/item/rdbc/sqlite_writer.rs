@@ -208,4 +208,123 @@ mod tests {
         let result = writer.write(&[]);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn should_create_via_default() {
+        let writer = SqliteItemWriter::<String>::default();
+        assert!(writer.pool.is_none());
+        assert!(writer.table.is_none());
+        assert!(writer.columns.is_empty());
+        assert!(writer.item_binder.is_none());
+    }
+
+    #[test]
+    fn should_return_error_when_columns_missing_and_items_given() {
+        use crate::{item::rdbc::DatabaseItemBinder, BatchError};
+        use sqlx::query_builder::Separated;
+
+        struct DummyBinder;
+        impl DatabaseItemBinder<String, Sqlite> for DummyBinder {
+            fn bind(&self, _: &String, _: Separated<Sqlite, &str>) {}
+        }
+        let binder = DummyBinder;
+        let writer = SqliteItemWriter::<String>::new()
+            .table("t")
+            .item_binder(&binder); // no columns
+
+        let result = writer.write(&["x".to_string()]);
+        assert!(result.is_err(), "expected error for missing columns");
+        match result.err().unwrap() {
+            BatchError::ItemWriter(msg) => assert!(msg.contains("columns"), "{msg}"),
+            e => panic!("expected ItemWriter, got {e:?}"),
+        }
+    }
+
+    #[test]
+    fn should_return_error_when_pool_not_configured_and_items_given() {
+        use crate::{item::rdbc::DatabaseItemBinder, BatchError};
+        use sqlx::query_builder::Separated;
+
+        struct DummyBinder;
+        impl DatabaseItemBinder<String, Sqlite> for DummyBinder {
+            fn bind(&self, _: &String, _: Separated<Sqlite, &str>) {}
+        }
+        let binder = DummyBinder;
+        let writer = SqliteItemWriter::<String>::new()
+            .table("t")
+            .add_column("v")
+            .item_binder(&binder); // no pool
+
+        let result = writer.write(&["x".to_string()]);
+        assert!(result.is_err(), "expected error for missing pool");
+        match result.err().unwrap() {
+            BatchError::ItemWriter(msg) => assert!(msg.contains("pool"), "{msg}"),
+            e => panic!("expected ItemWriter, got {e:?}"),
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_write_items_to_in_memory_sqlite() {
+        use crate::item::rdbc::DatabaseItemBinder;
+        use sqlx::{query_builder::Separated, SqlitePool};
+
+        struct StringBinder;
+        impl DatabaseItemBinder<String, Sqlite> for StringBinder {
+            fn bind(&self, item: &String, mut q: Separated<Sqlite, &str>) {
+                q.push_bind(item.clone());
+            }
+        }
+
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::query("CREATE TABLE t (v TEXT NOT NULL)")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let binder = StringBinder;
+        let writer = SqliteItemWriter::<String>::new()
+            .pool(&pool)
+            .table("t")
+            .add_column("v")
+            .item_binder(&binder);
+
+        let items = vec!["hello".to_string(), "world".to_string()];
+        writer.write(&items).unwrap();
+
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM t")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(count.0, 2, "both items should have been written");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_return_error_when_sqlite_query_fails() {
+        use crate::{item::rdbc::DatabaseItemBinder, BatchError};
+        use sqlx::{query_builder::Separated, SqlitePool};
+
+        struct StringBinder;
+        impl DatabaseItemBinder<String, Sqlite> for StringBinder {
+            fn bind(&self, item: &String, mut q: Separated<Sqlite, &str>) {
+                q.push_bind(item.clone());
+            }
+        }
+
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        // Table is NOT created → INSERT will fail
+        let binder = StringBinder;
+        let writer = SqliteItemWriter::<String>::new()
+            .pool(&pool)
+            .table("nonexistent_table")
+            .add_column("v")
+            .item_binder(&binder);
+
+        let result = writer.write(&["x".to_string()]);
+        match result.err().unwrap() {
+            BatchError::ItemWriter(msg) => {
+                assert!(msg.contains("SQLite"), "error should mention SQLite, got: {msg}")
+            }
+            e => panic!("expected ItemWriter error, got {e:?}"),
+        }
+    }
 }

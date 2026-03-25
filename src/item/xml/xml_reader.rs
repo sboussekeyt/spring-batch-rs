@@ -1204,4 +1204,56 @@ mod tests {
         assert_eq!(builder1.capacity, builder2.capacity);
         assert_eq!(builder1.tag_name, builder2.tag_name);
     }
+
+    #[test]
+    fn should_derive_tag_from_type_name_when_not_set_in_from_reader() {
+        // This test calls from_reader() without .tag() → exercises the None branch (line 221)
+        let xml_content = r#"<root><TestItem><name>derived</name><value>7</value></TestItem></root>"#;
+        let cursor = Cursor::new(xml_content);
+
+        // No .tag() call → tag derived from type name "TestItem"
+        let reader = XmlItemReaderBuilder::<TestItem>::new().from_reader(cursor);
+
+        let item = reader.read().unwrap().unwrap();
+        assert_eq!(item.name, "derived");
+        assert_eq!(item.value, 7);
+    }
+
+    #[test]
+    fn should_return_error_on_unexpected_eof_inside_item() {
+        // Truncated XML — the item tag is opened but never closed → EOF inside inner loop
+        let xml_content = r#"<root><TestItem><name>truncated"#;
+        let cursor = Cursor::new(xml_content);
+
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("TestItem")
+            .from_reader(cursor);
+
+        let result = reader.read();
+        assert!(result.is_err(), "expected error for truncated XML");
+        match result {
+            Err(BatchError::ItemReader(msg)) => {
+                assert!(
+                    msg.contains("Unexpected end of file") || msg.contains("XML"),
+                    "unexpected error message: {msg}"
+                );
+            }
+            other => panic!("expected ItemReader error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn should_ignore_xml_comments_inside_items() {
+        // A Comment event inside an item body exercises the `_ => {}` branch (line 477)
+        let xml_content = r#"<root><TestItem><!-- a comment --><name>commented</name><value>5</value></TestItem></root>"#;
+        let cursor = Cursor::new(xml_content);
+
+        let reader = XmlItemReaderBuilder::<TestItem>::new()
+            .tag("TestItem")
+            .from_reader(cursor);
+
+        let item = reader.read().unwrap().unwrap();
+        assert_eq!(item.name, "commented");
+        assert_eq!(item.value, 5);
+    }
 }

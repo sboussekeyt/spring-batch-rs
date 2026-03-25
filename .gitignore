@@ -5,4 +5,4 @@
 src/item/xml/xml_reader.rs
 coverage/
 .superpowers
-tarpaulin-report.html
+tarpaulin-report.*

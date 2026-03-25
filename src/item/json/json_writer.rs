@@ -559,16 +559,8 @@ mod tests {
 
         let writer = JsonItemWriterBuilder::new().from_path(&file_path);
 
-        let item1 = TestItem {
-            id: 1,
-            name: "first".to_string(),
-            value: 10.0,
-        };
-        let item2 = TestItem {
-            id: 2,
-            name: "second".to_string(),
-            value: 20.0,
-        };
+        let item1 = TestItem { id: 1, name: "first".to_string(), value: 10.0 };
+        let item2 = TestItem { id: 2, name: "second".to_string(), value: 20.0 };
 
         writer.open().unwrap();
         writer.write(&[item1]).unwrap();
@@ -579,5 +571,121 @@ mod tests {
         assert!(content.contains(r#"{"id":1,"name":"first","value":10.0}"#));
         assert!(content.contains(r#"{"id":2,"name":"second","value":20.0}"#));
         assert!(content.contains(','));
+    }
+
+    #[test]
+    fn json_writer_should_write_to_in_memory_buffer() {
+        use std::io::Cursor;
+
+        let buf = Cursor::new(Vec::new());
+        let writer = JsonItemWriterBuilder::<TestItem>::new().from_writer(buf);
+
+        let item = TestItem { id: 7, name: "cursor".to_string(), value: 0.5 };
+        writer.open().unwrap();
+        writer.write(&[item]).unwrap();
+        writer.close().unwrap();
+        // Reaching here without panic confirms from_writer + write + close work
+    }
+
+    #[test]
+    fn json_writer_should_flush_without_error() {
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("flush_test.json");
+
+        let writer = JsonItemWriterBuilder::<TestItem>::new().from_path(&file_path);
+        writer.open().unwrap();
+        writer.flush().unwrap();
+        writer.close().unwrap();
+    }
+
+    #[test]
+    fn json_writer_compact_open_writes_bracket_without_newline() {
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("compact_open.json");
+
+        let writer = JsonItemWriterBuilder::<TestItem>::new()
+            .pretty_formatter(false)
+            .from_path(&file_path);
+        writer.open().unwrap();
+        writer.close().unwrap();
+
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, "[]\n", "compact format should produce []\\n, got: {content:?}");
+    }
+
+    // A writer that always fails on any write or flush
+    struct FailWriter;
+    impl std::io::Write for FailWriter {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::new(std::io::ErrorKind::Other, "write failed"))
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Err(std::io::Error::new(std::io::ErrorKind::Other, "flush failed"))
+        }
+    }
+
+    fn fail_json_writer<O: Serialize>() -> JsonItemWriter<O, FailWriter> {
+        JsonItemWriter {
+            stream: RefCell::new(BufWriter::with_capacity(0, FailWriter)),
+            use_pretty_formatter: false,
+            indent: Box::from(b"  ".as_slice()),
+            is_first_element: Cell::new(true),
+            _phantom: PhantomData,
+        }
+    }
+
+    #[test]
+    fn should_return_error_when_open_fails_on_io() {
+        let writer = fail_json_writer::<String>();
+        let result = ((&writer) as &dyn ItemWriter<String>).open();
+        assert!(result.is_err(), "open should fail when writer fails");
+    }
+
+    #[test]
+    fn should_return_error_when_close_fails_on_io() {
+        let writer = fail_json_writer::<String>();
+        let result = ((&writer) as &dyn ItemWriter<String>).close();
+        assert!(result.is_err(), "close should fail when writer fails");
+    }
+
+    #[test]
+    fn should_return_error_when_flush_fails_on_io() {
+        let writer = fail_json_writer::<String>();
+        let result = ((&writer) as &dyn ItemWriter<String>).flush();
+        assert!(result.is_err(), "flush should fail when writer fails");
+    }
+
+    #[test]
+    fn should_return_error_when_write_fails_on_io() {
+        let writer = fail_json_writer::<String>();
+        // write() serializes first (into a String), then writes to stream
+        // With capacity-0 BufWriter, write_all on the stream fails
+        let result = ((&writer) as &dyn ItemWriter<String>).write(&["hello".to_string()]);
+        assert!(result.is_err(), "write should fail when underlying IO fails");
+    }
+
+    #[test]
+    fn should_return_error_when_serialization_fails_with_pretty_formatter() {
+        use crate::BatchError;
+
+        struct NonSerializable;
+        impl Serialize for NonSerializable {
+            fn serialize<S: serde::Serializer>(&self, _s: S) -> Result<S::Ok, S::Error> {
+                Err(serde::ser::Error::custom("intentional serialization failure"))
+            }
+        }
+
+        let buf = std::io::Cursor::new(Vec::new());
+        let writer = JsonItemWriterBuilder::<NonSerializable>::new()
+            .pretty_formatter(true)
+            .from_writer(buf);
+        let result = ((&writer) as &dyn ItemWriter<NonSerializable>).write(&[NonSerializable]);
+        match result.err().unwrap() {
+            BatchError::ItemWriter(msg) => assert!(
+                msg.contains("intentional"),
+                "error should contain serialization message, got: {msg}"
+            ),
+            e => panic!("expected ItemWriter error, got {e:?}"),
+        }
     }
 }

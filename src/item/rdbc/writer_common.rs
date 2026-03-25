@@ -110,9 +110,11 @@ pub fn max_items_per_batch(column_count: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::BatchError;
+    use sqlx::Sqlite;
 
     #[test]
-    fn test_max_items_per_batch() {
+    fn should_compute_max_items_per_batch() {
         assert_eq!(max_items_per_batch(1), 65535);
         assert_eq!(max_items_per_batch(2), 32767);
         assert_eq!(max_items_per_batch(10), 6553);
@@ -120,7 +122,85 @@ mod tests {
     }
 
     #[test]
-    fn test_bind_limit_constant() {
+    fn should_define_bind_limit_as_65535() {
         assert_eq!(BIND_LIMIT, 65535);
+    }
+
+    #[test]
+    fn should_return_error_when_columns_is_empty() {
+        let result = validate_config::<String, Sqlite>(None, Some("tbl"), &[], None);
+        match result.err().unwrap() {
+            BatchError::ItemWriter(msg) => assert!(msg.contains("columns"), "unexpected: {msg}"),
+            e => panic!("expected ItemWriter, got {e:?}"),
+        }
+    }
+
+    #[test]
+    fn should_return_error_when_pool_is_missing() {
+        // columns non-empty, pool = None → "pool not configured"
+        let result = validate_config::<String, Sqlite>(None, Some("tbl"), &["col"], None);
+        match result.err().unwrap() {
+            BatchError::ItemWriter(msg) => assert!(msg.contains("pool"), "unexpected: {msg}"),
+            e => panic!("expected ItemWriter, got {e:?}"),
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_return_error_when_table_is_missing() {
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let result = validate_config::<String, Sqlite>(Some(&pool), None, &["col"], None);
+        match result.err().unwrap() {
+            BatchError::ItemWriter(msg) => assert!(msg.contains("Table"), "unexpected: {msg}"),
+            e => panic!("expected ItemWriter, got {e:?}"),
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_return_error_when_binder_is_missing() {
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let result =
+            validate_config::<String, Sqlite>(Some(&pool), Some("tbl"), &["col"], None);
+        match result.err().unwrap() {
+            BatchError::ItemWriter(msg) => assert!(msg.contains("binder"), "unexpected: {msg}"),
+            e => panic!("expected ItemWriter, got {e:?}"),
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_return_ok_when_all_config_provided() {
+        use crate::item::rdbc::DatabaseItemBinder;
+        use sqlx::query_builder::Separated;
+
+        struct DummyBinder;
+        impl DatabaseItemBinder<String, Sqlite> for DummyBinder {
+            fn bind(&self, _: &String, _: Separated<Sqlite, &str>) {}
+        }
+
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let binder = DummyBinder;
+        let result = validate_config::<String, Sqlite>(
+            Some(&pool),
+            Some("tbl"),
+            &["col"],
+            Some(&binder as &dyn DatabaseItemBinder<String, Sqlite>),
+        );
+        assert!(result.is_ok(), "should return Ok when all config is provided");
+    }
+
+    #[test]
+    fn should_call_log_write_success_without_panic() {
+        log_write_success(42, "users", "PostgreSQL");
+    }
+
+    #[test]
+    fn should_create_write_error_with_formatted_message() {
+        let err = create_write_error("orders", "MySQL", "connection refused");
+        match err {
+            BatchError::ItemWriter(msg) => {
+                assert!(msg.contains("MySQL"), "missing db name: {msg}");
+                assert!(msg.contains("connection refused"), "missing cause: {msg}");
+            }
+            e => panic!("expected ItemWriter, got {e:?}"),
+        }
     }
 }

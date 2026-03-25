@@ -205,4 +205,49 @@ mod tests {
         let result = writer.write(&[]);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn should_return_error_when_columns_missing_and_items_given() {
+        use crate::{item::rdbc::DatabaseItemBinder, BatchError};
+        use sqlx::query_builder::Separated;
+
+        struct DummyBinder;
+        impl DatabaseItemBinder<String, MySql> for DummyBinder {
+            fn bind(&self, _: &String, _: Separated<MySql, &str>) {}
+        }
+        let binder = DummyBinder;
+        let writer = MySqlItemWriter::<String>::new()
+            .table("t")
+            .item_binder(&binder); // no columns
+
+        let result = writer.write(&["x".to_string()]);
+        assert!(result.is_err(), "expected error for missing columns");
+        match result.unwrap_err() {
+            BatchError::ItemWriter(msg) => assert!(msg.contains("columns"), "{msg}"),
+            e => panic!("expected ItemWriter, got {e:?}"),
+        }
+    }
+
+    #[test]
+    fn should_return_error_when_pool_not_configured_and_items_given() {
+        use crate::{item::rdbc::DatabaseItemBinder, BatchError};
+        use sqlx::query_builder::Separated;
+
+        struct DummyBinder;
+        impl DatabaseItemBinder<String, MySql> for DummyBinder {
+            fn bind(&self, _: &String, _: Separated<MySql, &str>) {}
+        }
+        let binder = DummyBinder;
+        let writer = MySqlItemWriter::<String>::new()
+            .table("t")
+            .add_column("v")
+            .item_binder(&binder); // no pool
+
+        let result = writer.write(&["x".to_string()]);
+        assert!(result.is_err(), "expected error for missing pool");
+        match result.unwrap_err() {
+            BatchError::ItemWriter(msg) => assert!(msg.contains("pool"), "{msg}"),
+            e => panic!("expected ItemWriter, got {e:?}"),
+        }
+    }
 }

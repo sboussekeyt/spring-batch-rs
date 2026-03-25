@@ -414,4 +414,48 @@ mod tests {
         assert!(execution.is_some());
         assert_eq!(execution.unwrap().status, StepStatus::Success);
     }
+
+    #[test]
+    fn job_should_run_multiple_steps_added_with_next() {
+        // Covers JobBuilder::next() at lines 278-280
+        let mut reader1 = MockTestItemReader::default();
+        reader1.expect_read().returning(|| Ok(None));
+
+        let mut writer1 = MockTestItemWriter::default();
+        writer1.expect_open().times(1).returning(|| Ok(()));
+        writer1.expect_close().times(1).returning(|| Ok(()));
+
+        let mut reader2 = MockTestItemReader::default();
+        reader2.expect_read().returning(|| Ok(None));
+
+        let mut writer2 = MockTestItemWriter::default();
+        writer2.expect_open().times(1).returning(|| Ok(()));
+        writer2.expect_close().times(1).returning(|| Ok(()));
+
+        let processor = PassThroughProcessor::<i32>::new();
+
+        let step1 = StepBuilder::new("step1")
+            .chunk(2)
+            .reader(&reader1)
+            .processor(&processor)
+            .writer(&writer1)
+            .build();
+
+        let step2 = StepBuilder::new("step2")
+            .chunk(2)
+            .reader(&reader2)
+            .processor(&processor)
+            .writer(&writer2)
+            .build();
+
+        let job = JobBuilder::new()
+            .start(&step1)
+            .next(&step2)
+            .build();
+
+        let result = job.run();
+        assert!(result.is_ok(), "job with two steps should succeed");
+        assert!(job.get_step_execution("step1").is_some());
+        assert!(job.get_step_execution("step2").is_some());
+    }
 }

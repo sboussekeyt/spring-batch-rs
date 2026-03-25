@@ -586,6 +586,54 @@ mod tests {
     }
 
     #[test]
+    fn should_return_error_when_serialization_fails() {
+        use serde::ser;
+
+        #[derive(Clone)]
+        struct FailSerialize;
+        impl Serialize for FailSerialize {
+            fn serialize<S: serde::Serializer>(&self, _s: S) -> Result<S::Ok, S::Error> {
+                Err(ser::Error::custom("intentional failure"))
+            }
+        }
+
+        let mut buf = Vec::new();
+        let writer = CsvItemWriterBuilder::<FailSerialize>::new().from_writer(&mut buf);
+        let result = writer.write(&[FailSerialize]);
+        assert!(result.is_err(), "should fail when serialization fails");
+        match result {
+            Err(BatchError::ItemWriter(_)) => {}
+            other => panic!("expected ItemWriter error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn should_return_error_when_flush_fails_on_io() {
+        use std::io;
+
+        struct FailFlushWriter;
+        impl Write for FailFlushWriter {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Err(io::Error::new(io::ErrorKind::Other, "flush failed"))
+            }
+        }
+
+        let csv_writer = CsvItemWriter::<Row, FailFlushWriter> {
+            writer: RefCell::new(WriterBuilder::new().from_writer(FailFlushWriter)),
+            _phantom: PhantomData,
+        };
+        let result = ItemWriter::<Row>::flush(&csv_writer);
+        assert!(result.is_err(), "flush should fail when underlying writer fails");
+        match result {
+            Err(BatchError::ItemWriter(_)) => {}
+            other => panic!("expected ItemWriter error, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn should_write_to_file() {
         use std::fs;
         use tempfile::NamedTempFile;

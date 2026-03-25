@@ -456,6 +456,57 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn should_return_error_when_json_object_fails_to_deserialize() {
+        use crate::BatchError;
+        use serde::Deserialize;
+
+        #[derive(Debug, Deserialize)]
+        struct StrictItem {
+            #[allow(dead_code)]
+            id: u32,
+        }
+
+        // Object is syntactically valid JSON but missing required field `id`
+        let json = r#"[{"wrong_field": 42}]"#;
+        let reader = JsonItemReaderBuilder::<StrictItem>::new()
+            .from_reader(Cursor::new(json));
+
+        let result = reader.read();
+        assert!(result.is_err(), "should fail when JSON doesn't match target type");
+        match result {
+            Err(BatchError::ItemReader(_)) => {}
+            other => panic!("expected ItemReader error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn should_handle_object_spanning_multiple_buffer_reads() {
+        use serde::Deserialize;
+
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Item {
+            id: u32,
+            name: String,
+        }
+
+        // Each object is ~25 bytes; capacity=10 forces NotEnded on every read
+        let json = r#"[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]"#;
+        let reader = JsonItemReaderBuilder::<Item>::new()
+            .capacity(10)
+            .from_reader(Cursor::new(json));
+
+        let item1 = reader.read().unwrap().unwrap();
+        assert_eq!(item1.id, 1);
+        assert_eq!(item1.name, "Alice");
+
+        let item2 = reader.read().unwrap().unwrap();
+        assert_eq!(item2.id, 2);
+        assert_eq!(item2.name, "Bob");
+
+        assert!(reader.read().unwrap().is_none());
+    }
+
     /// Tests reading from non-JSON input
     ///
     /// This test verifies that the reader gracefully handles input data

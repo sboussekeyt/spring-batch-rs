@@ -1818,6 +1818,14 @@ mod tests {
     use std::env::temp_dir;
     use std::fs;
     #[test]
+    fn should_convert_io_error_to_ftp_error() {
+        use suppaftp::FtpError;
+        let io_err = std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "refused");
+        let ftp_err = io_error_to_ftp_error(io_err);
+        assert!(matches!(ftp_err, FtpError::ConnectionError(_)));
+    }
+
+    #[test]
     fn test_ftp_put_tasklet_creation() -> Result<(), BatchError> {
         let temp_dir = temp_dir();
         let test_file = temp_dir.join("test_upload.txt");
@@ -2105,6 +2113,53 @@ mod tests {
         assert!(error
             .to_string()
             .contains("Failed to connect to FTP server"));
+    }
+
+    #[test]
+    fn test_ftp_put_tasklet_secure_execution_with_connection_error() {
+        let temp_dir = temp_dir();
+        let test_file = temp_dir.join("secure_conn_error_test.txt");
+        fs::write(&test_file, "test content").unwrap();
+
+        let tasklet = FtpPutTaskletBuilder::new()
+            .host("nonexistent.host.invalid")
+            .port(990)
+            .username("user")
+            .password("pass")
+            .local_file(&test_file)
+            .remote_file("/secure/file.txt")
+            .secure(true)
+            .build()
+            .unwrap();
+
+        let step_execution = StepExecution::new("test-step");
+        let result = tasklet.execute(&step_execution);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), BatchError::Io(_)));
+
+        fs::remove_file(&test_file).ok();
+    }
+
+    #[test]
+    fn test_ftp_get_tasklet_secure_execution_with_connection_error() {
+        let temp_dir = temp_dir();
+        let local_file = temp_dir.join("secure_get_conn_error_test.txt");
+
+        let tasklet = FtpGetTaskletBuilder::new()
+            .host("nonexistent.host.invalid")
+            .port(990)
+            .username("user")
+            .password("pass")
+            .remote_file("/secure/file.txt")
+            .local_file(&local_file)
+            .secure(true)
+            .build()
+            .unwrap();
+
+        let step_execution = StepExecution::new("test-step");
+        let result = tasklet.execute(&step_execution);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), BatchError::Io(_)));
     }
 
     #[test]

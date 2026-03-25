@@ -243,42 +243,63 @@ impl<'a, I> Default for RdbcItemReaderBuilder<'a, I> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::{FromRow, SqlitePool};
 
-    // Tests verify builder does not panic on chaining and accepts valid inputs.
-    // Field-level state is verified indirectly (fields may be private).
-    // Full execution is covered by tests/rdbc_*.rs integration tests.
-
-    #[test]
-    fn should_build_with_query_and_page_size_without_panicking() {
-        // Verify chaining does not panic
-        let _builder = RdbcItemReaderBuilder::<String>::new()
-            .query("SELECT id FROM users")
-            .with_page_size(50);
-        // If we get here, chaining worked
-    }
-
-    #[test]
-    fn should_accept_various_page_sizes() {
-        let _b1 = RdbcItemReaderBuilder::<String>::new().with_page_size(1);
-        let _b2 = RdbcItemReaderBuilder::<String>::new().with_page_size(100);
-        let _b3 = RdbcItemReaderBuilder::<String>::new().with_page_size(1000);
-    }
-
-    #[test]
-    fn should_accept_various_sql_queries() {
-        let _b = RdbcItemReaderBuilder::<String>::new()
-            .query("SELECT * FROM table WHERE id > 0 ORDER BY id");
-    }
-
-    #[test]
-    fn should_chain_all_non_pool_methods() {
-        let _builder = RdbcItemReaderBuilder::<String>::new()
-            .query("SELECT id, name FROM users")
-            .with_page_size(100);
+    #[derive(Clone, FromRow)]
+    struct Dummy {
+        id: i32,
     }
 
     #[test]
     fn should_create_via_default() {
-        let _builder = RdbcItemReaderBuilder::<String>::default();
+        // Default == new(), both should produce identical builders
+        let _b = RdbcItemReaderBuilder::<Dummy>::default();
+    }
+
+    #[test]
+    #[should_panic(expected = "SQLite pool is required")]
+    fn should_panic_when_building_sqlite_without_pool() {
+        let _ = RdbcItemReaderBuilder::<Dummy>::new()
+            .query("SELECT id FROM t")
+            .build_sqlite();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_build_sqlite_reader_with_pool_and_query() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let reader = RdbcItemReaderBuilder::<Dummy>::new()
+            .sqlite(pool)
+            .query("SELECT 1 AS id")
+            .build_sqlite();
+        assert_eq!(reader.query, "SELECT 1 AS id");
+        assert_eq!(reader.page_size, None);
+        assert_eq!(reader.offset.get(), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_propagate_page_size_to_sqlite_reader() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let reader = RdbcItemReaderBuilder::<Dummy>::new()
+            .sqlite(pool)
+            .query("SELECT 1 AS id")
+            .with_page_size(25)
+            .build_sqlite();
+        assert_eq!(reader.page_size, Some(25));
+    }
+
+    #[test]
+    #[should_panic(expected = "PostgreSQL pool is required")]
+    fn should_panic_when_building_postgres_without_pool() {
+        let _ = RdbcItemReaderBuilder::<Dummy>::new()
+            .query("SELECT id FROM t")
+            .build_postgres();
+    }
+
+    #[test]
+    #[should_panic(expected = "MySQL pool is required")]
+    fn should_panic_when_building_mysql_without_pool() {
+        let _ = RdbcItemReaderBuilder::<Dummy>::new()
+            .query("SELECT id FROM t")
+            .build_mysql();
     }
 }
