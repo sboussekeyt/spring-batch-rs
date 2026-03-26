@@ -4,6 +4,7 @@ use sqlx::{sqlite::SqliteRow, Execute, FromRow, Pool, QueryBuilder, Sqlite};
 
 use super::reader_common::{calculate_page_index, should_load_page};
 use crate::core::item::{ItemReader, ItemReaderResult};
+use crate::BatchError;
 
 /// SQLite RDBC Item Reader for batch processing
 ///
@@ -40,8 +41,12 @@ where
         }
     }
 
-    /// Reads a page of data from the database and stores it in the internal buffer
-    fn read_page(&self) {
+    /// Reads a page of data from the database and stores it in the internal buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BatchError::ItemReader`] if the database query fails.
+    fn read_page(&self) -> Result<(), BatchError> {
         let mut query_builder = QueryBuilder::<Sqlite>::new(self.query);
 
         if let Some(page_size) = self.page_size {
@@ -52,16 +57,16 @@ where
 
         let items = tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
-                let rows: Vec<I> = sqlx::query_as(query.sql())
+                sqlx::query_as::<_, I>(query.sql())
                     .fetch_all(&self.pool)
                     .await
-                    .unwrap();
-                rows
+                    .map_err(|e| BatchError::ItemReader(e.to_string()))
             })
-        });
+        })?;
 
         self.buffer.borrow_mut().clear();
         self.buffer.borrow_mut().extend(items);
+        Ok(())
     }
 }
 
@@ -74,7 +79,7 @@ where
         let index = calculate_page_index(self.offset.get(), self.page_size);
 
         if should_load_page(index) {
-            self.read_page();
+            self.read_page()?;
         }
 
         let buffer = self.buffer.borrow();

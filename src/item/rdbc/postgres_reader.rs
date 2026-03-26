@@ -4,6 +4,7 @@ use sqlx::{postgres::PgRow, Execute, FromRow, Pool, Postgres, QueryBuilder};
 
 use super::reader_common::{calculate_page_index, should_load_page};
 use crate::core::item::{ItemReader, ItemReaderResult};
+use crate::BatchError;
 
 /// PostgreSQL RDBC Item Reader for batch processing
 ///
@@ -131,11 +132,10 @@ where
     /// {base_query}
     /// ```
     ///
-    /// # Error Handling
+    /// # Errors
     ///
-    /// Currently uses `.unwrap()` for database errors, which will panic on failure.
-    /// In production code, this should be replaced with proper error handling
-    /// that returns `Result` types.
+    /// Returns [`BatchError::ItemReader`] if the database query fails (e.g., connection
+    /// error, SQL syntax error, or deserialization failure).
     ///
     /// # Performance Considerations
     ///
@@ -143,7 +143,7 @@ where
     /// - Leverages connection pooling for efficient database access
     /// - Minimizes memory usage by clearing buffer between pages
     /// - Uses prepared statements through SQLx for query optimization
-    fn read_page(&self) {
+    fn read_page(&self) -> Result<(), BatchError> {
         // Build the paginated query by appending LIMIT/OFFSET to the base query
         // QueryBuilder allows us to dynamically construct SQL with proper escaping
         let mut query_builder = QueryBuilder::<Postgres>::new(self.query);
@@ -163,18 +163,18 @@ where
             tokio::runtime::Handle::current().block_on(async {
                 // Use query_as for automatic deserialization via FromRow trait
                 // This eliminates the need for manual row mapping
-                let rows: Vec<I> = sqlx::query_as(query.sql())
+                sqlx::query_as::<_, I>(query.sql())
                     .fetch_all(&self.pool)
                     .await
-                    .unwrap(); // TODO: Replace with proper error handling
-                rows
+                    .map_err(|e| BatchError::ItemReader(e.to_string()))
             })
-        });
+        })?;
 
         // Clear the buffer and load the new page of data
         // This ensures we don't accumulate items across pages, managing memory efficiently
         self.buffer.borrow_mut().clear();
         self.buffer.borrow_mut().extend(items);
+        Ok(())
     }
 }
 
@@ -217,7 +217,7 @@ where
     ///
     /// - `Ok(Some(item))` if an item was successfully read
     /// - `Ok(None)` if there are no more items to read (end of result set)
-    /// - `Err(BatchError)` if a database error occurred (not currently implemented)
+    /// - `Err(BatchError::ItemReader)` if a database error occurred
     ///
     /// # Examples
     ///
@@ -251,7 +251,7 @@ where
         let index = calculate_page_index(self.offset.get(), self.page_size);
 
         if should_load_page(index) {
-            self.read_page();
+            self.read_page()?;
         }
 
         let buffer = self.buffer.borrow();
