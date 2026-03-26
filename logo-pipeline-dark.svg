@@ -1,0 +1,40 @@
+<svg width="140" height="140" viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg-dark" x1="0" y1="0" x2="140" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#080c18"/>
+      <stop offset="100%" stop-color="#0c1020"/>
+    </linearGradient>
+    <linearGradient id="curve-dark" x1="18" y1="70" x2="122" y2="70" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1e40af"/>
+      <stop offset="60%" stop-color="#3730a3"/>
+      <stop offset="100%" stop-color="#5b21b6"/>
+    </linearGradient>
+    <filter id="glow-dark" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="node-glow-dark" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- Fond carré arrondi -->
+  <rect x="4" y="4" width="132" height="132" rx="30" fill="url(#bg-dark)"/>
+  <!-- Lueur de fond de la courbe -->
+  <path d="M18 90 C28 90 45 48 70 48 C95 48 112 78 122 78" stroke="#3730a3" stroke-width="14" fill="none" stroke-linecap="round" opacity="0.18"/>
+  <!-- Courbe principale -->
+  <path d="M18 90 C28 90 45 48 70 48 C95 48 112 78 122 78" stroke="url(#curve-dark)" stroke-width="2.5" fill="none" stroke-linecap="round" filter="url(#glow-dark)"/>
+  <!-- Particules de données en transit -->
+  <circle cx="38" cy="73" r="2.5" fill="#60a5fa" opacity="0.75" filter="url(#glow-dark)"/>
+  <circle cx="60" cy="52" r="2" fill="#818cf8" opacity="0.75" filter="url(#glow-dark)"/>
+  <circle cx="97" cy="61" r="2" fill="#a78bfa" opacity="0.75" filter="url(#glow-dark)"/>
+  <!-- Nœud gauche (READ) -->
+  <circle cx="18" cy="90" r="7" fill="#080c18" stroke="#1e40af" stroke-width="2" filter="url(#node-glow-dark)"/>
+  <circle cx="18" cy="90" r="3" fill="#93c5fd"/>
+  <!-- Nœud centre (PROCESS) -->
+  <circle cx="70" cy="48" r="10" fill="#0d0f24" stroke="#4338ca" stroke-width="2" filter="url(#node-glow-dark)"/>
+  <circle cx="70" cy="48" r="4.5" fill="#a5b4fc"/>
+  <!-- Nœud droite (WRITE) -->
+  <circle cx="122" cy="78" r="7" fill="#080c18" stroke="#6d28d9" stroke-width="2" filter="url(#node-glow-dark)"/>
+  <circle cx="122" cy="78" r="3" fill="#c4b5fd"/>
+</svg>

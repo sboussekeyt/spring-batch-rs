@@ -1,0 +1,32 @@
+<svg width="140" height="140" viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg-light" x1="0" y1="0" x2="140" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#e8edf8"/>
+      <stop offset="100%" stop-color="#dde3f0"/>
+    </linearGradient>
+    <linearGradient id="curve-light" x1="18" y1="70" x2="122" y2="70" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1e40af"/>
+      <stop offset="60%" stop-color="#3730a3"/>
+      <stop offset="100%" stop-color="#5b21b6"/>
+    </linearGradient>
+  </defs>
+  <!-- Fond carré arrondi clair -->
+  <rect x="4" y="4" width="132" height="132" rx="30" fill="url(#bg-light)"/>
+  <!-- Lueur subtile -->
+  <path d="M18 90 C28 90 45 48 70 48 C95 48 112 78 122 78" stroke="rgba(55,48,163,0.12)" stroke-width="10" fill="none" stroke-linecap="round"/>
+  <!-- Courbe principale -->
+  <path d="M18 90 C28 90 45 48 70 48 C95 48 112 78 122 78" stroke="url(#curve-light)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Particules de données -->
+  <circle cx="38" cy="73" r="2.5" fill="#3b82f6" opacity="0.6"/>
+  <circle cx="60" cy="52" r="2" fill="#6366f1" opacity="0.6"/>
+  <circle cx="97" cy="61" r="2" fill="#7c3aed" opacity="0.6"/>
+  <!-- Nœud gauche (READ) -->
+  <circle cx="18" cy="90" r="7" fill="#dde3f0" stroke="#1e40af" stroke-width="2"/>
+  <circle cx="18" cy="90" r="3" fill="#1e40af"/>
+  <!-- Nœud centre (PROCESS) -->
+  <circle cx="70" cy="48" r="10" fill="#dde3f0" stroke="#4338ca" stroke-width="2"/>
+  <circle cx="70" cy="48" r="4.5" fill="#4338ca"/>
+  <!-- Nœud droite (WRITE) -->
+  <circle cx="122" cy="78" r="7" fill="#dde3f0" stroke="#6d28d9" stroke-width="2"/>
+  <circle cx="122" cy="78" r="3" fill="#6d28d9"/>
+</svg>
