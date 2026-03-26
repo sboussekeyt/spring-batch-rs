@@ -745,6 +745,56 @@ mod tests {
     }
 
     #[test]
+    fn should_use_type_name_as_default_item_tag_when_not_set() {
+        let temp_file = NamedTempFile::new().unwrap();
+        // No .item_tag() call → tag derived from type name "simpleitem"
+        let writer = XmlItemWriterBuilder::<SimpleItem>::new()
+            .root_tag("items")
+            .from_path(temp_file.path())
+            .unwrap();
+        // item_tag should be the lowercase type-name suffix
+        assert_eq!(writer.item_tag, "simpleitem");
+    }
+
+    #[test]
+    fn should_return_error_when_flush_fails_on_io() {
+        struct FailWriter;
+        impl Write for FailWriter {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                Ok(buf.len()) // allow writes so open/close succeed
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "flush failed",
+                ))
+            }
+        }
+
+        let writer = XmlItemWriter::<SimpleItem, FailWriter> {
+            writer: RefCell::new(Writer::new(BufWriter::new(FailWriter))),
+            item_tag: "item".to_string(),
+            root_tag: "items".to_string(),
+            _phantom: PhantomData,
+        };
+
+        let result = writer.flush();
+        assert!(
+            result.is_err(),
+            "flush should fail when underlying writer fails"
+        );
+        match result.err().unwrap() {
+            BatchError::ItemWriter(msg) => {
+                assert!(
+                    msg.contains("flush"),
+                    "error message should mention flush, got: {msg}"
+                )
+            }
+            e => panic!("expected ItemWriter error, got {e:?}"),
+        }
+    }
+
+    #[test]
     fn test_error_handling_invalid_path() {
         // Try to create a writer with an invalid path
         let invalid_path = "/nonexistent/directory/file.xml";

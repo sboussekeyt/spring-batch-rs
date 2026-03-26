@@ -1,0 +1,53 @@
+{
+  "main": [
+    {
+      "name": "Accueil",
+      "url": "/"
+    },
+    {
+      "name": "Exemples",
+      "url": "/examples/"
+    }
+  ],
+  "footer": {
+    "community": {
+      "title": "Communauté",
+      "links": [
+        {
+          "name": "Discussions GitHub",
+          "url": "https://github.com/sboussekeyt/spring-batch-rs/discussions"
+        },
+        {
+          "name": "Issues GitHub",
+          "url": "https://github.com/sboussekeyt/spring-batch-rs/issues"
+        }
+      ]
+    },
+    "help_links": {
+      "title": "Documentation",
+      "links": [
+        {
+          "name": "Exemples",
+          "url": "/examples/"
+        },
+        {
+          "name": "Référence API",
+          "url": "https://docs.rs/spring-batch-rs"
+        }
+      ]
+    },
+    "company": {
+      "title": "Projet",
+      "links": [
+        {
+          "name": "Dépôt GitHub",
+          "url": "https://github.com/sboussekeyt/spring-batch-rs"
+        },
+        {
+          "name": "Crates.io",
+          "url": "https://crates.io/crates/spring-batch-rs"
+        }
+      ]
+    }
+  }
+}

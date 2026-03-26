@@ -63,6 +63,7 @@ The crate is modular, allowing you to enable only the features you need:
 
 ```rust
 # use serde::{Deserialize, Serialize};
+# use std::env::temp_dir;
 # use spring_batch_rs::{
 #     core::{job::{Job, JobBuilder}, step::StepBuilder, item::PassThroughProcessor},
 #     item::{csv::csv_reader::CsvItemReaderBuilder, json::json_writer::JsonItemWriterBuilder},
@@ -82,9 +83,9 @@ fn main() -> Result<(), BatchError> {
         .has_headers(true)
         .from_reader(csv_data.as_bytes());
 
-    let writer = JsonItemWriterBuilder::new()
+    let writer = JsonItemWriterBuilder::<Product>::new()
         .pretty_formatter(true)
-        .from_path("products.json");
+        .from_path(temp_dir().join("products.json"));
 
     let processor = PassThroughProcessor::<Product>::new();
 

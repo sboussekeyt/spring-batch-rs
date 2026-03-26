@@ -1,0 +1,660 @@
+---
+title: XML Examples
+description: Complete examples for XML file processing with Spring Batch RS
+sidebar:
+  order: 3
+---
+
+import { Tabs, TabItem, Card, CardGrid, Aside } from '@astrojs/starlight/components';
+
+This page provides comprehensive examples for working with XML files using Spring Batch RS.
+
+## Setup
+
+Add the XML feature to your `Cargo.toml`:
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["xml"] }
+serde = { version = "1.0", features = ["derive"] }
+```
+
+---
+
+## Basic XML Reading
+
+### Reading Elements by Tag
+
+```rust
+use spring_batch_rs::{
+    core::{step::StepBuilder, item::PassThroughProcessor},
+    item::xml::XmlItemReaderBuilder,
+    item::logger::LoggerWriter,
+};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename = "book")]
+struct Book {
+    #[serde(rename = "@id")]
+    id: String,
+    title: String,
+    author: String,
+    year: i32,
+    price: f64,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let reader = XmlItemReaderBuilder::<Book>::new()
+        .tag("book")  // Extract <book> elements
+        .capacity(1024)
+        .from_path("books.xml")?;
+
+    let writer = LoggerWriterBuilder::<Vehicle>::new().build();
+    let processor = PassThroughProcessor::<Book>::new();
+
+    let step = StepBuilder::new("read-xml")
+        .chunk::<Book, Book>(10)
+        .reader(&reader)
+        .processor(&processor)
+        .writer(&writer)
+        .build();
+
+    let mut execution = spring_batch_rs::core::step::StepExecution::new("read-xml");
+    step.execute(&mut execution)?;
+
+    Ok(())
+}
+```
+
+**Input file (`books.xml`):**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<books>
+  <book id="1">
+    <title>The Rust Programming Language</title>
+    <author>Steve Klabnik</author>
+    <year>2018</year>
+    <price>39.99</price>
+  </book>
+  <book id="2">
+    <title>Programming Rust</title>
+    <author>Jim Blandy</author>
+    <year>2021</year>
+    <price>49.99</price>
+  </book>
+</books>
+```
+
+<Aside type="tip">
+  Use `#[serde(rename = "@field")]` for XML attributes and `#[serde(rename = "$value")]` for text content.
+</Aside>
+
+---
+
+## XML Attributes
+
+### Reading Attributes and Elements
+
+```rust
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename = "vehicle")]
+struct Vehicle {
+    #[serde(rename = "@type")]
+    vehicle_type: String,
+    #[serde(rename = "@id")]
+    id: String,
+    make: String,
+    model: String,
+    year: i32,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let reader = XmlItemReaderBuilder::<Vehicle>::new()
+        .tag("vehicle")
+        .from_path("vehicles.xml")?;
+
+    Ok(())
+}
+```
+
+**Input:**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<vehicles>
+  <vehicle type="car" id="v1">
+    <make>Toyota</make>
+    <model>Camry</model>
+    <year>2023</year>
+  </vehicle>
+  <vehicle type="truck" id="v2">
+    <make>Ford</make>
+    <model>F-150</model>
+    <year>2024</year>
+  </vehicle>
+</vehicles>
+```
+
+---
+
+## Complex Nested Structures
+
+### Nested Objects and Arrays
+
+```rust
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct Displacement {
+    #[serde(rename = "@unit")]
+    unit: String,
+    #[serde(rename = "$value")]
+    value: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct Engine {
+    #[serde(rename = "@cylinders")]
+    cylinders: i32,
+    #[serde(rename = "type")]
+    engine_type: String,
+    displacement: Displacement,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct Features {
+    #[serde(rename = "feature", default)]
+    items: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename = "vehicle")]
+#[serde(rename_all = "camelCase")]
+struct ComplexVehicle {
+    #[serde(rename = "@type")]
+    vehicle_type: String,
+    #[serde(rename = "@id")]
+    id: String,
+    make: String,
+    model: String,
+    year: i32,
+    engine: Engine,
+    features: Features,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let reader = XmlItemReaderBuilder::<ComplexVehicle>::new()
+        .tag("vehicle")
+        .capacity(2048)
+        .from_path("complex_vehicles.xml")?;
+
+    Ok(())
+}
+```
+
+**Input:**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<vehicles>
+  <vehicle type="car" id="1">
+    <make>Toyota</make>
+    <model>Camry</model>
+    <year>2023</year>
+    <engine cylinders="4">
+      <type>Inline</type>
+      <displacement unit="L">2.5</displacement>
+    </engine>
+    <features>
+      <feature>Bluetooth</feature>
+      <feature>Backup Camera</feature>
+      <feature>Lane Assist</feature>
+    </features>
+  </vehicle>
+</vehicles>
+```
+
+---
+
+## Basic XML Writing
+
+### Writing XML Documents
+
+```rust
+use spring_batch_rs::item::xml::XmlItemWriterBuilder;
+
+#[derive(Serialize)]
+#[serde(rename = "product")]
+struct Product {
+    #[serde(rename = "@id")]
+    id: u32,
+    name: String,
+    price: f64,
+    category: String,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let writer = XmlItemWriterBuilder::new()
+        .root_tag("products")
+        .item_tag("product")
+        .from_path("output.xml")?;
+
+    Ok(())
+}
+```
+
+**Output:**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<products>
+  <product id="1">
+    <name>Laptop</name>
+    <price>999.99</price>
+    <category>Electronics</category>
+  </product>
+  <product id="2">
+    <name>Mouse</name>
+    <price>29.99</price>
+    <category>Electronics</category>
+  </product>
+</products>
+```
+
+---
+
+## XML to JSON Transformation
+
+Convert XML to JSON format:
+
+```rust
+use spring_batch_rs::{
+    core::{job::JobBuilder, step::StepBuilder, item::PassThroughProcessor},
+    item::{
+        xml::XmlItemReaderBuilder,
+        json::JsonItemWriterBuilder,
+    },
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let reader = XmlItemReaderBuilder::<Vehicle>::new()
+        .tag("vehicle")
+        .from_path("vehicles.xml")?;
+
+    let writer = JsonItemWriterBuilder::<Vehicle>::new()
+        .pretty_formatter(true)
+        .from_path("vehicles.json")?;
+
+    let processor = PassThroughProcessor::<Vehicle>::new();
+
+    let step = StepBuilder::new("xml-to-json")
+        .chunk::<Vehicle, Vehicle>(50)
+        .reader(&reader)
+        .processor(&processor)
+        .writer(&writer)
+        .build();
+
+    let job = JobBuilder::new().start(&step).build();
+    job.run()?;
+
+    Ok(())
+}
+```
+
+---
+
+## CSV to XML Transformation
+
+Convert CSV to XML format:
+
+```rust
+use spring_batch_rs::{
+    item::csv::CsvItemReaderBuilder,
+    core::item::PassThroughProcessor,
+};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename = "employee")]
+struct Employee {
+    #[serde(rename = "@id")]
+    id: u32,
+    first_name: String,
+    last_name: String,
+    department: String,
+    salary: f64,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let reader = CsvItemReaderBuilder::<Employee>::new()
+        .has_headers(true)
+        .from_path("employees.csv")?;
+
+    let writer = XmlItemWriterBuilder::new()
+        .root_tag("employees")
+        .item_tag("employee")
+        .from_path("employees.xml")?;
+
+    let processor = PassThroughProcessor::<Employee>::new();
+
+    let step = StepBuilder::new("csv-to-xml")
+        .chunk::<Employee, Employee>(100)
+        .reader(&reader)
+        .processor(&processor)
+        .writer(&writer)
+        .build();
+
+    let job = JobBuilder::new().start(&step).build();
+    job.run()?;
+
+    Ok(())
+}
+```
+
+---
+
+## XML Processing with Transformation
+
+### Data Enrichment
+
+```rust
+use spring_batch_rs::core::item::{ItemProcessor, ItemProcessorResult};
+use std::collections::HashMap;
+
+#[derive(Deserialize, Clone)]
+#[serde(rename = "order")]
+struct OrderInput {
+    #[serde(rename = "@id")]
+    order_id: String,
+    product_id: u32,
+    quantity: u32,
+}
+
+#[derive(Serialize)]
+#[serde(rename = "enriched_order")]
+struct EnrichedOrder {
+    #[serde(rename = "@id")]
+    order_id: String,
+    product_id: u32,
+    product_name: String,
+    quantity: u32,
+    unit_price: f64,
+    total: f64,
+}
+
+struct OrderEnricher {
+    catalog: HashMap<u32, (String, f64)>,
+}
+
+impl ItemProcessor<OrderInput, EnrichedOrder> for OrderEnricher {
+    fn process(&self, item: &OrderInput) -> ItemProcessorResult<EnrichedOrder> {
+        let (product_name, unit_price) = self.catalog
+            .get(&item.product_id)
+            .cloned()
+            .ok_or_else(|| spring_batch_rs::error::BatchError::ItemProcessor(
+                format!("Unknown product: {}", item.product_id)
+            ))?;
+
+        let total = unit_price * item.quantity as f64;
+
+        Ok(EnrichedOrder {
+            order_id: item.order_id.clone(),
+            product_id: item.product_id,
+            product_name,
+            quantity: item.quantity,
+            unit_price,
+            total,
+        })
+    }
+}
+```
+
+---
+
+## Validation and Filtering
+
+### Validate XML Data
+
+```rust
+#[derive(Deserialize, Clone)]
+#[serde(rename = "record")]
+struct RawRecord {
+    #[serde(rename = "@id")]
+    id: String,
+    value: String,
+    status: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename = "validated_record")]
+struct ValidatedRecord {
+    #[serde(rename = "@id")]
+    id: u32,
+    value: f64,
+    status: String,
+}
+
+struct RecordValidator;
+
+impl ItemProcessor<RawRecord, ValidatedRecord> for RecordValidator {
+    fn process(&self, item: &RawRecord) -> ItemProcessorResult<ValidatedRecord> {
+        // Validate ID
+        let id = item.id.parse::<u32>()
+            .map_err(|_| spring_batch_rs::error::BatchError::ItemProcessor(
+                format!("Invalid ID: {}", item.id)
+            ))?;
+
+        // Validate value
+        let value = item.value.parse::<f64>()
+            .map_err(|_| spring_batch_rs::error::BatchError::ItemProcessor(
+                format!("Invalid value: {}", item.value)
+            ))?;
+
+        // Validate status
+        if !["active", "pending", "completed"].contains(&item.status.as_str()) {
+            return Err(spring_batch_rs::error::BatchError::ItemProcessor(
+                format!("Invalid status: {}", item.status)
+            ));
+        }
+
+        Ok(ValidatedRecord {
+            id,
+            value,
+            status: item.status.clone(),
+        })
+    }
+}
+```
+
+---
+
+## CDATA and Special Characters
+
+### Handling CDATA Sections
+
+```rust
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename = "article")]
+struct Article {
+    #[serde(rename = "@id")]
+    id: String,
+    title: String,
+    #[serde(rename = "$value")]
+    content: String,  // Can contain CDATA
+}
+```
+
+**Input:**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<articles>
+  <article id="1">
+    <title>Sample Article</title>
+    <content><![CDATA[
+      This content can contain <special> characters & symbols.
+      Line breaks are preserved.
+    ]]></content>
+  </article>
+</articles>
+```
+
+---
+
+## Real-World Example: RSS Feed Processing
+
+Process RSS-like feed format:
+
+```rust
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename = "item")]
+struct FeedItem {
+    title: String,
+    link: String,
+    description: String,
+    #[serde(rename = "pubDate")]
+    pub_date: String,
+    category: String,
+}
+
+#[derive(Serialize)]
+struct ProcessedFeedItem {
+    title: String,
+    url: String,
+    summary: String,
+    published: String,
+    tags: Vec<String>,
+}
+
+struct FeedProcessor;
+
+impl ItemProcessor<FeedItem, ProcessedFeedItem> for FeedProcessor {
+    fn process(&self, item: &FeedItem) -> ItemProcessorResult<ProcessedFeedItem> {
+        // Clean HTML from description
+        let summary = item.description
+            .replace("<p>", "")
+            .replace("</p>", "")
+            .replace("<br>", " ");
+
+        // Parse categories into tags
+        let tags: Vec<String> = item.category
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect();
+
+        Ok(ProcessedFeedItem {
+            title: item.title.clone(),
+            url: item.link.clone(),
+            summary,
+            published: item.pub_date.clone(),
+            tags,
+        })
+    }
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let reader = XmlItemReaderBuilder::<FeedItem>::new()
+        .tag("item")
+        .capacity(2048)
+        .from_path("feed.xml")?;
+
+    let processor = FeedProcessor;
+
+    let writer = JsonItemWriterBuilder::<Vehicle>::new()
+        .pretty_formatter(true)
+        .from_path("processed_feed.json")?;
+
+    let step = StepBuilder::new("process-feed")
+        .chunk::<FeedItem, ProcessedFeedItem>(50)
+        .reader(&reader)
+        .processor(&processor)
+        .writer(&writer)
+        .build();
+
+    let job = JobBuilder::new().start(&step).build();
+    job.run()?;
+
+    Ok(())
+}
+```
+
+---
+
+## Common Patterns
+
+### Text Content with Attributes
+
+```rust
+#[derive(Deserialize, Serialize, Clone)]
+struct Price {
+    #[serde(rename = "@currency")]
+    currency: String,
+    #[serde(rename = "$value")]
+    amount: f64,
+}
+```
+
+**XML:**
+```xml
+<price currency="USD">99.99</price>
+```
+
+### Optional Elements
+
+```rust
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(rename = "product")]
+struct Product {
+    name: String,
+    #[serde(default)]
+    description: Option<String>,
+    price: f64,
+}
+```
+
+### Default Values
+
+```rust
+#[derive(Deserialize, Serialize, Clone)]
+struct Config {
+    #[serde(default = "default_timeout")]
+    timeout: u32,
+}
+
+fn default_timeout() -> u32 {
+    30
+}
+```
+
+---
+
+## Performance Tips
+
+<CardGrid>
+  <Card title="Buffer Size" icon="rocket">
+    Increase `capacity()` for documents with large elements (default: 8192 bytes)
+  </Card>
+  <Card title="Tag Selection" icon="star">
+    Choose specific tag names to extract only needed elements
+  </Card>
+  <Card title="Memory Usage" icon="warning">
+    XML parsing is streaming - memory usage is proportional to element size, not file size
+  </Card>
+  <Card title="Chunk Size" icon="setting">
+    Use moderate chunk sizes (50-100) for XML due to parsing overhead
+  </Card>
+</CardGrid>
+
+## Troubleshooting
+
+<Aside type="caution">
+**Common Issues:**
+
+1. **Attribute not found**: Add `#[serde(rename = "@field")]` for XML attributes
+2. **Text content missing**: Use `#[serde(rename = "$value")]` for element text
+3. **Parsing errors**: Check XML is well-formed and matches struct definition
+4. **Buffer overflow**: Increase `capacity()` for large elements
+</Aside>
+
+## Next Steps
+
+- [JSON Examples](/spring-batch-rs/examples/json/) - Process JSON files
+- [Database Examples](/spring-batch-rs/examples/database/) - Read/write databases
+- [API Reference](/spring-batch-rs/api/item-reader/) - Complete API documentation

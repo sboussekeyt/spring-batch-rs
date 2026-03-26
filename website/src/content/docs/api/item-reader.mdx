@@ -1,0 +1,508 @@
+---
+title: ItemReader API
+description: Complete reference for the ItemReader trait and all implementations
+sidebar:
+  order: 1
+---
+
+import { Aside, Card, CardGrid, Tabs, TabItem } from '@astrojs/starlight/components';
+
+The `ItemReader<I>` trait defines how to read items one at a time from any data source. It's the entry point of the chunk-oriented processing model.
+
+## Trait Definition
+
+```rust
+pub trait ItemReader<I> {
+    /// Reads the next item from the source
+    ///
+    /// # Returns
+    /// - `Ok(Some(item))` - Successfully read an item
+    /// - `Ok(None)` - End of data reached
+    /// - `Err(BatchError)` - An error occurred
+    fn read(&self) -> Result<Option<I>, BatchError>;
+}
+```
+
+<Aside type="tip">
+  The `Option` in the return type signals end-of-data naturally without requiring a sentinel value.
+</Aside>
+
+## Type Alias
+
+```rust
+pub type ItemReaderResult<I> = Result<Option<I>, BatchError>;
+```
+
+## Available Implementations
+
+Spring Batch RS provides 9 built-in reader implementations:
+
+| Reader | Feature Flag | Data Source | Description |
+|--------|-------------|-------------|-------------|
+| `CsvItemReader<R>` | `csv` | CSV files/strings | Reads CSV records with configurable delimiters |
+| `JsonItemReader<I, R>` | `json` | JSON arrays | Streaming JSON array parser |
+| `XmlItemReader<R, I>` | `xml` | XML documents | Reads XML elements by tag name |
+| `PostgresRdbcItemReader<I>` | `rdbc-postgres` | PostgreSQL | Paginated PostgreSQL queries |
+| `MysqlRdbcItemReader<I>` | `rdbc-mysql` | MySQL/MariaDB | Paginated MySQL queries |
+| `SqliteRdbcItemReader<I>` | `rdbc-sqlite` | SQLite | Paginated SQLite queries |
+| `MongodbItemReader<I>` | `mongodb` | MongoDB | Cursor-based MongoDB queries |
+| `OrmItemReader<I>` | `orm` | SeaORM | ORM-based database reading |
+| `PersonReader` | `fake` | Fake data | Generates fake person data for testing |
+
+---
+
+## CSV Reader
+
+<Aside type="note">
+  **Feature flag:** `csv`
+</Aside>
+
+### Builder Methods
+
+```rust
+pub struct CsvItemReaderBuilder<R: Read> { /* ... */ }
+```
+
+| Method | Type | Default | Description |
+|--------|------|---------|-------------|
+| `has_headers(bool)` | `bool` | `true` | First row contains headers |
+| `delimiter(u8)` | `u8` | `b','` | Field delimiter character |
+| `quote(u8)` | `u8` | `b'"'` | Quote character |
+| `flexible(bool)` | `bool` | `false` | Allow variable fields per row |
+| `from_path(&str)` | - | - | Read from file path |
+| `from_reader(R)` | - | - | Read from any `Read` source |
+
+### Example
+
+<Tabs>
+  <TabItem label="From File">
+    ```rust
+    use spring_batch_rs::item::csv::CsvItemReaderBuilder;
+    use serde::Deserialize;
+
+    #[derive(Deserialize, Clone)]
+    struct Product {
+        id: u32,
+        name: String,
+        price: f64,
+    }
+
+    let reader = CsvItemReaderBuilder::<Product>::new()
+        .has_headers(true)
+        .delimiter(b',')
+        .from_path("products.csv")?;
+    ```
+  </TabItem>
+  <TabItem label="From String">
+    ```rust
+    let csv_data = "id,name,price\n1,Laptop,999.99\n2,Mouse,29.99";
+
+    let reader = CsvItemReaderBuilder::<Product>::new()
+        .has_headers(true)
+        .from_reader(csv_data.as_bytes());
+    ```
+  </TabItem>
+  <TabItem label="Custom Delimiter">
+    ```rust
+    let reader = CsvItemReaderBuilder::<Product>::new()
+        .has_headers(true)
+        .delimiter(b';')  // Semicolon-separated
+        .from_path("data.csv")?;
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+  Use `flexible(true)` for CSV files with inconsistent column counts.
+</Aside>
+
+---
+
+## JSON Reader
+
+<Aside type="note">
+  **Feature flag:** `json`
+</Aside>
+
+### Builder Methods
+
+```rust
+pub struct JsonItemReaderBuilder<I, R: Read> { /* ... */ }
+```
+
+| Method | Type | Description |
+|--------|------|-------------|
+| `from_path(&str)` | - | Read from file path |
+| `from_reader(R)` | - | Read from any `Read` source |
+
+### Example
+
+<Tabs>
+  <TabItem label="From File">
+    ```rust
+    use spring_batch_rs::item::json::JsonItemReaderBuilder;
+    use serde::Deserialize;
+
+    #[derive(Deserialize, Clone)]
+    struct User {
+        id: u32,
+        name: String,
+        email: String,
+    }
+
+    let reader = JsonItemReaderBuilder::<User>::new()
+        .from_path("users.json")?;
+    ```
+  </TabItem>
+  <TabItem label="From String">
+    ```rust
+    let json_data = r#"[
+        {"id": 1, "name": "Alice", "email": "alice@example.com"},
+        {"id": 2, "name": "Bob", "email": "bob@example.com"}
+    ]"#;
+
+    let reader = JsonItemReaderBuilder::<User>::new()
+        .from_reader(json_data.as_bytes());
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="caution">
+  The JSON reader expects a JSON array at the root level. Objects are read one at a time from the array.
+</Aside>
+
+---
+
+## XML Reader
+
+<Aside type="note">
+  **Feature flag:** `xml`
+</Aside>
+
+### Builder Methods
+
+```rust
+pub struct XmlItemReaderBuilder<R: Read, I> { /* ... */ }
+```
+
+| Method | Type | Default | Description |
+|--------|------|---------|-------------|
+| `tag(&str)` | `&str` | **required** | XML tag name to extract |
+| `capacity(usize)` | `usize` | `8192` | Buffer capacity in bytes |
+| `from_path(&str)` | - | - | Read from file path |
+| `from_reader(R)` | - | - | Read from any `Read` source |
+
+### Example
+
+```rust
+use spring_batch_rs::item::xml::XmlItemReaderBuilder;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename = "vehicle")]
+struct Vehicle {
+    #[serde(rename = "@type")]
+    vehicle_type: String,
+    #[serde(rename = "@id")]
+    id: String,
+    make: String,
+    model: String,
+    year: i32,
+}
+
+let reader = XmlItemReaderBuilder::<Vehicle>::new()
+    .tag("vehicle")  // Extract <vehicle> elements
+    .capacity(1024)
+    .from_path("vehicles.xml")?;
+```
+
+<Aside type="tip">
+  Use `#[serde(rename = "@field")]` for XML attributes and `#[serde(rename = "$value")]` for text content.
+</Aside>
+
+---
+
+## PostgreSQL Reader
+
+<Aside type="note">
+  **Feature flag:** `rdbc-postgres`
+</Aside>
+
+### Builder Methods
+
+```rust
+pub struct RdbcItemReaderBuilder<I> { /* ... */ }
+```
+
+| Method | Type | Default | Description |
+|--------|------|---------|-------------|
+| `postgres(PgPool)` | `PgPool` | **required** | PostgreSQL connection pool |
+| `query(&str)` | `&str` | **required** | SQL SELECT query |
+| `with_page_size(usize)` | `usize` | `100` | Number of rows per page |
+| `build_postgres()` | - | - | Build PostgreSQL reader |
+
+### Example
+
+```rust
+use spring_batch_rs::item::rdbc::RdbcItemReaderBuilder;
+use sqlx::{PgPool, FromRow};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
+struct Person {
+    id: i64,
+    first_name: String,
+    last_name: String,
+    email: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let pool = PgPool::connect("postgres://user:pass@localhost/db").await?;
+
+    let reader = RdbcItemReaderBuilder::<Person>::new()
+        .postgres(pool)
+        .query("SELECT id, first_name, last_name, email FROM persons WHERE active = true")
+        .with_page_size(50)
+        .build_postgres();
+
+    Ok(())
+}
+```
+
+<Aside type="tip">
+  The reader automatically handles pagination using LIMIT/OFFSET internally.
+</Aside>
+
+---
+
+## MySQL Reader
+
+<Aside type="note">
+  **Feature flag:** `rdbc-mysql`
+</Aside>
+
+### Builder Methods
+
+Same as PostgreSQL reader, but use `mysql(MySqlPool)` and `build_mysql()`:
+
+```rust
+let reader = RdbcItemReaderBuilder::<Person>::new()
+    .mysql(pool)
+    .query("SELECT * FROM persons")
+    .with_page_size(50)
+    .build_mysql();
+```
+
+---
+
+## SQLite Reader
+
+<Aside type="note">
+  **Feature flag:** `rdbc-sqlite`
+</Aside>
+
+### Builder Methods
+
+Same as PostgreSQL reader, but use `sqlite(SqlitePool)` and `build_sqlite()`:
+
+```rust
+let reader = RdbcItemReaderBuilder::<Person>::new()
+    .sqlite(pool)
+    .query("SELECT * FROM persons")
+    .with_page_size(50)
+    .build_sqlite();
+```
+
+---
+
+## MongoDB Reader
+
+<Aside type="note">
+  **Feature flag:** `mongodb`
+</Aside>
+
+### Builder Methods
+
+```rust
+pub struct MongodbItemReaderBuilder<I> { /* ... */ }
+```
+
+| Method | Type | Default | Description |
+|--------|------|---------|-------------|
+| `collection(&Collection<I>)` | `&Collection<I>` | **required** | MongoDB collection |
+| `filter(Document)` | `Document` | `doc! {}` | Query filter |
+| `page_size(u32)` | `u32` | `100` | Documents per batch |
+
+### Example
+
+```rust
+use spring_batch_rs::item::mongodb::MongodbItemReaderBuilder;
+use mongodb::{bson::doc, sync::Client};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct Book {
+    title: String,
+    author: String,
+    isbn: String,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::with_uri_str("mongodb://localhost:27017")?;
+    let db = client.database("library");
+    let collection = db.collection::<Book>("books");
+
+    let filter = doc! { "author": "J.K. Rowling" };
+
+    let reader = MongodbItemReaderBuilder::new()
+        .collection(&collection)
+        .filter(filter)
+        .page_size(20)
+        .build();
+
+    Ok(())
+}
+```
+
+<Aside type="note">
+  Your document type must implement `WithObjectId` trait if you want cursor-based pagination.
+</Aside>
+
+---
+
+## ORM Reader
+
+<Aside type="note">
+  **Feature flag:** `orm`
+</Aside>
+
+Reads entities using SeaORM. Your entity must implement SeaORM's `EntityTrait`.
+
+### Example
+
+```rust
+use spring_batch_rs::item::orm::OrmItemReaderBuilder;
+use sea_orm::{Database, DatabaseConnection};
+
+// Assuming you have a SeaORM entity
+use entity::person::Entity as PersonEntity;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let db: DatabaseConnection = Database::connect("sqlite::memory:").await?;
+
+    let reader = OrmItemReaderBuilder::new()
+        .entity(PersonEntity)
+        .connection(&db)
+        .page_size(50)
+        .build();
+
+    Ok(())
+}
+```
+
+---
+
+## Fake Data Reader
+
+<Aside type="note">
+  **Feature flag:** `fake`
+</Aside>
+
+Generates fake person data for testing purposes.
+
+### Builder Methods
+
+```rust
+pub struct PersonReaderBuilder { /* ... */ }
+```
+
+| Method | Type | Default | Description |
+|--------|------|---------|-------------|
+| `number_of_items(usize)` | `usize` | **required** | How many persons to generate |
+
+### Example
+
+```rust
+use spring_batch_rs::item::fake::person_reader::{PersonReaderBuilder, Person};
+
+let reader = PersonReaderBuilder::new()
+    .number_of_items(1000)
+    .build();
+```
+
+The `Person` struct includes:
+- `first_name: String`
+- `last_name: String`
+- `title: String`
+- `email: String`
+- `city: String`
+
+<Aside type="tip">
+  Perfect for testing your batch jobs without needing real data sources.
+</Aside>
+
+---
+
+## Custom Implementation
+
+You can implement `ItemReader` for any data source:
+
+```rust
+use spring_batch_rs::core::item::{ItemReader, ItemReaderResult};
+use spring_batch_rs::error::BatchError;
+use std::sync::Mutex;
+
+struct MyCustomReader {
+    data: Mutex<Vec<String>>,
+}
+
+impl ItemReader<String> for MyCustomReader {
+    fn read(&self) -> ItemReaderResult<String> {
+        let mut data = self.data.lock().unwrap();
+
+        if data.is_empty() {
+            Ok(None)  // End of data
+        } else {
+            Ok(Some(data.remove(0)))  // Return next item
+        }
+    }
+}
+
+impl MyCustomReader {
+    fn new(items: Vec<String>) -> Self {
+        Self {
+            data: Mutex::new(items),
+        }
+    }
+}
+```
+
+<Aside type="caution">
+  **Thread Safety**: Readers must be `Send + Sync` since they may be accessed from multiple threads. Use `Mutex`, `RwLock`, or atomic types for internal state.
+</Aside>
+
+## Best Practices
+
+<CardGrid>
+  <Card title="Buffering" icon="rocket">
+    Use buffered I/O for file-based readers to minimize system calls
+  </Card>
+  <Card title="Pagination" icon="list">
+    Database readers should use pagination to avoid loading entire datasets into memory
+  </Card>
+  <Card title="Error Handling" icon="warning">
+    Return descriptive `BatchError::ItemReader` errors with context about what failed
+  </Card>
+  <Card title="State Management" icon="setting">
+    Use interior mutability (`Mutex`, `RefCell`) for stateful readers since `read()` takes `&self`
+  </Card>
+</CardGrid>
+
+## See Also
+
+- [ItemWriter API](/spring-batch-rs/api/item-writer/) - Writing data destinations
+- [ItemProcessor API](/spring-batch-rs/api/item-processor/) - Transforming data
+- [CSV Examples](/spring-batch-rs/examples/csv/) - Practical CSV examples
+- [Database Examples](/spring-batch-rs/examples/database/) - Database reader examples

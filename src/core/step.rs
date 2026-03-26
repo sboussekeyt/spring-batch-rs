@@ -1660,43 +1660,6 @@ mod tests {
     }
 
     #[test]
-    fn step_should_succeed_even_with_write_error() -> Result<()> {
-        let mut i = 0;
-        let mut reader = MockTestItemReader::default();
-        reader
-            .expect_read()
-            .returning(move || mock_read(&mut i, 0, 4));
-
-        let mut processor = MockTestProcessor::default();
-        let mut i = 0;
-        processor
-            .expect_process()
-            .returning(move |_| mock_process(&mut i, &[2]));
-
-        let mut writer = MockTestItemWriter::default();
-        writer.expect_open().times(1).returning(|| Ok(()));
-        writer.expect_write().times(2).returning(|_| Ok(()));
-        writer.expect_flush().times(2).returning(|| Ok(()));
-        writer.expect_close().times(1).returning(|| Ok(()));
-
-        let step = StepBuilder::new("test")
-            .chunk(3)
-            .reader(&reader)
-            .processor(&processor)
-            .writer(&writer)
-            .skip_limit(1)
-            .build();
-
-        let mut step_execution = StepExecution::new(&step.name);
-        let result = step.execute(&mut step_execution);
-
-        assert!(result.is_ok());
-        assert_eq!(step_execution.status, StepStatus::Success);
-
-        Ok(())
-    }
-
-    #[test]
     fn step_should_fail_with_read_error() -> Result<()> {
         let mut i = 0;
         let mut reader = MockTestItemReader::default();
@@ -2671,6 +2634,48 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(step_execution.status, StepStatus::WriteError);
         assert_eq!(step_execution.write_error_count, 3); // All items in chunk failed
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_should_succeed_when_write_error_within_skip_limit() -> Result<()> {
+        let mut i = 0;
+        let mut reader = MockTestItemReader::default();
+        reader
+            .expect_read()
+            .returning(move || mock_read(&mut i, 0, 3));
+
+        let mut processor = MockTestProcessor::default();
+        let mut i = 0;
+        processor
+            .expect_process()
+            .returning(move |_| mock_process(&mut i, &[]));
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_open().times(1).returning(|| Ok(()));
+        writer
+            .expect_write()
+            .times(1)
+            .returning(|_| Err(BatchError::ItemWriter("write error".to_string())));
+        writer.expect_close().times(1).returning(|| Ok(()));
+
+        let step = StepBuilder::new("test")
+            .chunk(3)
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .skip_limit(3) // Exactly at limit: 3 write errors <= skip_limit(3), step continues
+            .build();
+
+        let mut step_execution = StepExecution::new(&step.name);
+
+        let result = step.execute(&mut step_execution);
+
+        assert!(result.is_ok());
+        assert_eq!(step_execution.status, StepStatus::Success);
+        assert_eq!(step_execution.write_error_count, 3);
+        assert_eq!(step_execution.write_count, 0); // No successful writes
 
         Ok(())
     }

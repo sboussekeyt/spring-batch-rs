@@ -41,7 +41,7 @@ use crate::{
 ///
 /// // Create a writer to an in-memory buffer
 /// let buffer = Cursor::new(Vec::new());
-/// let writer = JsonItemWriterBuilder::new()
+/// let writer = JsonItemWriterBuilder::<Product>::new()
 ///     .from_writer(buffer);
 ///
 /// // Write the products to JSON
@@ -203,7 +203,7 @@ impl<O: serde::Serialize, W: Write> ItemWriter<O> for JsonItemWriter<O, W> {
 ///
 /// // Create a writer with pretty formatting
 /// let buffer = Cursor::new(Vec::new());
-/// let writer = JsonItemWriterBuilder::new()
+/// let writer = JsonItemWriterBuilder::<Person>::new()
 ///     .pretty_formatter(true)
 ///     .from_writer(buffer);
 ///
@@ -219,20 +219,22 @@ impl<O: serde::Serialize, W: Write> ItemWriter<O> for JsonItemWriter<O, W> {
 /// writer_ref.write(&[person]).unwrap();
 /// writer_ref.close().unwrap();
 /// ```
-pub struct JsonItemWriterBuilder {
+pub struct JsonItemWriterBuilder<O> {
     /// Indentation to use when pretty-printing (default is two spaces)
     indent: Box<[u8]>,
     /// Whether to use pretty formatting with indentation and newlines
     pretty_formatter: bool,
+    /// Phantom data for the output type
+    _pd: PhantomData<O>,
 }
 
-impl Default for JsonItemWriterBuilder {
+impl<O> Default for JsonItemWriterBuilder<O> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl JsonItemWriterBuilder {
+impl<O> JsonItemWriterBuilder<O> {
     /// Creates a new JSON item writer builder with default settings.
     ///
     /// By default, the writer uses compact formatting (not pretty-printed)
@@ -243,12 +245,13 @@ impl JsonItemWriterBuilder {
     /// ```
     /// use spring_batch_rs::item::json::json_writer::JsonItemWriterBuilder;
     ///
-    /// let builder = JsonItemWriterBuilder::new();
+    /// let builder = JsonItemWriterBuilder::<String>::new();
     /// ```
     pub fn new() -> Self {
         Self {
             indent: Box::from(b"  ".to_vec()),
             pretty_formatter: false,
+            _pd: PhantomData,
         }
     }
 
@@ -262,7 +265,7 @@ impl JsonItemWriterBuilder {
     /// use spring_batch_rs::item::json::json_writer::JsonItemWriterBuilder;
     ///
     /// // Use 4 spaces for indentation
-    /// let builder = JsonItemWriterBuilder::new()
+    /// let builder = JsonItemWriterBuilder::<String>::new()
     ///     .indent(b"    ")
     ///     .pretty_formatter(true);
     /// ```
@@ -283,11 +286,11 @@ impl JsonItemWriterBuilder {
     /// use spring_batch_rs::item::json::json_writer::JsonItemWriterBuilder;
     ///
     /// // Enable pretty printing
-    /// let pretty_builder = JsonItemWriterBuilder::new()
+    /// let pretty_builder = JsonItemWriterBuilder::<String>::new()
     ///     .pretty_formatter(true);
     ///
     /// // Disable pretty printing for compact output
-    /// let compact_builder = JsonItemWriterBuilder::new()
+    /// let compact_builder = JsonItemWriterBuilder::<String>::new()
     ///     .pretty_formatter(false);
     /// ```
     pub fn pretty_formatter(mut self, yes: bool) -> Self {
@@ -324,7 +327,7 @@ impl JsonItemWriterBuilder {
     /// }
     ///
     /// // Create a writer to a file
-    /// let writer = JsonItemWriterBuilder::new()
+    /// let writer = JsonItemWriterBuilder::<Record>::new()
     ///     .pretty_formatter(true)
     ///     .from_path("output.json");
     ///
@@ -340,7 +343,7 @@ impl JsonItemWriterBuilder {
     /// writer_ref.write(&records).unwrap();
     /// writer_ref.close().unwrap();
     /// ```
-    pub fn from_path<O, W: AsRef<Path>>(self, path: W) -> JsonItemWriter<O, File> {
+    pub fn from_path<W: AsRef<Path>>(self, path: W) -> JsonItemWriter<O, File> {
         let file = File::create(path).expect("Unable to open file");
 
         let buf_writer = BufWriter::new(file);
@@ -380,7 +383,7 @@ impl JsonItemWriterBuilder {
     ///
     /// // Create a writer to an in-memory buffer
     /// let buffer = Cursor::new(Vec::new());
-    /// let writer = JsonItemWriterBuilder::new()
+    /// let writer = JsonItemWriterBuilder::<Event>::new()
     ///     .from_writer(buffer);
     ///
     /// // Generate some data
@@ -395,7 +398,7 @@ impl JsonItemWriterBuilder {
     /// writer_ref.write(&events).unwrap();
     /// writer_ref.close().unwrap();
     /// ```
-    pub fn from_writer<O, W: Write>(self, wtr: W) -> JsonItemWriter<O, W> {
+    pub fn from_writer<W: Write>(self, wtr: W) -> JsonItemWriter<O, W> {
         let buf_writer = BufWriter::new(wtr);
 
         JsonItemWriter {
@@ -425,32 +428,38 @@ mod tests {
 
     #[test]
     fn json_writer_builder_should_create_with_defaults() {
-        let builder = JsonItemWriterBuilder::new();
+        let builder = JsonItemWriterBuilder::<TestItem>::new();
         assert!(!builder.pretty_formatter);
         assert_eq!(builder.indent, b"  ".to_vec().into_boxed_slice());
     }
 
     #[test]
     fn json_writer_builder_should_set_pretty_formatter() {
-        let builder = JsonItemWriterBuilder::new().pretty_formatter(true);
+        let builder = JsonItemWriterBuilder::<TestItem>::new().pretty_formatter(true);
         assert!(builder.pretty_formatter);
     }
 
     #[test]
     fn json_writer_builder_should_set_custom_indent() {
         let custom_indent = b"    ";
-        let builder = JsonItemWriterBuilder::new().indent(custom_indent);
+        let builder = JsonItemWriterBuilder::<TestItem>::new().indent(custom_indent);
         assert_eq!(builder.indent, custom_indent.to_vec().into_boxed_slice());
     }
 
     #[test]
     fn json_writer_builder_should_implement_default() {
-        let builder1 = JsonItemWriterBuilder::new();
-        let builder2 = JsonItemWriterBuilder::default();
+        let builder1 = JsonItemWriterBuilder::<TestItem>::new();
+        let builder2 = JsonItemWriterBuilder::<TestItem>::default();
 
         assert_eq!(builder1.pretty_formatter, builder2.pretty_formatter);
         // Both should have the same default indent
         assert_eq!(builder1.indent, builder2.indent);
+    }
+
+    #[test]
+    fn json_writer_builder_should_support_generic_type() {
+        let _builder = JsonItemWriterBuilder::<TestItem>::new();
+        let _builder_default = JsonItemWriterBuilder::<TestItem>::default();
     }
 
     #[test]
@@ -570,5 +579,139 @@ mod tests {
         assert!(content.contains(r#"{"id":1,"name":"first","value":10.0}"#));
         assert!(content.contains(r#"{"id":2,"name":"second","value":20.0}"#));
         assert!(content.contains(','));
+    }
+
+    #[test]
+    fn json_writer_should_write_to_in_memory_buffer() {
+        use std::io::Cursor;
+
+        let buf = Cursor::new(Vec::new());
+        let writer = JsonItemWriterBuilder::<TestItem>::new().from_writer(buf);
+
+        let item = TestItem {
+            id: 7,
+            name: "cursor".to_string(),
+            value: 0.5,
+        };
+        writer.open().unwrap();
+        writer.write(&[item]).unwrap();
+        writer.close().unwrap();
+        // Reaching here without panic confirms from_writer + write + close work
+    }
+
+    #[test]
+    fn json_writer_should_flush_without_error() {
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("flush_test.json");
+
+        let writer = JsonItemWriterBuilder::<TestItem>::new().from_path(&file_path);
+        writer.open().unwrap();
+        writer.flush().unwrap();
+        writer.close().unwrap();
+    }
+
+    #[test]
+    fn json_writer_compact_open_writes_bracket_without_newline() {
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("compact_open.json");
+
+        let writer = JsonItemWriterBuilder::<TestItem>::new()
+            .pretty_formatter(false)
+            .from_path(&file_path);
+        writer.open().unwrap();
+        writer.close().unwrap();
+
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(
+            content, "[]\n",
+            "compact format should produce []\\n, got: {content:?}"
+        );
+    }
+
+    // A writer that always fails on any write or flush
+    struct FailWriter;
+    impl std::io::Write for FailWriter {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "write failed",
+            ))
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "flush failed",
+            ))
+        }
+    }
+
+    fn fail_json_writer<O: Serialize>() -> JsonItemWriter<O, FailWriter> {
+        JsonItemWriter {
+            stream: RefCell::new(BufWriter::with_capacity(0, FailWriter)),
+            use_pretty_formatter: false,
+            indent: Box::from(b"  ".as_slice()),
+            is_first_element: Cell::new(true),
+            _phantom: PhantomData,
+        }
+    }
+
+    #[test]
+    fn should_return_error_when_open_fails_on_io() {
+        let writer = fail_json_writer::<String>();
+        let result = ((&writer) as &dyn ItemWriter<String>).open();
+        assert!(result.is_err(), "open should fail when writer fails");
+    }
+
+    #[test]
+    fn should_return_error_when_close_fails_on_io() {
+        let writer = fail_json_writer::<String>();
+        let result = ((&writer) as &dyn ItemWriter<String>).close();
+        assert!(result.is_err(), "close should fail when writer fails");
+    }
+
+    #[test]
+    fn should_return_error_when_flush_fails_on_io() {
+        let writer = fail_json_writer::<String>();
+        let result = ((&writer) as &dyn ItemWriter<String>).flush();
+        assert!(result.is_err(), "flush should fail when writer fails");
+    }
+
+    #[test]
+    fn should_return_error_when_write_fails_on_io() {
+        let writer = fail_json_writer::<String>();
+        // write() serializes first (into a String), then writes to stream
+        // With capacity-0 BufWriter, write_all on the stream fails
+        let result = ((&writer) as &dyn ItemWriter<String>).write(&["hello".to_string()]);
+        assert!(
+            result.is_err(),
+            "write should fail when underlying IO fails"
+        );
+    }
+
+    #[test]
+    fn should_return_error_when_serialization_fails_with_pretty_formatter() {
+        use crate::BatchError;
+
+        struct NonSerializable;
+        impl Serialize for NonSerializable {
+            fn serialize<S: serde::Serializer>(&self, _s: S) -> Result<S::Ok, S::Error> {
+                Err(serde::ser::Error::custom(
+                    "intentional serialization failure",
+                ))
+            }
+        }
+
+        let buf = std::io::Cursor::new(Vec::new());
+        let writer = JsonItemWriterBuilder::<NonSerializable>::new()
+            .pretty_formatter(true)
+            .from_writer(buf);
+        let result = ((&writer) as &dyn ItemWriter<NonSerializable>).write(&[NonSerializable]);
+        match result.err().unwrap() {
+            BatchError::ItemWriter(msg) => assert!(
+                msg.contains("intentional"),
+                "error should contain serialization message, got: {msg}"
+            ),
+            e => panic!("expected ItemWriter error, got {e:?}"),
+        }
     }
 }

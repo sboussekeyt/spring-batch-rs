@@ -532,29 +532,83 @@ mod tests {
     }
 
     #[test]
-    fn test_entity_inference() {
-        // Verify that we can infer the Entity type from ActiveModel
-        fn check_entity_inference<A>()
-        where
-            A: ActiveModelTrait + Send,
-            <A as ActiveModelTrait>::Entity: EntityTrait,
-        {
-            // This function will only compile if we can access the Entity type
-            // through the ActiveModel's associated type
-        }
+    fn test_write_empty_slice_skips_database_operation() {
+        use sea_orm::{DatabaseBackend, MockDatabase};
 
-        check_entity_inference::<ActiveModel>();
+        let db = MockDatabase::new(DatabaseBackend::Sqlite).into_connection();
+        let writer = OrmItemWriter::<ActiveModel>::new(&db);
+
+        assert!(writer.open().is_ok());
+        assert!(writer.flush().is_ok());
+        assert!(writer.write(&[]).is_ok());
+        assert!(writer.close().is_ok());
     }
 
     #[test]
-    fn test_simplified_builder_pattern() {
-        // This test demonstrates that the builder pattern works with our simplified bounds
-        // Note: We can't actually build without a real database connection,
-        // but we can test that the types compile correctly
+    fn should_build_writer_via_builder_with_connection() {
+        use sea_orm::{DatabaseBackend, MockDatabase};
 
-        let builder = OrmItemWriterBuilder::<ActiveModel>::new();
+        let db = MockDatabase::new(DatabaseBackend::Sqlite).into_connection();
+        let writer = OrmItemWriterBuilder::<ActiveModel>::new()
+            .connection(&db)
+            .build();
 
-        // The builder should have the correct type with only one generic parameter
-        assert!(builder.connection.is_none());
+        // writer is created successfully — verify open/flush/close are no-ops
+        assert!(writer.open().is_ok());
+        assert!(writer.flush().is_ok());
+        assert!(writer.close().is_ok());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_write_active_models_to_mock_database() {
+        use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
+
+        let db = MockDatabase::new(DatabaseBackend::Sqlite)
+            .append_exec_results([MockExecResult {
+                last_insert_id: 1,
+                rows_affected: 1,
+            }])
+            .into_connection();
+
+        let writer = OrmItemWriter::<ActiveModel>::new(&db);
+        let items = vec![ActiveModel {
+            id: NotSet,
+            name: Set("Alice".to_owned()),
+        }];
+
+        let result = writer.write(&items);
+        assert!(
+            result.is_ok(),
+            "write should succeed with mock DB: {result:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_return_error_when_database_insert_fails() {
+        use crate::BatchError;
+        use sea_orm::{DatabaseBackend, DbErr, MockDatabase};
+
+        // MockDatabase with no exec results → any insert returns an error
+        let db = MockDatabase::new(DatabaseBackend::Sqlite)
+            .append_exec_errors([DbErr::Custom("insert failed".to_owned())])
+            .into_connection();
+
+        let writer = OrmItemWriter::<ActiveModel>::new(&db);
+        let items = vec![ActiveModel {
+            id: NotSet,
+            name: Set("Fail".to_owned()),
+        }];
+
+        let result = writer.write(&items);
+        assert!(
+            result.is_err(),
+            "write should fail when database returns error"
+        );
+        match result {
+            Err(BatchError::ItemWriter(msg)) => {
+                assert!(msg.contains("Failed to insert"), "unexpected error: {msg}")
+            }
+            other => panic!("expected ItemWriter error, got {other:?}"),
+        }
     }
 }

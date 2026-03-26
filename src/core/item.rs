@@ -477,4 +477,19 @@ mod tests {
         assert_eq!(result, expected);
         Ok(())
     }
+
+    #[test]
+    fn should_use_default_flush_open_close_implementations() {
+        struct MinimalWriter;
+        impl ItemWriter<String> for MinimalWriter {
+            fn write(&self, _: &[String]) -> ItemWriterResult {
+                Ok(())
+            }
+            // flush, open, close use the trait's default implementations
+        }
+        let w = MinimalWriter;
+        assert!(w.flush().is_ok(), "default flush should return Ok");
+        assert!(w.open().is_ok(), "default open should return Ok");
+        assert!(w.close().is_ok(), "default close should return Ok");
+    }
 }

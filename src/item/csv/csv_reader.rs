@@ -462,7 +462,7 @@ mod tests {
     /// This test verifies that the CsvItemReader can correctly parse
     /// CSV data with headers and multiple records.
     #[test]
-    fn this_test_will_pass() -> Result<(), Box<dyn Error>> {
+    fn should_parse_string_records_with_headers() -> Result<(), Box<dyn Error>> {
         let data = "city,country,pop
         Boston,United States,4628910
         Concord,United States,42695";

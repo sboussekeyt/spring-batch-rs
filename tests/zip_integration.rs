@@ -17,7 +17,7 @@ use spring_batch_rs::{
         job::{Job, JobBuilder},
         step::{StepBuilder, StepStatus},
     },
-    tasklet::zip::{ZipTasklet, ZipTaskletBuilder},
+    tasklet::zip::ZipTaskletBuilder,
 };
 use tempfile::TempDir;
 use zip::ZipArchive;
@@ -161,7 +161,11 @@ fn test_basic_directory_compression() {
     create_test_directory_structure(&source_dir).unwrap();
 
     // Create ZIP tasklet
-    let zip_tasklet = ZipTasklet::new(&source_dir, &target_zip).unwrap();
+    let zip_tasklet = ZipTaskletBuilder::new()
+        .source_path(&source_dir)
+        .target_path(&target_zip)
+        .build()
+        .unwrap();
 
     // Create and execute step
     let step = StepBuilder::new("zip-directory-step")
@@ -212,7 +216,11 @@ fn test_single_file_compression() {
     .unwrap();
 
     // Create ZIP tasklet
-    let zip_tasklet = ZipTasklet::new(&source_file, &target_zip).unwrap();
+    let zip_tasklet = ZipTaskletBuilder::new()
+        .source_path(&source_file)
+        .target_path(&target_zip)
+        .build()
+        .unwrap();
 
     // Create and execute step
     let step = StepBuilder::new("zip-single-file-step")
@@ -470,7 +478,10 @@ fn test_error_handling_nonexistent_source() {
     let target_zip = temp_dir.path().join("should_not_be_created.zip");
 
     // Try to create ZIP tasklet with nonexistent source
-    let result = ZipTasklet::new(&nonexistent_source, &target_zip);
+    let result = ZipTaskletBuilder::new()
+        .source_path(&nonexistent_source)
+        .target_path(&target_zip)
+        .build();
     assert!(result.is_err(), "Should fail with nonexistent source");
 
     // Verify ZIP file was not created
@@ -491,7 +502,10 @@ fn test_error_handling_invalid_target_directory() {
     // Try to create ZIP in a directory that cannot be created (using a file as directory)
     let invalid_target = source_file.join("invalid").join("target.zip");
 
-    let result = ZipTasklet::new(&source_file, &invalid_target);
+    let result = ZipTaskletBuilder::new()
+        .source_path(&source_file)
+        .target_path(&invalid_target)
+        .build();
     assert!(result.is_err(), "Should fail with invalid target directory");
 }
 
@@ -522,7 +536,11 @@ fn test_empty_directory_compression() {
     fs::create_dir(&empty_source).unwrap();
 
     // Create ZIP tasklet
-    let zip_tasklet = ZipTasklet::new(&empty_source, &target_zip).unwrap();
+    let zip_tasklet = ZipTaskletBuilder::new()
+        .source_path(&empty_source)
+        .target_path(&target_zip)
+        .build()
+        .unwrap();
 
     // Create and execute step
     let step = StepBuilder::new("zip-empty-step")

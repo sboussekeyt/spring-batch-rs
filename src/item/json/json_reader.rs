@@ -401,32 +401,27 @@ impl<I: DeserializeOwned> JsonItemReaderBuilder<I> {
 
 #[cfg(test)]
 mod tests {
-    use std::{error::Error, fs::File, io::Cursor, path::Path};
+    use std::{error::Error, io::Cursor};
 
     use crate::{
         core::item::{ItemReader, ItemReaderResult},
         item::{fake::person_reader::Person, json::json_reader::JsonItemReaderBuilder},
     };
 
-    /// Tests reading JSON data from a file
-    ///
-    /// This test verifies that the reader can correctly parse and deserialize
-    /// JSON data from a file into Person objects.
+    const PERSONS_JSON: &str = r#"[
+  {"first_name": "Océane", "last_name": "Dupond", "title": "Mr.", "email": "leopold_enim@orange.fr", "birth_date": "1963-05-16"},
+  {"first_name": "Amandine", "last_name": "Évrat", "title": "Mrs.", "email": "amandine_iure@outlook.fr", "birth_date": "1933-07-12"},
+  {"first_name": "Ugo", "last_name": "Niels", "title": "Sir.", "email": "xavier_voluptatem@sfr.fr", "birth_date": "1980-04-05"},
+  {"first_name": "Léo", "last_name": "Zola", "title": "Dr.", "email": "ugo_praesentium@orange.fr", "birth_date": "1914-08-13"}
+]"#;
+
     #[test]
-    fn content_from_file_should_be_deserialized() -> Result<(), Box<dyn Error>> {
-        let path = Path::new("examples/data/persons.json");
-
-        let file = File::options()
-            .append(true)
-            .read(true)
-            .create(false)
-            .open(path)
-            .expect("Unable to open file");
-
-        let reader = JsonItemReaderBuilder::new().capacity(320).from_reader(file);
+    fn content_from_reader_should_be_deserialized() -> Result<(), Box<dyn Error>> {
+        let reader = JsonItemReaderBuilder::new()
+            .capacity(320)
+            .from_reader(Cursor::new(PERSONS_JSON));
 
         let result: ItemReaderResult<Person> = reader.read();
-
         assert!(result.is_ok());
         assert_eq!(
             "first_name:Océane, last_name:Dupond, birth_date:1963-05-16",
@@ -454,7 +449,64 @@ mod tests {
             result.unwrap().unwrap().to_string()
         );
 
+        let result: ItemReaderResult<Person> = reader.read();
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+
         Ok(())
+    }
+
+    #[test]
+    fn should_return_error_when_json_object_fails_to_deserialize() {
+        use crate::BatchError;
+        use serde::Deserialize;
+
+        #[derive(Debug, Deserialize)]
+        struct StrictItem {
+            #[allow(dead_code)]
+            id: u32,
+        }
+
+        // Object is syntactically valid JSON but missing required field `id`
+        let json = r#"[{"wrong_field": 42}]"#;
+        let reader = JsonItemReaderBuilder::<StrictItem>::new().from_reader(Cursor::new(json));
+
+        let result = reader.read();
+        assert!(
+            result.is_err(),
+            "should fail when JSON doesn't match target type"
+        );
+        match result {
+            Err(BatchError::ItemReader(_)) => {}
+            other => panic!("expected ItemReader error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn should_handle_object_spanning_multiple_buffer_reads() {
+        use serde::Deserialize;
+
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Item {
+            id: u32,
+            name: String,
+        }
+
+        // Each object is ~25 bytes; capacity=10 forces NotEnded on every read
+        let json = r#"[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]"#;
+        let reader = JsonItemReaderBuilder::<Item>::new()
+            .capacity(10)
+            .from_reader(Cursor::new(json));
+
+        let item1 = reader.read().unwrap().unwrap();
+        assert_eq!(item1.id, 1);
+        assert_eq!(item1.name, "Alice");
+
+        let item2 = reader.read().unwrap().unwrap();
+        assert_eq!(item2.id, 2);
+        assert_eq!(item2.name, "Bob");
+
+        assert!(reader.read().unwrap().is_none());
     }
 
     /// Tests reading from non-JSON input
@@ -472,6 +524,7 @@ mod tests {
         let result: ItemReaderResult<Person> = reader.read();
 
         assert!(result.is_ok());
+        assert!(result.unwrap().is_none()); // Non-JSON input yields no items
 
         Ok(())
     }

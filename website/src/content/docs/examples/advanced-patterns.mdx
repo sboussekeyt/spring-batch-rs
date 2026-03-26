@@ -1,0 +1,185 @@
+---
+title: Advanced Patterns
+description: Examples of complex, multi-step jobs and advanced use cases.
+sidebar:
+  order: 7
+---
+
+import { Tabs, TabItem, Card, CardGrid } from '@astrojs/starlight/components';
+
+# Advanced Patterns
+
+This section covers more complex and realistic use cases that you might encounter when building batch applications. These examples demonstrate how to chain multiple steps together to create a complete data processing pipeline.
+
+## Multi-Step ETL Job
+
+This example demonstrates a complete Extract, Transform, Load (ETL) job with two distinct steps. This is a common pattern for processing data from one source, transforming it, and loading it into another destination.
+
+The job will perform the following actions:
+
+1.  **Step 1: Extract and Filter**
+    - Reads records from a source CSV file.
+    - Filters out any records belonging to the "Test" category.
+    - Writes the resulting records to an intermediate JSON file.
+
+2.  **Step 2: Transform and Load**
+    - Reads records from the intermediate JSON file.
+    - Transforms the data into a final `OutputRecord` format.
+    - "Loads" the data by logging it to the console.
+
+This showcases how to use different readers, writers, and processors across multiple, sequential steps within a single `Job`.
+
+```rust
+use anyhow::Result;
+use serde::{{Deserialize, Serialize}};
+use spring_batch_rs::{{
+    core::{{
+        item::ItemProcessor,
+        job::{{Job, JobBuilder}},
+        step::StepBuilder,
+    }},
+    item::{{
+        csv::csv_reader::CsvItemReaderBuilder,
+        json::json_reader::JsonItemReaderBuilder,
+        json::json_writer::JsonItemWriterBuilder,
+        logger::LoggerItemWriter,
+    }},
+    BatchError,
+}};
+use std::env::temp_dir;
+use std::fs::File;
+use std::io::Write;
+
+// --- Data Structures ---
+// Input record from CSV.
+#[derive(Deserialize, Clone, Debug)]
+struct InputRecord {
+    id: u32,
+    name: String,
+    category: String,
+    value: f64,
+}
+
+// Intermediate record, stored in JSON. `Serialize` is needed for the writer.
+#[derive(Deserialize, Serialize, Clone, Debug)]
+struct IntermediateRecord {
+    id: u32,
+    name: String,
+    value: f64,
+}
+
+// Final record, after transformation.
+#[derive(Serialize, Clone, Debug)]
+struct OutputRecord {
+    record_id: String,
+    description: String,
+    processed_value: f64,
+}
+
+// --- Step 1: CSV to JSON with Filtering ---
+
+// A custom processor that filters out records from the "Test" category.
+struct FilterProcessor;
+impl ItemProcessor<InputRecord, IntermediateRecord> for FilterProcessor {
+    fn process(&self, item: &InputRecord) -> Result<Option<IntermediateRecord>, BatchError> {
+        if item.category == "Test" {
+            println!("Filtering out test record: {{}}", item.name);
+            return Ok(None); // Returning None filters the item.
+        }
+
+        Ok(Some(IntermediateRecord {
+            id: item.id,
+            name: item.name.clone(),
+            value: item.value,
+        }))
+    }
+}
+
+// --- Step 2: JSON to Console Log with Transformation ---
+
+// A custom processor that transforms an IntermediateRecord into an OutputRecord.
+struct TransformProcessor;
+impl ItemProcessor<IntermediateRecord, OutputRecord> for TransformProcessor {
+    fn process(&self, item: &IntermediateRecord) -> Result<Option<OutputRecord>, BatchError> {
+        Ok(Some(OutputRecord {
+            record_id: format!("REC-{{}}", item.id),
+            description: format!("{{}} (Value: {{}})", item.name, item.value),
+            processed_value: item.value * 1.1, // Apply a 10% markup.
+        }))
+    }
+}
+
+fn main() -> Result<()> {
+    println!("--- Starting Multi-Step ETL Job Example ---");
+
+    // --- Create dummy CSV file for input ---
+    let csv_path = temp_dir().join("input_data.csv");
+    let mut file = File::create(&csv_path)?;
+    file.write_all(b"id,name,category,value\n")?;
+    file.write_all(b"1,Product A,Live,100.0\n")?;
+    file.write_all(b"2,Product B,Test,200.0\n")?;
+    file.write_all(b"3,Product C,Live,300.0\n")?;
+    println!("Created dummy input file: {{:?}}", csv_path);
+
+    // Define path for the intermediate JSON file.
+    let intermediate_json_path = temp_dir().join("intermediate_data.json");
+
+    // --- 1. Configure and build Step 1 ---
+    println!("\n--- Configuring Step 1: CSV to JSON ---");
+    let csv_reader = CsvItemReaderBuilder::<InputRecord>::new()
+        .has_headers(true)
+        .from_path(&csv_path);
+
+    let json_writer = JsonItemWriterBuilder::<IntermediateRecord>::new().from_path(&intermediate_json_path);
+
+    let filter_processor = FilterProcessor;
+
+    let step1 = StepBuilder::new("csv_to_json_filter_step")
+        .chunk::<InputRecord, IntermediateRecord>(10)
+        .reader(&csv_reader)
+        .processor(&filter_processor)
+        .writer(&json_writer)
+        .build();
+
+    // --- 2. Configure and build Step 2 ---
+    println!("\n--- Configuring Step 2: JSON to Console ---");
+    let json_reader = JsonItemReaderBuilder::<IntermediateRecord>::new()
+        .from_path(&intermediate_json_path);
+
+    let transform_processor = TransformProcessor;
+
+    // This writer logs the final records to the console.
+    let log_writer = LoggerItemWriter::new();
+
+    let step2 = StepBuilder::new("json_to_log_transform_step")
+        .chunk::<IntermediateRecord, OutputRecord>(10)
+        .reader(&json_reader)
+        .processor(&transform_processor)
+        .writer(&log_writer)
+        .build();
+
+    // --- 3. Configure and Run the Job ---
+    println!("\n--- Configuring and Running the Job ---");
+    let job = JobBuilder::new()
+        .start(&step1) // Start with step 1
+        .next(&step2)  // Proceed to step 2 after step 1 succeeds
+        .build();
+
+    let job_execution = job.run();
+
+    // --- 4. Verify results ---
+    assert!(job_execution.is_success());
+    let step1_execution = job.get_step_execution("csv_to_json_filter_step").unwrap();
+    assert_eq!(step1_execution.read_count, 3);
+    assert_eq!(step1_execution.write_count, 2); // 1 record was filtered.
+
+    let step2_execution = job.get_step_execution("json_to_log_transform_step").unwrap();
+    assert_eq!(step2_execution.read_count, 2);
+    assert_eq!(step2_execution.write_count, 2);
+
+    println!("\n--- Multi-Step ETL Job Finished Successfully! ---");
+    println!("Intermediate file is at: {{:?}}", intermediate_json_path);
+
+    Ok(())
+}
+```
