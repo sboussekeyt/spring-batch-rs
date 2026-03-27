@@ -337,7 +337,9 @@ fn run_step1(pool: &PgPool, csv_path: &str) -> Result<u64, BatchError> {
     let job = JobBuilder::new().start(&step).build();
     job.run()?;
 
-    let exec = job.get_step_execution("csv-to-postgres").unwrap();
+    // SAFETY: step "csv-to-postgres" is always registered after job.run() succeeds
+    let exec = job.get_step_execution("csv-to-postgres")
+        .expect("step 'csv-to-postgres' must exist after job.run()");
     let duration = t0.elapsed();
     let throughput = exec.write_count as f64 / duration.as_secs_f64();
 
@@ -347,6 +349,12 @@ fn run_step1(pool: &PgPool, csv_path: &str) -> Result<u64, BatchError> {
         duration.as_secs_f64(),
         throughput
     );
+    if exec.read_error_count > 0 || exec.write_error_count > 0 {
+        eprintln!(
+            "[Step 1] WARNING: {} read errors, {} write errors skipped — throughput may be understated",
+            exec.read_error_count, exec.write_error_count
+        );
+    }
 
     Ok(exec.write_count as u64)
 }
@@ -388,7 +396,9 @@ fn run_step2(pool: &PgPool, xml_path: &str) -> Result<u64, BatchError> {
     let job = JobBuilder::new().start(&step).build();
     job.run()?;
 
-    let exec = job.get_step_execution("postgres-to-xml").unwrap();
+    // SAFETY: step "postgres-to-xml" is always registered after job.run() succeeds
+    let exec = job.get_step_execution("postgres-to-xml")
+        .expect("step 'postgres-to-xml' must exist after job.run()");
     let duration = t0.elapsed();
     let throughput = exec.write_count as f64 / duration.as_secs_f64();
 
@@ -398,6 +408,12 @@ fn run_step2(pool: &PgPool, xml_path: &str) -> Result<u64, BatchError> {
         duration.as_secs_f64(),
         throughput
     );
+    if exec.read_error_count > 0 || exec.write_error_count > 0 {
+        eprintln!(
+            "[Step 2] WARNING: {} read errors, {} write errors skipped — throughput may be understated",
+            exec.read_error_count, exec.write_error_count
+        );
+    }
 
     Ok(exec.write_count as u64)
 }
@@ -413,11 +429,19 @@ async fn main() -> Result<(), BatchError> {
     let db_url = env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/benchmark".to_string());
 
-    let csv_path = env::var("CSV_PATH")
-        .unwrap_or_else(|_| "/tmp/transactions.csv".to_string());
+    let csv_path = env::var("CSV_PATH").unwrap_or_else(|_| {
+        std::env::temp_dir()
+            .join("transactions.csv")
+            .to_string_lossy()
+            .into_owned()
+    });
 
-    let xml_path = env::var("XML_PATH")
-        .unwrap_or_else(|_| "/tmp/transactions_export.xml".to_string());
+    let xml_path = env::var("XML_PATH").unwrap_or_else(|_| {
+        std::env::temp_dir()
+            .join("transactions_export.xml")
+            .to_string_lossy()
+            .into_owned()
+    });
 
     eprintln!("╔══════════════════════════════════════════════════════════╗");
     eprintln!("║  Spring Batch RS — 10M Transaction Benchmark            ║");
@@ -433,7 +457,7 @@ async fn main() -> Result<(), BatchError> {
         .max_connections(10)
         .connect(&db_url)
         .await
-        .map_err(|e| BatchError::ItemWriter(format!("DB connect failed: {}", e)))?;
+        .map_err(|e| BatchError::Step(format!("DB connect failed: {}", e)))?;
 
     // 2. Ensure table exists
     sqlx::query(
@@ -450,13 +474,13 @@ async fn main() -> Result<(), BatchError> {
     )
     .execute(&pool)
     .await
-    .map_err(|e| BatchError::ItemWriter(format!("Schema creation failed: {}", e)))?;
+    .map_err(|e| BatchError::Step(format!("Schema creation failed: {}", e)))?;
 
     // 3. Clean previous run
     sqlx::query("TRUNCATE TABLE transactions")
         .execute(&pool)
         .await
-        .map_err(|e| BatchError::ItemWriter(format!("Truncate failed: {}", e)))?;
+        .map_err(|e| BatchError::Step(format!("Truncate failed: {}", e)))?;
 
     // 4. Generate CSV
     eprintln!("[Generate] Writing {} rows to {} …", TOTAL_RECORDS, csv_path);
