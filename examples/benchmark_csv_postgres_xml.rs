@@ -294,8 +294,201 @@ mod tests {
     }
 }
 
+// =============================================================================
+// Step 1 — CSV → PostgreSQL
+// =============================================================================
+
+fn run_step1(pool: &PgPool, csv_path: &str) -> Result<u64, BatchError> {
+    log::info!("[Step 1] CSV → PostgreSQL …");
+    let t0 = Instant::now();
+
+    let file = File::open(csv_path)
+        .map_err(|e| BatchError::ItemReader(format!("Cannot open CSV: {}", e)))?;
+    let buffered = BufReader::with_capacity(64 * 1024, file);
+
+    let reader = CsvItemReaderBuilder::<Transaction>::new()
+        .has_headers(true)
+        .from_reader(buffered);
+
+    let binder = TransactionBinder;
+    let writer = RdbcItemWriterBuilder::<Transaction>::new()
+        .postgres(pool)
+        .table("transactions")
+        .add_column("transaction_id")
+        .add_column("amount")
+        .add_column("currency")
+        .add_column("timestamp")
+        .add_column("account_from")
+        .add_column("account_to")
+        .add_column("status")
+        .add_column("amount_eur")
+        .postgres_binder(&binder)
+        .build_postgres();
+
+    let processor = TransactionProcessor;
+
+    let step = StepBuilder::new("csv-to-postgres")
+        .chunk::<Transaction, Transaction>(1_000)
+        .reader(&reader)
+        .processor(&processor)
+        .writer(&writer)
+        .build();
+
+    let job = JobBuilder::new().start(&step).build();
+    job.run()?;
+
+    let exec = job.get_step_execution("csv-to-postgres").unwrap();
+    let duration = t0.elapsed();
+    let throughput = exec.write_count as f64 / duration.as_secs_f64();
+
+    eprintln!(
+        "[Step 1] Done — {} records written in {:.1}s ({:.0} rec/s)",
+        exec.write_count,
+        duration.as_secs_f64(),
+        throughput
+    );
+
+    Ok(exec.write_count as u64)
+}
+
+// =============================================================================
+// Step 2 — PostgreSQL → XML
+// =============================================================================
+
+fn run_step2(pool: &PgPool, xml_path: &str) -> Result<u64, BatchError> {
+    log::info!("[Step 2] PostgreSQL → XML …");
+    let t0 = Instant::now();
+
+    let reader = RdbcItemReaderBuilder::<Transaction>::new()
+        .postgres(pool.clone())
+        .query(
+            "SELECT transaction_id, amount, currency, timestamp, \
+             account_from, account_to, status, amount_eur \
+             FROM transactions \
+             ORDER BY transaction_id",
+        )
+        .with_page_size(1_000)
+        .build_postgres();
+
+    let writer = XmlItemWriterBuilder::<Transaction>::new()
+        .root_tag("transactions")
+        .item_tag("transaction")
+        .from_path(xml_path)
+        .map_err(|e| BatchError::ItemWriter(e.to_string()))?;
+
+    let processor = PassThroughProcessor::<Transaction>::new();
+
+    let step = StepBuilder::new("postgres-to-xml")
+        .chunk::<Transaction, Transaction>(1_000)
+        .reader(&reader)
+        .processor(&processor)
+        .writer(&writer)
+        .build();
+
+    let job = JobBuilder::new().start(&step).build();
+    job.run()?;
+
+    let exec = job.get_step_execution("postgres-to-xml").unwrap();
+    let duration = t0.elapsed();
+    let throughput = exec.write_count as f64 / duration.as_secs_f64();
+
+    eprintln!(
+        "[Step 2] Done — {} records written in {:.1}s ({:.0} rec/s)",
+        exec.write_count,
+        duration.as_secs_f64(),
+        throughput
+    );
+
+    Ok(exec.write_count as u64)
+}
+
+// =============================================================================
+// Main
+// =============================================================================
+
 #[tokio::main]
-async fn main() {
-    // TODO: implementation in Task 5
-    log::info!("Benchmark — implementation pending (Tasks 3–5)");
+async fn main() -> Result<(), BatchError> {
+    env_logger::init();
+
+    let db_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/benchmark".to_string());
+
+    let csv_path = env::var("CSV_PATH")
+        .unwrap_or_else(|_| "/tmp/transactions.csv".to_string());
+
+    let xml_path = env::var("XML_PATH")
+        .unwrap_or_else(|_| "/tmp/transactions_export.xml".to_string());
+
+    eprintln!("╔══════════════════════════════════════════════════════════╗");
+    eprintln!("║  Spring Batch RS — 10M Transaction Benchmark            ║");
+    eprintln!("╚══════════════════════════════════════════════════════════╝");
+    eprintln!();
+    eprintln!("DB  : {}", db_url);
+    eprintln!("CSV : {}", csv_path);
+    eprintln!("XML : {}", xml_path);
+    eprintln!();
+
+    // 1. Connect to PostgreSQL
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(10)
+        .connect(&db_url)
+        .await
+        .map_err(|e| BatchError::ItemWriter(format!("DB connect failed: {}", e)))?;
+
+    // 2. Ensure table exists
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS transactions (
+            transaction_id  VARCHAR(36)       PRIMARY KEY,
+            amount          DOUBLE PRECISION  NOT NULL,
+            currency        VARCHAR(3)        NOT NULL,
+            timestamp       VARCHAR(25)       NOT NULL,
+            account_from    VARCHAR(15)       NOT NULL,
+            account_to      VARCHAR(15)       NOT NULL,
+            status          VARCHAR(15)       NOT NULL,
+            amount_eur      DOUBLE PRECISION  NOT NULL DEFAULT 0.0
+        )",
+    )
+    .execute(&pool)
+    .await
+    .map_err(|e| BatchError::ItemWriter(format!("Schema creation failed: {}", e)))?;
+
+    // 3. Clean previous run
+    sqlx::query("TRUNCATE TABLE transactions")
+        .execute(&pool)
+        .await
+        .map_err(|e| BatchError::ItemWriter(format!("Truncate failed: {}", e)))?;
+
+    // 4. Generate CSV
+    eprintln!("[Generate] Writing {} rows to {} …", TOTAL_RECORDS, csv_path);
+    let t_gen = Instant::now();
+    generate_csv(&csv_path, TOTAL_RECORDS)?;
+    eprintln!("[Generate] Done in {:.1}s", t_gen.elapsed().as_secs_f64());
+    eprintln!();
+
+    // 5. Total wall time starts here
+    let t_total = Instant::now();
+
+    // 6. Run Step 1
+    run_step1(&pool, &csv_path)?;
+    eprintln!();
+
+    // 7. Run Step 2
+    run_step2(&pool, &xml_path)?;
+    eprintln!();
+
+    // 8. Summary
+    let total_secs = t_total.elapsed().as_secs_f64();
+    eprintln!("╔══════════════════════════════════════════════════════════╗");
+    eprintln!("║  BENCHMARK SUMMARY                                      ║");
+    eprintln!("╠══════════════════════════════════════════════════════════╣");
+    eprintln!("║  Total pipeline duration : {:.1}s", total_secs);
+    eprintln!("║  Records processed       : {}", TOTAL_RECORDS);
+    eprintln!("║  Average throughput      : {:.0} rec/s", TOTAL_RECORDS as f64 / total_secs);
+    eprintln!("╚══════════════════════════════════════════════════════════╝");
+    eprintln!();
+    eprintln!("Hint: measure peak RSS with:");
+    eprintln!("  /usr/bin/time -v cargo run --release --example benchmark_csv_postgres_xml \\");
+    eprintln!("    --features csv,xml,rdbc-postgres 2>&1 | grep 'Maximum resident'");
+
+    Ok(())
 }
