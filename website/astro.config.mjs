@@ -19,8 +19,7 @@ export const locales = locals;
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://sboussekeyt.github.io",
-  base: "/spring-batch-rs",
+  site: "https://spring-batch-rs.boussekeyt.dev",
   image: {
     service: { entrypoint: "astro/assets/services/noop" },
   },
