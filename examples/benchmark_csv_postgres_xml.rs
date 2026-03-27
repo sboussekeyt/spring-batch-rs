@@ -17,6 +17,7 @@
 //!    file.
 //! 3. Prints wall-clock time, rows/s, and peak RSS for comparison with Java.
 
-fn main() {
-    println!("Benchmark example — implementation pending.");
+#[tokio::main]
+async fn main() {
+    // TODO: log::info!("Benchmark example — implementation pending.");
 }
