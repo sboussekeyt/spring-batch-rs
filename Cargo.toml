@@ -142,3 +142,7 @@ required-features = ["ftp"]
 [[example]]
 name = "advanced_patterns"
 required-features = ["csv", "json", "logger"]
+
+[[example]]
+name = "benchmark_csv_postgres_xml"
+required-features = ["csv", "xml", "rdbc-postgres"]
