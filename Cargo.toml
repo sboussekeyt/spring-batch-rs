@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/sboussekeyt/spring-batch-rs"
 homepage = "https://spring-batch-rs.boussekeyt.dev"
 documentation = "https://docs.rs/spring-batch-rs"
-keywords = ["batch", "csv", "data", "json", "rdbc", "xml"]
+keywords = ["batch", "etl", "data", "pipeline", "processing"]
 readme = "README.md"
 description = "A toolkit for building enterprise-grade batch applications"
 
