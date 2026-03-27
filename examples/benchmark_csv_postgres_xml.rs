@@ -76,6 +76,7 @@ struct Transaction {
 /// - EUR → EUR: × 1.00
 ///
 /// Status normalisation: "CANCELLED" is mapped to "FAILED".
+#[derive(Default)]
 struct TransactionProcessor;
 
 impl ItemProcessor<Transaction, Transaction> for TransactionProcessor {
@@ -174,7 +175,8 @@ mod tests {
         // 333.33 * 0.92 = 306.6636 → rounds to 306.66
         let input = make_transaction("USD", 333.33, "COMPLETED");
         let result = processor.process(&input).unwrap(); // unwrap: process() always returns Ok
-        assert_eq!(result.amount_eur, 306.66, "amount_eur must be rounded to 2 decimals");
+        assert!((result.amount_eur - 306.66_f64).abs() < 1e-9,
+            "amount_eur must be rounded to 2 decimals, got {}", result.amount_eur);
     }
 }
 
