@@ -105,6 +105,26 @@ impl ItemProcessor<Transaction, Transaction> for TransactionProcessor {
 }
 
 // =============================================================================
+// PostgreSQL Binder
+// =============================================================================
+
+/// Binds `Transaction` fields to a PostgreSQL bulk-insert query.
+struct TransactionBinder;
+
+impl DatabaseItemBinder<Transaction, Postgres> for TransactionBinder {
+    fn bind(&self, item: &Transaction, mut q: Separated<Postgres, &str>) {
+        q.push_bind(item.transaction_id.clone());
+        q.push_bind(item.amount);
+        q.push_bind(item.currency.clone());
+        q.push_bind(item.timestamp.clone());
+        q.push_bind(item.account_from.clone());
+        q.push_bind(item.account_to.clone());
+        q.push_bind(item.status.clone());
+        q.push_bind(item.amount_eur);
+    }
+}
+
+// =============================================================================
 // Data Generator
 // =============================================================================
 
