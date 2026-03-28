@@ -14,6 +14,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
+import java.time.temporal.ChronoUnit;
+
 /**
  * Entry point for the Spring Batch Java benchmark.
  *
@@ -86,8 +88,8 @@ public class BenchmarkApplication {
 
             // Print per-step metrics
             for (StepExecution step : execution.getStepExecutions()) {
-                long stepMs = step.getEndTime().toInstant().toEpochMilli()
-                    - step.getStartTime().toInstant().toEpochMilli();
+                long stepMs = ChronoUnit.MILLIS.between(
+                    step.getStartTime(), step.getEndTime());
                 double throughput = stepMs > 0
                     ? step.getWriteCount() / (stepMs / 1000.0)
                     : 0;

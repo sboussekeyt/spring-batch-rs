@@ -28,6 +28,11 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-batch</artifactId>
     </dependency>
+    <!-- Spring Batch 6.x core + infrastructure (Spring Boot 4.x no longer auto-includes these) -->
+    <dependency>
+      <groupId>org.springframework.batch</groupId>
+      <artifactId>spring-batch-core</artifactId>
+    </dependency>
 
     <!-- JDBC / JPA -->
     <dependency>
