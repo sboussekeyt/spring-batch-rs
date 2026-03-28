@@ -1,14 +1,14 @@
 package com.example.benchmark.config;
 
 import com.example.benchmark.Transaction;
-import org.springframework.batch.core.Step;
+import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.batch.item.database.JdbcPagingItemReader;
-import org.springframework.batch.item.database.Order;
-import org.springframework.batch.item.database.builder.JdbcPagingItemReaderBuilder;
-import org.springframework.batch.item.xml.StaxEventItemWriter;
-import org.springframework.batch.item.xml.builder.StaxEventItemWriterBuilder;
+import org.springframework.batch.infrastructure.item.database.JdbcPagingItemReader;
+import org.springframework.batch.infrastructure.item.database.Order;
+import org.springframework.batch.infrastructure.item.database.builder.JdbcPagingItemReaderBuilder;
+import org.springframework.batch.infrastructure.item.xml.StaxEventItemWriter;
+import org.springframework.batch.infrastructure.item.xml.builder.StaxEventItemWriterBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,7 +37,7 @@ public class XmlExportConfig {
      * <p>Page size 1 000 — same as the Rust benchmark's {@code with_page_size(1_000)}.
      */
     @Bean
-    public JdbcPagingItemReader<Transaction> postgresReader(DataSource dataSource) {
+    public JdbcPagingItemReader<Transaction> postgresReader(DataSource dataSource) throws Exception {
         return new JdbcPagingItemReaderBuilder<Transaction>()
             .name("postgresTransactionReader")
             .dataSource(dataSource)
