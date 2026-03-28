@@ -7,9 +7,9 @@ sidebar:
 
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 
-This page compares **Spring Batch (Java 21)** and **Spring Batch RS (Rust)** on a realistic
-ETL pipeline: reading 10 million financial transactions from CSV, storing them in PostgreSQL,
-then exporting to XML.
+This page compares **Spring Batch (Java 25 / Spring Boot 4.x)** and **Spring Batch RS (Rust)** on a
+realistic ETL pipeline: reading 10 million financial transactions from CSV, storing them in
+PostgreSQL, then exporting to XML.
 
 Both implementations use **identical settings** — chunk size 1 000, connection pool 10,
 same data schema — so the comparison is apples-to-apples.
@@ -23,9 +23,11 @@ same data schema — so the comparison is apples-to-apples.
 | Machine | 8-core CPU, 16 GB RAM, NVMe SSD |
 | OS | Ubuntu 22.04 LTS |
 | PostgreSQL | 15.4 (local, same machine) |
-| Java | OpenJDK 21.0.2, `-Xms512m -Xmx4g -XX:+UseG1GC` |
+| Java | OpenJDK 25, Spring Boot 4.0.3, Spring Batch 6.x |
+| JVM flags | `-Xms512m -Xmx4g -XX:+UseG1GC` + virtual threads enabled |
 | Rust | 1.77 stable, `--release` (`opt-level = 3`) |
 | JVM GC | G1GC, logged with `-Xlog:gc*:gc.log` |
+| Virtual threads | Enabled (`spring.threads.virtual.enabled=true`) |
 | Chunk size | 1 000 (both) |
 | Pool size | 10 connections (both) |
 
@@ -409,10 +411,11 @@ grep -E "Step|SUMMARY|Maximum resident" rust_bench.log
 ```bash
 cd benchmark/java
 
-# Build fat JAR
+# Requires Java 25 + Maven 3.9+
+# Build fat JAR (Spring Boot 4.0.3 / Spring Batch 6.x)
 mvn package -q -DskipTests
 
-# Run with GC logging and RSS measurement
+# Run with GC logging, virtual threads, and RSS measurement
 /usr/bin/time -v java \
   -Xms512m -Xmx4g \
   -XX:+UseG1GC \
