@@ -252,7 +252,10 @@ mod tests {
         let processor = TransactionProcessor;
         let input = make_transaction("EUR", 100.0, "CANCELLED");
         let result = processor.process(&input).unwrap(); // unwrap: process() always returns Ok
-        assert_eq!(result.status, "FAILED", "CANCELLED must be mapped to FAILED");
+        assert_eq!(
+            result.status, "FAILED",
+            "CANCELLED must be mapped to FAILED"
+        );
     }
 
     #[test]
@@ -261,7 +264,11 @@ mod tests {
         for status in &["PENDING", "COMPLETED", "FAILED"] {
             let input = make_transaction("EUR", 100.0, status);
             let result = processor.process(&input).unwrap(); // unwrap: process() always returns Ok
-            assert_eq!(&result.status, status, "status '{}' must not be changed", status);
+            assert_eq!(
+                &result.status, status,
+                "status '{}' must not be changed",
+                status
+            );
         }
     }
 
@@ -271,8 +278,11 @@ mod tests {
         // 333.33 * 0.92 = 306.6636 → rounds to 306.66
         let input = make_transaction("USD", 333.33, "COMPLETED");
         let result = processor.process(&input).unwrap(); // unwrap: process() always returns Ok
-        assert!((result.amount_eur - 306.66_f64).abs() < 1e-9,
-            "amount_eur must be rounded to 2 decimals, got {}", result.amount_eur);
+        assert!(
+            (result.amount_eur - 306.66_f64).abs() < 1e-9,
+            "amount_eur must be rounded to 2 decimals, got {}",
+            result.amount_eur
+        );
     }
 
     #[test]
@@ -282,15 +292,22 @@ mod tests {
         generate_csv(path.to_str().unwrap(), 5).unwrap(); // unwrap: temp dir is always writable
 
         let mut content = String::new();
-        File::open(&path).unwrap().read_to_string(&mut content).unwrap(); // unwrap: file was just created
+        File::open(&path)
+            .unwrap()
+            .read_to_string(&mut content)
+            .unwrap(); // unwrap: file was just created
 
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(
-            lines[0],
-            "transaction_id,amount,currency,timestamp,account_from,account_to,status",
+            lines[0], "transaction_id,amount,currency,timestamp,account_from,account_to,status",
             "CSV header mismatch"
         );
-        assert_eq!(lines.len(), 6, "header + 5 data rows expected, got {}", lines.len());
+        assert_eq!(
+            lines.len(),
+            6,
+            "header + 5 data rows expected, got {}",
+            lines.len()
+        );
     }
 }
 
@@ -338,7 +355,8 @@ fn run_step1(pool: &PgPool, csv_path: &str) -> Result<u64, BatchError> {
     job.run()?;
 
     // SAFETY: step "csv-to-postgres" is always registered after job.run() succeeds
-    let exec = job.get_step_execution("csv-to-postgres")
+    let exec = job
+        .get_step_execution("csv-to-postgres")
         .expect("step 'csv-to-postgres' must exist after job.run()");
     let duration = t0.elapsed();
     let throughput = exec.write_count as f64 / duration.as_secs_f64();
@@ -397,7 +415,8 @@ fn run_step2(pool: &PgPool, xml_path: &str) -> Result<u64, BatchError> {
     job.run()?;
 
     // SAFETY: step "postgres-to-xml" is always registered after job.run() succeeds
-    let exec = job.get_step_execution("postgres-to-xml")
+    let exec = job
+        .get_step_execution("postgres-to-xml")
         .expect("step 'postgres-to-xml' must exist after job.run()");
     let duration = t0.elapsed();
     let throughput = exec.write_count as f64 / duration.as_secs_f64();
@@ -483,7 +502,10 @@ async fn main() -> Result<(), BatchError> {
         .map_err(|e| BatchError::Step(format!("Truncate failed: {}", e)))?;
 
     // 4. Generate CSV
-    eprintln!("[Generate] Writing {} rows to {} …", TOTAL_RECORDS, csv_path);
+    eprintln!(
+        "[Generate] Writing {} rows to {} …",
+        TOTAL_RECORDS, csv_path
+    );
     let t_gen = Instant::now();
     generate_csv(&csv_path, TOTAL_RECORDS)?;
     eprintln!("[Generate] Done in {:.1}s", t_gen.elapsed().as_secs_f64());
@@ -507,7 +529,10 @@ async fn main() -> Result<(), BatchError> {
     eprintln!("╠══════════════════════════════════════════════════════════╣");
     eprintln!("║  Total pipeline duration : {:.1}s", total_secs);
     eprintln!("║  Records processed       : {}", TOTAL_RECORDS);
-    eprintln!("║  Average throughput      : {:.0} rec/s", TOTAL_RECORDS as f64 / total_secs);
+    eprintln!(
+        "║  Average throughput      : {:.0} rec/s",
+        TOTAL_RECORDS as f64 / total_secs
+    );
     eprintln!("╚══════════════════════════════════════════════════════════╝");
     eprintln!();
     eprintln!("Hint: measure peak RSS with:");
