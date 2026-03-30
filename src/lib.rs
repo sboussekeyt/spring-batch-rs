@@ -33,7 +33,7 @@ serde = { version = "1.0", features = ["derive"] }
 ### 2. Your first batch job (CSV → JSON)
 
 > **Note:** `rdbc-*` and `orm` features require `tokio = { version = "1", features = ["full"] }`.
-> See the [Getting Started guide](https://sboussekeyt.github.io/spring-batch-rs/getting-started/) for the async setup.
+> See the [Getting Started guide](https://spring-batch-rs.boussekeyt.dev/getting-started/) for the async setup.
 
 ```rust,no_run
 use spring_batch_rs::{
@@ -68,10 +68,11 @@ fn main() -> Result<(), BatchError> {
         .from_path(&output);
 
     // Wire together: read 100 items at a time, tolerate up to 5 bad rows
+    let processor = PassThroughProcessor::<Order>::new();
     let step = StepBuilder::new("csv-to-json")
         .chunk::<Order, Order>(100)
         .reader(&reader)
-        .processor(&PassThroughProcessor::<Order>::new())
+        .processor(&processor)
         .writer(&writer)
         .skip_limit(5)
         .build();
@@ -109,7 +110,7 @@ Read item → Read item → ... → [chunk full] → Write chunk → repeat
 | `json`  | JSON `ItemReader` and `ItemWriter` |
 | `xml`   | XML `ItemReader` and `ItemWriter` |
 
-**Databases** *(require `tokio` — see [Getting Started](https://sboussekeyt.github.io/spring-batch-rs/getting-started/))*
+**Databases** *(require `tokio` — see [Getting Started](https://spring-batch-rs.boussekeyt.dev/getting-started/))*
 
 | Feature         | Description |
 | --------------- | ----------- |
@@ -143,16 +144,16 @@ Read item → Read item → ... → [chunk full] → Write chunk → repeat
 | ZIP tasklet | `cargo run --example tasklet_zip --features zip` |
 | FTP tasklet | `cargo run --example tasklet_ftp --features ftp` |
 
-> Database examples require Docker. Browse the **[full examples gallery](https://sboussekeyt.github.io/spring-batch-rs/quick-examples/)** for tutorials and advanced patterns.
+> Database examples require Docker. Browse the **[full examples gallery](https://spring-batch-rs.boussekeyt.dev/quick-examples/)** for tutorials and advanced patterns.
 
 ## Documentation
 
 | Resource | Link |
 | -------- | ---- |
-| Getting Started | [sboussekeyt.github.io/…/getting-started](https://sboussekeyt.github.io/spring-batch-rs/getting-started/) |
-| Item Readers & Writers | [sboussekeyt.github.io/…/item-readers-writers](https://sboussekeyt.github.io/spring-batch-rs/item-readers-writers/overview/) |
+| Getting Started | [spring-batch-rs.boussekeyt.dev/getting-started](https://spring-batch-rs.boussekeyt.dev/getting-started/) |
+| Item Readers & Writers | [spring-batch-rs.boussekeyt.dev/item-readers-writers](https://spring-batch-rs.boussekeyt.dev/item-readers-writers/overview/) |
 | API Reference | [docs.rs/spring-batch-rs](https://docs.rs/spring-batch-rs) |
-| Architecture | [sboussekeyt.github.io/…/architecture](https://sboussekeyt.github.io/spring-batch-rs/architecture/) |
+| Architecture | [spring-batch-rs.boussekeyt.dev/architecture](https://spring-batch-rs.boussekeyt.dev/architecture/) |
 
 ## Community
 

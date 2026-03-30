@@ -8,7 +8,7 @@ Spring Batch RS is a Rust implementation of the Spring Batch framework for build
 
 **Version**: 0.3.0
 **Language**: Rust 2021 Edition
-**Documentation**: https://sboussekeyt.github.io/spring-batch-rs/
+**Documentation**: https://spring-batch-rs.boussekeyt.dev/
 
 ## Essential Commands
 

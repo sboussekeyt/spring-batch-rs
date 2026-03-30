@@ -208,7 +208,7 @@ website-clean:
 website-deploy:
 	@echo "Website deploys automatically via GitHub Actions when pushing to main"
 	@echo "To deploy manually, push changes to the main branch"
-	@echo "GitHub Pages URL: https://sboussekeyt.github.io/spring-batch-rs/"
+	@echo "Website URL: https://spring-batch-rs.boussekeyt.dev/"
 
 # CI/CD targets
 ci: check test
