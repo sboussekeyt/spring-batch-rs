@@ -1,0 +1,129 @@
+{
+  "lsp": {
+    "jdtls": {
+      "initialization_options": {
+        "bundles": [],
+        "settings": {
+          "java": {
+            "configuration": {
+              "updateBuildConfiguration": "automatic",
+              "runtimes": [
+                {
+                  "name": "JavaSE-25",
+                  "path": "/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home",
+                  "default": true,
+                },
+              ],
+            },
+            "saveActions": {
+              "organizeImports": true,
+            },
+            "compile": {
+              "nullAnalysis": {
+                "mode": "automatic",
+              },
+            },
+            "references": {
+              "includeAccessors": true,
+              "includeDecompiledSources": true,
+            },
+            "jdt": {
+              "ls": {
+                "protobufSupport": {
+                  "enabled": true,
+                },
+                "groovySupport": {
+                  "enabled": true,
+                },
+              },
+            },
+            "eclipse": {
+              "downloadSources": true,
+            },
+            "maven": {
+              "downloadSources": true,
+              "updateSnapshots": true,
+            },
+            "autobuild": {
+              "enabled": true,
+            },
+            "maxConcurrentBuilds": 1,
+            "inlayHints": {
+              "parameterNames": {
+                "enabled": "all",
+              },
+            },
+            "signatureHelp": {
+              "enabled": true,
+              "description": {
+                "enabled": true,
+              },
+            },
+            "format": {
+              "enabled": true,
+              "settings": {
+                // The formatter config to use
+                "url": "~/.config/jdtls/palantir_java_jdtls.xml",
+              },
+              "onType": {
+                "enabled": true,
+              },
+            },
+            "contentProvider": {
+              "preferred": null,
+            },
+            "import": {
+              "gradle": {
+                "enabled": true,
+                "wrapper": {
+                  "enabled": true,
+                },
+              },
+              "maven": {
+                "enabled": true,
+              },
+              "exclusions": [
+                "**/node_modules/**",
+                "**/.metadata/**",
+                "**/archetype-resources/**",
+                "**/META-INF/maven/**",
+                "/**/test/**",
+              ],
+            },
+            "completion": {
+              "enabled": true,
+              "favoriteStaticMembers": [
+                "org.junit.Assert.*",
+                "org.junit.Assume.*",
+                "org.junit.jupiter.api.Assertions.*",
+                "org.junit.jupiter.api.Assumptions.*",
+                "org.junit.jupiter.api.DynamicContainer.*",
+                "org.junit.jupiter.api.DynamicTest.*",
+                "org.mockito.Mockito.*",
+                "org.mockito.ArgumentMatchers.*",
+              ],
+              "importOrder": ["java", "javax", "com", "org"],
+              "postfix": {
+                "enabled": true,
+              },
+              "chain": {
+                "enabled": true,
+              },
+              "guessMethodArguments": "insertParameterNames",
+              "overwrite": true,
+            },
+            "errors": {
+              "incompleteClasspath": {
+                "severity": "warning",
+              },
+            },
+            "implementationCodeLens": "all",
+            "referencesCodeLens": {
+              "enabled": true,
+            },
+          },
+        },
+      },
+    },
+  },
+}
