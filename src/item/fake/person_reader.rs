@@ -6,7 +6,7 @@ use fake::faker::internet::raw::*;
 use fake::locales::*;
 use fake::{faker::name::raw::*, Fake};
 use log::debug;
-use rand::Rng;
+use rand::RngExt;
 
 use time::format_description;
 use time::{Date, Month};
