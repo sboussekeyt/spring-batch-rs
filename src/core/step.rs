@@ -40,7 +40,7 @@
 //! # }
 //! # struct MyProcessor;
 //! # impl ItemProcessor<String, String> for MyProcessor {
-//! #     fn process(&self, item: &String) -> Result<String, BatchError> { Ok(item.clone()) }
+//! #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.clone())) }
 //! # }
 //! # struct MyWriter;
 //! # impl ItemWriter<String> for MyWriter {
@@ -326,6 +326,7 @@ impl<'a> TaskletBuilder<'a> {
 /// assert_eq!(step_execution.status, StepStatus::Starting);
 /// assert_eq!(step_execution.read_count, 0);
 /// assert_eq!(step_execution.write_count, 0);
+/// assert_eq!(step_execution.filter_count, 0);
 /// ```
 #[derive(Clone)]
 pub struct StepExecution {
@@ -351,6 +352,8 @@ pub struct StepExecution {
     pub process_count: usize,
     /// Number of errors encountered during processing
     pub process_error_count: usize,
+    /// Number of items filtered by the processor (processor returned Ok(None))
+    pub filter_count: usize,
     /// Number of errors encountered during writing
     pub write_error_count: usize,
 }
@@ -387,6 +390,7 @@ impl StepExecution {
             read_error_count: 0,
             process_count: 0,
             process_error_count: 0,
+            filter_count: 0,
             write_error_count: 0,
         }
     }
@@ -559,7 +563,7 @@ pub enum RepeatStatus {
 /// # }
 /// # struct MyProcessor;
 /// # impl ItemProcessor<String, String> for MyProcessor {
-/// #     fn process(&self, item: &String) -> Result<String, BatchError> { Ok(item.clone()) }
+/// #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.clone())) }
 /// # }
 /// # struct MyWriter;
 /// # impl ItemWriter<String> for MyWriter {
@@ -788,16 +792,19 @@ impl<I, O> ChunkOrientedStep<'_, I, O> {
 
         for item in read_items {
             match self.processor.process(item) {
-                Ok(processed_item) => {
+                Ok(Some(processed_item)) => {
                     result.push(processed_item);
                     step_execution.process_count += 1;
+                }
+                Ok(None) => {
+                    step_execution.filter_count += 1;
+                    debug!("Item filtered by processor");
                 }
                 Err(error) => {
                     warn!("Error processing item: {}", error);
                     step_execution.process_error_count += 1;
 
                     if self.is_skip_limit_reached(step_execution) {
-                        // Set the status to ProcessorError when we hit the limit
                         step_execution.status = StepStatus::ProcessorError;
                         return Err(error);
                     }
@@ -893,7 +900,7 @@ impl<I, O> ChunkOrientedStep<'_, I, O> {
 /// # }
 /// # struct MyProcessor;
 /// # impl ItemProcessor<i32, String> for MyProcessor {
-/// #     fn process(&self, item: &i32) -> Result<String, BatchError> { Ok(item.to_string()) }
+/// #     fn process(&self, item: &i32) -> Result<Option<String>, BatchError> { Ok(Some(item.to_string())) }
 /// # }
 /// # struct MyWriter;
 /// # impl ItemWriter<String> for MyWriter {
@@ -1004,7 +1011,7 @@ impl<'a, I, O> ChunkOrientedStepBuilder<'a, I, O> {
     /// # }
     /// # struct UppercaseProcessor;
     /// # impl ItemProcessor<String, String> for UppercaseProcessor {
-    /// #     fn process(&self, item: &String) -> Result<String, BatchError> { Ok(item.to_uppercase()) }
+    /// #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.to_uppercase())) }
     /// # }
     /// let reader = FileReader;
     /// let processor = UppercaseProcessor;
@@ -1037,7 +1044,7 @@ impl<'a, I, O> ChunkOrientedStepBuilder<'a, I, O> {
     /// # }
     /// # struct UppercaseProcessor;
     /// # impl ItemProcessor<String, String> for UppercaseProcessor {
-    /// #     fn process(&self, item: &String) -> Result<String, BatchError> { Ok(item.to_uppercase()) }
+    /// #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.to_uppercase())) }
     /// # }
     /// # struct FileWriter;
     /// # impl ItemWriter<String> for FileWriter {
@@ -1119,7 +1126,7 @@ impl<'a, I, O> ChunkOrientedStepBuilder<'a, I, O> {
     /// # }
     /// # struct MyProcessor;
     /// # impl ItemProcessor<String, String> for MyProcessor {
-    /// #     fn process(&self, item: &String) -> Result<String, BatchError> { Ok(item.clone()) }
+    /// #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.clone())) }
     /// # }
     /// # struct MyWriter;
     /// # impl ItemWriter<String> for MyWriter {
@@ -1179,7 +1186,7 @@ impl<'a, I, O> ChunkOrientedStepBuilder<'a, I, O> {
 /// # }
 /// # struct MyProcessor;
 /// # impl ItemProcessor<String, String> for MyProcessor {
-/// #     fn process(&self, item: &String) -> Result<String, BatchError> { Ok(item.clone()) }
+/// #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.clone())) }
 /// # }
 /// # struct MyWriter;
 /// # impl ItemWriter<String> for MyWriter {
@@ -1289,7 +1296,7 @@ impl StepBuilder {
     /// # }
     /// # struct MyProcessor;
     /// # impl ItemProcessor<String, String> for MyProcessor {
-    /// #     fn process(&self, item: &String) -> Result<String, BatchError> { Ok(item.clone()) }
+    /// #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.clone())) }
     /// # }
     /// # struct MyWriter;
     /// # impl ItemWriter<String> for MyWriter {
@@ -1511,7 +1518,7 @@ mod tests {
             model: "model".to_owned(),
             description: "description".to_owned(),
         };
-        Ok(car)
+        Ok(Some(car))
     }
 
     #[test]
@@ -3188,5 +3195,62 @@ mod tests {
         let debug_string = format!("{:?}", status);
 
         assert!(debug_string.contains("Continuable"));
+    }
+
+    #[test]
+    fn step_should_count_filtered_items() -> Result<()> {
+        // Reader returns 4 items (items 0,1,2,3), ends at 4
+        let mut i = 0u16;
+        let mut reader = MockTestItemReader::default();
+        reader
+            .expect_read()
+            .returning(move || mock_read(&mut i, 0, 4));
+
+        // Processor filters item at position 2 (returns Ok(None))
+        let mut j = 0u16;
+        let mut processor = MockTestProcessor::default();
+        processor.expect_process().returning(move |_| {
+            j += 1;
+            if j == 2 {
+                return Ok(None); // filter this item
+            }
+            Ok(Some(Car {
+                year: 1979,
+                make: "make".to_owned(),
+                model: "model".to_owned(),
+                description: "description".to_owned(),
+            }))
+        });
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_open().times(1).returning(|| Ok(()));
+        // 3 items pass through (4 read - 1 filtered), written in one chunk
+        writer
+            .expect_write()
+            .times(1)
+            .returning(|items| {
+                assert_eq!(items.len(), 3, "expected 3 items written after filtering");
+                Ok(())
+            });
+        writer.expect_flush().returning(|| Ok(()));
+        writer.expect_close().times(1).returning(|| Ok(()));
+
+        let step = StepBuilder::new("test")
+            .chunk(10)
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .build();
+
+        let mut step_execution = StepExecution::new(&step.name);
+        let result = step.execute(&mut step_execution);
+
+        assert!(result.is_ok());
+        assert_eq!(step_execution.read_count, 4, "should have read 4 items");
+        assert_eq!(step_execution.filter_count, 1, "should have filtered 1 item");
+        assert_eq!(step_execution.process_count, 3, "should have processed 3 items");
+        assert_eq!(step_execution.write_count, 3, "should have written 3 items");
+
+        Ok(())
     }
 }
