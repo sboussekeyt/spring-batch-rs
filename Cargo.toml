@@ -144,5 +144,9 @@ name = "advanced_patterns"
 required-features = ["csv", "json", "logger"]
 
 [[example]]
+name = "filter_records_from_csv_with_processor"
+required-features = ["csv", "json"]
+
+[[example]]
 name = "benchmark_csv_postgres_xml"
 required-features = ["csv", "xml", "rdbc-postgres"]
