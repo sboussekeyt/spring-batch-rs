@@ -11,9 +11,10 @@ pub type ItemReaderResult<I> = Result<Option<I>, BatchError>;
 /// Represents the result of processing an item by the processor.
 ///
 /// This type is a specialized `Result` that can be:
-/// - `Ok(W)` when an item is successfully processed
+/// - `Ok(Some(O))` when an item is successfully processed and should be passed to the writer
+/// - `Ok(None)` when an item is intentionally filtered out (not an error)
 /// - `Err(BatchError)` when an error occurs during processing
-pub type ItemProcessorResult<O> = Result<O, BatchError>;
+pub type ItemProcessorResult<O> = Result<Option<O>, BatchError>;
 
 /// Represents the result of writing items by the writer.
 ///
@@ -75,8 +76,14 @@ pub trait ItemReader<I> {
 /// A trait for processing items.
 ///
 /// This trait defines the contract for components that transform or process items
-/// in a batch processing pipeline. It takes an input item of type `R` and produces
-/// an output item of type `W`.
+/// in a batch processing pipeline. It takes an input item of type `I` and produces
+/// an output item of type `O`.
+///
+/// # Filtering
+///
+/// Returning `Ok(None)` filters the item silently: it is not passed to the writer
+/// and is counted in [`StepExecution::filter_count`]. This is different from returning
+/// `Err(BatchError)` which counts as a processing error and may trigger fault tolerance.
 ///
 /// # Design Pattern
 ///
@@ -85,8 +92,8 @@ pub trait ItemReader<I> {
 ///
 /// # Type Parameters
 ///
-/// - `R`: The input item type
-/// - `W`: The output item type
+/// - `I`: The input item type
+/// - `O`: The output item type
 ///
 /// # Example
 ///
@@ -94,11 +101,18 @@ pub trait ItemReader<I> {
 /// use spring_batch_rs::core::item::{ItemProcessor, ItemProcessorResult};
 /// use spring_batch_rs::error::BatchError;
 ///
-/// struct UppercaseProcessor;
+/// struct AdultFilter;
 ///
-/// impl ItemProcessor<String, String> for UppercaseProcessor {
-///     fn process(&self, item: &String) -> ItemProcessorResult<String> {
-///         Ok(item.to_uppercase())
+/// #[derive(Clone)]
+/// struct Person { name: String, age: u32 }
+///
+/// impl ItemProcessor<Person, Person> for AdultFilter {
+///     fn process(&self, item: &Person) -> ItemProcessorResult<Person> {
+///         if item.age >= 18 {
+///             Ok(Some(item.clone())) // keep adults
+///         } else {
+///             Ok(None) // filter out minors
+///         }
 ///     }
 /// }
 /// ```
@@ -109,7 +123,8 @@ pub trait ItemProcessor<I, O> {
     /// - `item`: The item to process
     ///
     /// # Returns
-    /// - `Ok(processed_item)` when the item is successfully processed
+    /// - `Ok(Some(processed_item))` when the item is successfully processed
+    /// - `Ok(None)` when the item is intentionally filtered out
     /// - `Err(BatchError)` when an error occurs during processing
     fn process(&self, item: &I) -> ItemProcessorResult<O>;
 }
@@ -239,7 +254,7 @@ pub trait ItemWriter<O> {
 /// let processor = PassThroughProcessor::<String>::new();
 /// let input = "Hello, World!".to_string();
 /// let result = processor.process(&input).unwrap();
-/// assert_eq!(result, input);
+/// assert_eq!(result, Some(input));
 /// ```
 ///
 /// Using with different data types:
@@ -251,7 +266,7 @@ pub trait ItemWriter<O> {
 /// let int_processor = PassThroughProcessor::<i32>::new();
 /// let number = 42;
 /// let result = int_processor.process(&number).unwrap();
-/// assert_eq!(result, number);
+/// assert_eq!(result, Some(number));
 ///
 /// // With custom structs
 /// #[derive(Clone, PartialEq, Debug)]
@@ -266,7 +281,7 @@ pub trait ItemWriter<O> {
 ///     age: 30,
 /// };
 /// let result = person_processor.process(&person).unwrap();
-/// assert_eq!(result, person);
+/// assert_eq!(result, Some(person));
 /// ```
 #[derive(Default)]
 pub struct PassThroughProcessor<T> {
@@ -280,7 +295,7 @@ impl<T: Clone> ItemProcessor<T, T> for PassThroughProcessor<T> {
     /// - `item`: The item to process (will be cloned and returned unchanged)
     ///
     /// # Returns
-    /// - `Ok(cloned_item)` - Always succeeds and returns a clone of the input item
+    /// - `Ok(Some(cloned_item))` - Always succeeds and returns a clone of the input item
     ///
     /// # Examples
     ///
@@ -290,10 +305,10 @@ impl<T: Clone> ItemProcessor<T, T> for PassThroughProcessor<T> {
     /// let processor = PassThroughProcessor::<Vec<i32>>::new();
     /// let input = vec![1, 2, 3];
     /// let result = processor.process(&input).unwrap();
-    /// assert_eq!(result, input);
+    /// assert_eq!(result, Some(input));
     /// ```
     fn process(&self, item: &T) -> ItemProcessorResult<T> {
-        Ok(item.clone())
+        Ok(Some(item.clone()))
     }
 }
 
@@ -345,8 +360,7 @@ mod tests {
 
         let result = processor.process(&input)?;
 
-        assert_eq!(result, expected);
-        assert_eq!(result, input);
+        assert_eq!(result, Some(expected));
         Ok(())
     }
 
@@ -357,7 +371,7 @@ mod tests {
 
         let result = processor.process(&input)?;
 
-        assert_eq!(result, input);
+        assert_eq!(result, Some(input));
         Ok(())
     }
 
@@ -369,8 +383,7 @@ mod tests {
 
         let result = processor.process(&input)?;
 
-        assert_eq!(result, expected);
-        assert_eq!(result, input);
+        assert_eq!(result, Some(expected));
         Ok(())
     }
 
@@ -393,10 +406,7 @@ mod tests {
 
         let result = processor.process(&input)?;
 
-        assert_eq!(result, expected);
-        assert_eq!(result.id, input.id);
-        assert_eq!(result.name, input.name);
-        assert_eq!(result.values, input.values);
+        assert_eq!(result, Some(expected));
         Ok(())
     }
 
@@ -404,34 +414,28 @@ mod tests {
     fn should_pass_through_option_unchanged() -> Result<(), BatchError> {
         let processor = PassThroughProcessor::new();
 
-        // Test with Some value
         let input_some = Some("test".to_string());
         let result_some = processor.process(&input_some)?;
-        assert_eq!(result_some, input_some);
+        assert_eq!(result_some, Some(input_some));
 
-        // Test with None value
         let input_none: Option<String> = None;
         let result_none = processor.process(&input_none)?;
-        assert_eq!(result_none, input_none);
+        assert_eq!(result_none, Some(input_none));
 
         Ok(())
     }
 
     #[test]
     fn should_handle_empty_collections() -> Result<(), BatchError> {
-        // Test empty vector
         let vec_processor = PassThroughProcessor::new();
         let empty_vec: Vec<i32> = vec![];
         let result_vec = vec_processor.process(&empty_vec)?;
-        assert_eq!(result_vec, empty_vec);
-        assert!(result_vec.is_empty());
+        assert_eq!(result_vec, Some(empty_vec));
 
-        // Test empty string
         let string_processor = PassThroughProcessor::new();
         let empty_string = String::new();
         let result_string = string_processor.process(&empty_string)?;
-        assert_eq!(result_string, empty_string);
-        assert!(result_string.is_empty());
+        assert_eq!(result_string, Some(empty_string));
 
         Ok(())
     }
@@ -444,7 +448,6 @@ mod tests {
 
         let _result = processor.process(&input).unwrap();
 
-        // Original input should still be accessible (not moved)
         assert_eq!(input, input_copy);
         assert_eq!(input, "original");
     }
@@ -456,10 +459,10 @@ mod tests {
 
         let input = "test data".to_string();
         let result1 = processor1.process(&input)?;
-        let result2 = processor2.process(&result1)?;
+        let inner = result1.unwrap();
+        let result2 = processor2.process(&inner)?;
 
-        assert_eq!(result2, input);
-        assert_eq!(result1, result2);
+        assert_eq!(result2, Some(input));
         Ok(())
     }
 
@@ -467,14 +470,13 @@ mod tests {
     fn should_handle_large_data_structures() -> Result<(), BatchError> {
         let processor = PassThroughProcessor::new();
 
-        // Create a large vector
         let large_input: Vec<i32> = (0..10000).collect();
-        let expected = large_input.clone();
+        let expected_len = large_input.len();
 
         let result = processor.process(&large_input)?;
 
-        assert_eq!(result.len(), expected.len());
-        assert_eq!(result, expected);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().len(), expected_len);
         Ok(())
     }
 
