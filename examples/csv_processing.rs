@@ -54,13 +54,13 @@ impl DiscountProcessor {
 }
 
 impl ItemProcessor<Product, Product> for DiscountProcessor {
-    fn process(&self, item: &Product) -> Result<Product, BatchError> {
-        Ok(Product {
+    fn process(&self, item: &Product) -> Result<Option<Product>, BatchError> {
+        Ok(Some(Product {
             id: item.id,
             name: item.name.clone(),
             price: item.price * (1.0 - self.discount_percent / 100.0),
             category: item.category.clone(),
-        })
+        }))
     }
 }
 

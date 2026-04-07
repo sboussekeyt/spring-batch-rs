@@ -69,7 +69,7 @@ impl ItemProcessor<Model, ProductDto> for ProductTransformProcessor {
                 "Out of Stock".to_string()
             },
         };
-        Ok(dto)
+        Ok(Some(dto))
     }
 }
 
@@ -781,7 +781,7 @@ mod orm_writer_tests {
                 in_stock: Set(item.in_stock),
                 created_at: Set(DateTimeUtc::default()),
             };
-            Ok(active_model)
+            Ok(Some(active_model))
         }
     }
 

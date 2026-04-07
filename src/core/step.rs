@@ -805,6 +805,7 @@ impl<I, O> ChunkOrientedStep<'_, I, O> {
                     step_execution.process_error_count += 1;
 
                     if self.is_skip_limit_reached(step_execution) {
+                        // Set the status to ProcessorError when we hit the limit
                         step_execution.status = StepStatus::ProcessorError;
                         return Err(error);
                     }
