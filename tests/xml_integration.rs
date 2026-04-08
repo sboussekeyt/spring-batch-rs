@@ -51,7 +51,7 @@ impl ItemProcessor<Product, Product> for ProductProcessor {
             description,
         };
 
-        Ok(product)
+        Ok(Some(product))
     }
 }
 
@@ -218,7 +218,7 @@ P003,SKU789,Headphones,129.99,Japan,AudioInc,1978,Electronics,false,Audio,true,f
                 in_stock: item[11].parse().unwrap_or(false),
             };
 
-            Ok(product)
+            Ok(Some(product))
         }
     }
 

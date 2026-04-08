@@ -48,7 +48,7 @@ impl ItemProcessor<Product, Product> for ProductProcessor {
             available: item.available,
         };
 
-        Ok(product)
+        Ok(Some(product))
     }
 }
 

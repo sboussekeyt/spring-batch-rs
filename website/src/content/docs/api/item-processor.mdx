@@ -15,13 +15,11 @@ The `ItemProcessor<I, O>` trait defines how to transform items from input type `
 pub trait ItemProcessor<I, O> {
     /// Processes an item and returns the transformed result
     ///
-    /// # Parameters
-    /// - `item`: Reference to the item to process
-    ///
     /// # Returns
-    /// - `Ok(processed_item)` - Successfully processed
+    /// - `Ok(Some(processed_item))` - Successfully processed, pass to writer
+    /// - `Ok(None)` - Item filtered out, not passed to writer
     /// - `Err(BatchError)` - Processing failed
-    fn process(&self, item: &I) -> Result<O, BatchError>;
+    fn process(&self, item: &I) -> Result<Option<O>, BatchError>;
 }
 ```
 
@@ -32,7 +30,7 @@ pub trait ItemProcessor<I, O> {
 ## Type Alias
 
 ```rust
-pub type ItemProcessorResult<O> = Result<O, BatchError>;
+pub type ItemProcessorResult<O> = Result<Option<O>, BatchError>;
 ```
 
 ## Key Characteristics
@@ -45,7 +43,7 @@ pub type ItemProcessorResult<O> = Result<O, BatchError>;
     Validate items and reject invalid data
   </Card>
   <Card title="Filtering" icon="seti:todo">
-    Skip items by returning errors that can be handled by fault tolerance
+    Return `Ok(None)` to silently discard items. Filtered items increment `filter_count`, not `skip_count`.
   </Card>
   <Card title="Stateless Design" icon="puzzle">
     Processors should be stateless for thread safety
@@ -107,11 +105,11 @@ struct ProductTransformer;
 
 impl ItemProcessor<RawProduct, Product> for ProductTransformer {
     fn process(&self, item: &RawProduct) -> ItemProcessorResult<Product> {
-        Ok(Product {
+        Ok(Some(Product {
             id: item.id,
             name: item.name.clone(),
             price_dollars: item.price_cents as f64 / 100.0,
-        })
+        }))
     }
 }
 ```
@@ -147,7 +145,7 @@ impl ItemProcessor<User, User> for UserValidator {
             ));
         }
 
-        Ok(item.clone())
+        Ok(Some(item.clone()))
     }
 }
 ```
@@ -156,7 +154,45 @@ impl ItemProcessor<User, User> for UserValidator {
   Use `skip_limit()` on your step to handle validation errors gracefully without stopping the entire job.
 </Aside>
 
-### 3. Data Enrichment
+### 3. Item Filtering
+
+Return `Ok(None)` to silently discard items — they are not passed to the writer and are counted in `StepExecution::filter_count`. This is intentional filtering, not an error.
+
+```rust
+use spring_batch_rs::core::item::{ItemProcessor, ItemProcessorResult};
+
+#[derive(Clone)]
+struct Person {
+    name: String,
+    age: u32,
+}
+
+struct AdultFilter;
+
+impl ItemProcessor<Person, Person> for AdultFilter {
+    fn process(&self, item: &Person) -> ItemProcessorResult<Person> {
+        if item.age >= 18 {
+            Ok(Some(item.clone())) // keep adults
+        } else {
+            Ok(None) // filter out minors — counted in filter_count
+        }
+    }
+}
+```
+
+After job execution, check the filter count:
+
+```rust
+for step_execution in &result.step_executions {
+    println!("Filtered: {}", step_execution.filter_count);
+}
+```
+
+<Aside type="tip">
+  Filtering with `Ok(None)` does **not** count toward `skip_limit`. Use it for intentional business filtering, not for error recovery.
+</Aside>
+
+### 4. Data Enrichment
 
 Add additional information to items:
 
@@ -195,19 +231,19 @@ impl ItemProcessor<Order, EnrichedOrder> for OrderEnricher {
 
         let total_price = unit_price * item.quantity as f64;
 
-        Ok(EnrichedOrder {
+        Ok(Some(EnrichedOrder {
             id: item.id,
             product_id: item.product_id,
             product_name,
             quantity: item.quantity,
             unit_price,
             total_price,
-        })
+        }))
     }
 }
 ```
 
-### 4. Data Cleansing
+### 5. Data Cleansing
 
 Clean and normalize data:
 
@@ -224,12 +260,12 @@ impl ItemProcessor<String, String> for DataCleanser {
             .filter(|c| c.is_alphanumeric() || c.is_whitespace())
             .collect();                      // Remove special chars
 
-        Ok(cleaned)
+        Ok(Some(cleaned))
     }
 }
 ```
 
-### 5. Conditional Processing
+### 6. Conditional Processing
 
 Apply different logic based on item properties:
 
@@ -265,17 +301,17 @@ impl ItemProcessor<Transaction, ProcessedTransaction> for TaxCalculator {
         let tax = item.amount * tax_rate;
         let final_amount = item.amount + tax;
 
-        Ok(ProcessedTransaction {
+        Ok(Some(ProcessedTransaction {
             amount: item.amount,
             category: item.category.clone(),
             tax,
             final_amount,
-        })
+        }))
     }
 }
 ```
 
-### 6. String Transformations
+### 7. String Transformations
 
 Common string operations:
 
@@ -284,10 +320,10 @@ struct StringProcessor;
 
 impl ItemProcessor<String, String> for StringProcessor {
     fn process(&self, item: &String) -> ItemProcessorResult<String> {
-        Ok(item.to_uppercase()
+        Ok(Some(item.to_uppercase()
                .replace(" ", "_")
                .trim()
-               .to_string())
+               .to_string()))
     }
 }
 ```
@@ -310,8 +346,10 @@ struct ProcessorChain<I, M, O> {
 
 impl<I, M, O> ItemProcessor<I, O> for ProcessorChain<I, M, O> {
     fn process(&self, item: &I) -> ItemProcessorResult<O> {
-        let intermediate = self.first.process(item)?;
-        self.second.process(&intermediate)
+        match self.first.process(item)? {
+            Some(intermediate) => self.second.process(&intermediate),
+            None => Ok(None), // propagate filter
+        }
     }
 }
 ```
@@ -332,7 +370,7 @@ impl ItemProcessor<String, String> for Counter {
         let mut count = self.count.lock().unwrap();
         *count += 1;
 
-        Ok(format!("{}: {}", *count, item))
+        Ok(Some(format!("{}: {}", *count, item)))
     }
 }
 ```
@@ -358,7 +396,7 @@ impl ItemProcessor<String, String> for ApiEnricher {
         self.runtime.block_on(async {
             // Call external API
             let response = fetch_api_data(item).await?;
-            Ok(response)
+            Ok(Some(response))
         })
     }
 }
@@ -385,7 +423,7 @@ impl ItemProcessor<Data, Data> for MyProcessor {
                 "Invalid data".to_string()
             ));
         }
-        Ok(item.clone())
+        Ok(Some(item.clone()))
     }
 }
 
@@ -411,7 +449,7 @@ impl ItemProcessor<Data, Data> for MyProcessor {
                 "Critical system error".to_string()
             ));
         }
-        Ok(item.clone())
+        Ok(Some(item.clone()))
     }
 }
 ```
@@ -437,7 +475,7 @@ mod tests {
             price_cents: 1999,
         };
 
-        let result = processor.process(&raw).unwrap();
+        let result = processor.process(&raw).unwrap().unwrap();
 
         assert_eq!(result.id, 1);
         assert_eq!(result.name, "Widget");
@@ -501,11 +539,11 @@ impl ItemProcessor<SourceRecord, TargetRecord> for ETLProcessor {
                 format!("Invalid date: {}", e)
             ))?;
 
-        Ok(TargetRecord {
+        Ok(Some(TargetRecord {
             customer_id,
             amount_cents,
             date,
-        })
+        }))
     }
 }
 ```
@@ -539,7 +577,7 @@ impl ItemProcessor<String, String> for PIIRedactor {
         // Redact phone numbers
         redacted = self.phone_pattern.replace_all(&redacted, "[PHONE]").to_string();
 
-        Ok(redacted)
+        Ok(Some(redacted))
     }
 }
 ```

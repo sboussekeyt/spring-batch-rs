@@ -61,7 +61,7 @@ impl ItemProcessor<Person, Person> for UpperCaseProcessor {
             birth_date: Date::from_calendar_date(2019, Month::January, 1).unwrap(),
         };
 
-        Ok(person)
+        Ok(Some(person))
     }
 }
 
@@ -70,7 +70,7 @@ struct CarProcessor;
 
 impl ItemProcessor<Car, Car> for CarProcessor {
     fn process(&self, item: &Car) -> ItemProcessorResult<Car> {
-        Ok(item.clone())
+        Ok(Some(item.clone()))
     }
 }
 

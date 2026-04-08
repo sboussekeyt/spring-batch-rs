@@ -88,13 +88,13 @@ struct ProductCsv {
 struct ProductToCsvProcessor;
 
 impl ItemProcessor<products::Model, ProductCsv> for ProductToCsvProcessor {
-    fn process(&self, item: &products::Model) -> Result<ProductCsv, BatchError> {
-        Ok(ProductCsv {
+    fn process(&self, item: &products::Model) -> Result<Option<ProductCsv>, BatchError> {
+        Ok(Some(ProductCsv {
             id: item.id,
             name: item.name.clone(),
             category: item.category.clone(),
             price: item.price,
-        })
+        }))
     }
 }
 
@@ -102,14 +102,14 @@ impl ItemProcessor<products::Model, ProductCsv> for ProductToCsvProcessor {
 struct DtoToActiveModelProcessor;
 
 impl ItemProcessor<ProductDto, products::ActiveModel> for DtoToActiveModelProcessor {
-    fn process(&self, item: &ProductDto) -> Result<products::ActiveModel, BatchError> {
-        Ok(products::ActiveModel {
+    fn process(&self, item: &ProductDto) -> Result<Option<products::ActiveModel>, BatchError> {
+        Ok(Some(products::ActiveModel {
             id: Set(item.id),
             name: Set(item.name.clone()),
             category: Set(item.category.clone()),
             price: Set(item.price),
             in_stock: Set(item.in_stock),
-        })
+        }))
     }
 }
 

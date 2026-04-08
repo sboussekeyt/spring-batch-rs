@@ -88,13 +88,13 @@ struct BookInput {
 struct BookToCsvProcessor;
 
 impl ItemProcessor<Book, BookCsv> for BookToCsvProcessor {
-    fn process(&self, item: &Book) -> Result<BookCsv, BatchError> {
-        Ok(BookCsv {
+    fn process(&self, item: &Book) -> Result<Option<BookCsv>, BatchError> {
+        Ok(Some(BookCsv {
             title: item.title.clone(),
             author: item.author.clone(),
             year: item.year,
             genre: item.genre.clone(),
-        })
+        }))
     }
 }
 
@@ -102,16 +102,16 @@ impl ItemProcessor<Book, BookCsv> for BookToCsvProcessor {
 struct BookFromCsvProcessor;
 
 impl ItemProcessor<BookInput, Book> for BookFromCsvProcessor {
-    fn process(&self, item: &BookInput) -> Result<Book, BatchError> {
+    fn process(&self, item: &BookInput) -> Result<Option<Book>, BatchError> {
         let oid = ObjectId::new();
-        Ok(Book {
+        Ok(Some(Book {
             id: Some(oid),
             object_id: oid,
             title: item.title.clone(),
             author: item.author.clone(),
             year: item.year,
             genre: item.genre.clone(),
-        })
+        }))
     }
 }
 

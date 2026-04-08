@@ -53,7 +53,7 @@ impl ItemProcessor<Book, FormattedBook> for FormatBookProcessor {
             author: item.author.replace(" ", "_").to_uppercase(),
         };
 
-        Ok(book)
+        Ok(Some(book))
     }
 }
 

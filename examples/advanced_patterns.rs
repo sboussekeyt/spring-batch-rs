@@ -83,16 +83,16 @@ struct TransactionSummary {
 struct ValidationProcessor;
 
 impl ItemProcessor<RawTransaction, ValidTransaction> for ValidationProcessor {
-    fn process(&self, item: &RawTransaction) -> Result<ValidTransaction, BatchError> {
-        // Skip non-completed transactions
+    fn process(&self, item: &RawTransaction) -> Result<Option<ValidTransaction>, BatchError> {
+        // Business filtering: non-completed transactions are intentionally skipped,
+        // not errors. Ok(None) signals the framework to count this as a filtered item
+        // and not pass it to the writer — no fault tolerance triggered.
         if item.status != "completed" {
-            return Err(BatchError::ItemProcessor(format!(
-                "Skipping non-completed transaction {}: status={}",
-                item.id, item.status
-            )));
+            return Ok(None);
         }
 
-        // Validate amount
+        // Data error: a non-positive amount is invalid data, not a business decision.
+        // Err(...) signals a processing error and may trigger fault tolerance / skip logic.
         if item.amount <= 0.0 {
             return Err(BatchError::ItemProcessor(format!(
                 "Invalid amount for transaction {}: {}",
@@ -100,12 +100,12 @@ impl ItemProcessor<RawTransaction, ValidTransaction> for ValidationProcessor {
             )));
         }
 
-        Ok(ValidTransaction {
+        Ok(Some(ValidTransaction {
             id: item.id,
             account: item.account.clone(),
             amount: item.amount,
             transaction_type: item.transaction_type.clone(),
-        })
+        }))
     }
 }
 
@@ -121,7 +121,7 @@ impl EnrichmentProcessor {
 }
 
 impl ItemProcessor<ValidTransaction, EnrichedTransaction> for EnrichmentProcessor {
-    fn process(&self, item: &ValidTransaction) -> Result<EnrichedTransaction, BatchError> {
+    fn process(&self, item: &ValidTransaction) -> Result<Option<EnrichedTransaction>, BatchError> {
         let fee = if item.transaction_type == "credit" {
             0.0 // No fee for credits
         } else {
@@ -134,14 +134,14 @@ impl ItemProcessor<ValidTransaction, EnrichedTransaction> for EnrichmentProcesso
             _ => "small",
         };
 
-        Ok(EnrichedTransaction {
+        Ok(Some(EnrichedTransaction {
             transaction_id: format!("TXN-{:06}", item.id),
             account_number: item.account.clone(),
             gross_amount: item.amount,
             fee,
             net_amount: item.amount - fee,
             category: category.to_string(),
-        })
+        }))
     }
 }
 

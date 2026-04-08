@@ -80,7 +80,7 @@ struct Transaction {
 struct TransactionProcessor;
 
 impl ItemProcessor<Transaction, Transaction> for TransactionProcessor {
-    fn process(&self, item: &Transaction) -> Result<Transaction, BatchError> {
+    fn process(&self, item: &Transaction) -> Result<Option<Transaction>, BatchError> {
         let rate = match item.currency.as_str() {
             "USD" => 0.92,
             "GBP" => 1.17,
@@ -91,7 +91,7 @@ impl ItemProcessor<Transaction, Transaction> for TransactionProcessor {
         } else {
             item.status.clone()
         };
-        Ok(Transaction {
+        Ok(Some(Transaction {
             transaction_id: item.transaction_id.clone(),
             amount: item.amount,
             currency: item.currency.clone(),
@@ -100,7 +100,7 @@ impl ItemProcessor<Transaction, Transaction> for TransactionProcessor {
             account_to: item.account_to.clone(),
             status,
             amount_eur: (item.amount * rate * 100.0).round() / 100.0,
-        })
+        }))
     }
 }
 
