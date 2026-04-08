@@ -3226,13 +3226,10 @@ mod tests {
         let mut writer = MockTestItemWriter::default();
         writer.expect_open().times(1).returning(|| Ok(()));
         // 3 items pass through (4 read - 1 filtered), written in one chunk
-        writer
-            .expect_write()
-            .times(1)
-            .returning(|items| {
-                assert_eq!(items.len(), 3, "expected 3 items written after filtering");
-                Ok(())
-            });
+        writer.expect_write().times(1).returning(|items| {
+            assert_eq!(items.len(), 3, "expected 3 items written after filtering");
+            Ok(())
+        });
         writer.expect_flush().returning(|| Ok(()));
         writer.expect_close().times(1).returning(|| Ok(()));
 
@@ -3248,8 +3245,14 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(step_execution.read_count, 4, "should have read 4 items");
-        assert_eq!(step_execution.filter_count, 1, "should have filtered 1 item");
-        assert_eq!(step_execution.process_count, 3, "should have processed 3 items");
+        assert_eq!(
+            step_execution.filter_count, 1,
+            "should have filtered 1 item"
+        );
+        assert_eq!(
+            step_execution.process_count, 3,
+            "should have processed 3 items"
+        );
         assert_eq!(step_execution.write_count, 3, "should have written 3 items");
 
         Ok(())
@@ -3264,9 +3267,7 @@ mod tests {
             .returning(move || mock_read(&mut i, 0, 3));
 
         let mut processor = MockTestProcessor::default();
-        processor
-            .expect_process()
-            .returning(|_| Ok(None)); // filter every item
+        processor.expect_process().returning(|_| Ok(None)); // filter every item
 
         let mut writer = MockTestItemWriter::default();
         writer.expect_open().times(1).returning(|| Ok(()));
@@ -3284,8 +3285,14 @@ mod tests {
         let result = step.execute(&mut step_execution);
 
         assert!(result.is_ok());
-        assert_eq!(step_execution.filter_count, 3, "all 3 items should be filtered");
-        assert_eq!(step_execution.process_count, 0, "no items should reach process_count");
+        assert_eq!(
+            step_execution.filter_count, 3,
+            "all 3 items should be filtered"
+        );
+        assert_eq!(
+            step_execution.process_count, 0,
+            "no items should reach process_count"
+        );
         assert_eq!(step_execution.write_count, 0, "nothing should be written");
 
         Ok(())

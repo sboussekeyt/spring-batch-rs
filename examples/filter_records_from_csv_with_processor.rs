@@ -25,10 +25,7 @@ use spring_batch_rs::{
         job::{Job, JobBuilder},
         step::StepBuilder,
     },
-    item::{
-        csv::csv_reader::CsvItemReaderBuilder,
-        json::json_writer::JsonItemWriterBuilder,
-    },
+    item::{csv::csv_reader::CsvItemReaderBuilder, json::json_writer::JsonItemWriterBuilder},
     BatchError,
 };
 
@@ -66,8 +63,7 @@ fn main() -> Result<(), BatchError> {
 
     // 2. Build JSON writer to a temp file
     let output_path = temp_dir().join("adults.json");
-    let writer = JsonItemWriterBuilder::<Person>::new()
-        .from_path(&output_path);
+    let writer = JsonItemWriterBuilder::<Person>::new().from_path(&output_path);
 
     // 3. Build the filter processor
     let processor = AdultFilter::default();
