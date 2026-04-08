@@ -84,15 +84,15 @@ struct ValidationProcessor;
 
 impl ItemProcessor<RawTransaction, ValidTransaction> for ValidationProcessor {
     fn process(&self, item: &RawTransaction) -> Result<Option<ValidTransaction>, BatchError> {
-        // Skip non-completed transactions
+        // Business filtering: non-completed transactions are intentionally skipped,
+        // not errors. Ok(None) signals the framework to count this as a filtered item
+        // and not pass it to the writer — no fault tolerance triggered.
         if item.status != "completed" {
-            return Err(BatchError::ItemProcessor(format!(
-                "Skipping non-completed transaction {}: status={}",
-                item.id, item.status
-            )));
+            return Ok(None);
         }
 
-        // Validate amount
+        // Data error: a non-positive amount is invalid data, not a business decision.
+        // Err(...) signals a processing error and may trigger fault tolerance / skip logic.
         if item.amount <= 0.0 {
             return Err(BatchError::ItemProcessor(format!(
                 "Invalid amount for transaction {}: {}",

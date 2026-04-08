@@ -348,7 +348,7 @@ pub struct StepExecution {
     pub write_count: usize,
     /// Number of errors encountered during reading
     pub read_error_count: usize,
-    /// Number of items successfully processed
+    /// Number of items successfully processed and passed to the writer (excludes filtered items)
     pub process_count: usize,
     /// Number of errors encountered during processing
     pub process_error_count: usize,
@@ -3251,6 +3251,42 @@ mod tests {
         assert_eq!(step_execution.filter_count, 1, "should have filtered 1 item");
         assert_eq!(step_execution.process_count, 3, "should have processed 3 items");
         assert_eq!(step_execution.write_count, 3, "should have written 3 items");
+
+        Ok(())
+    }
+
+    #[test]
+    fn step_should_not_call_writer_when_all_items_filtered() -> Result<()> {
+        let mut i = 0u16;
+        let mut reader = MockTestItemReader::default();
+        reader
+            .expect_read()
+            .returning(move || mock_read(&mut i, 0, 3));
+
+        let mut processor = MockTestProcessor::default();
+        processor
+            .expect_process()
+            .returning(|_| Ok(None)); // filter every item
+
+        let mut writer = MockTestItemWriter::default();
+        writer.expect_open().times(1).returning(|| Ok(()));
+        writer.expect_write().never(); // must NOT be called
+        writer.expect_close().times(1).returning(|| Ok(()));
+
+        let step = StepBuilder::new("test")
+            .chunk(10)
+            .reader(&reader)
+            .processor(&processor)
+            .writer(&writer)
+            .build();
+
+        let mut step_execution = StepExecution::new(&step.name);
+        let result = step.execute(&mut step_execution);
+
+        assert!(result.is_ok());
+        assert_eq!(step_execution.filter_count, 3, "all 3 items should be filtered");
+        assert_eq!(step_execution.process_count, 0, "no items should reach process_count");
+        assert_eq!(step_execution.write_count, 0, "nothing should be written");
 
         Ok(())
     }

@@ -414,10 +414,12 @@ mod tests {
     fn should_pass_through_option_unchanged() -> Result<(), BatchError> {
         let processor = PassThroughProcessor::new();
 
+        // Test with Some value
         let input_some = Some("test".to_string());
         let result_some = processor.process(&input_some)?;
         assert_eq!(result_some, Some(input_some));
 
+        // Test with None value
         let input_none: Option<String> = None;
         let result_none = processor.process(&input_none)?;
         assert_eq!(result_none, Some(input_none));
@@ -475,7 +477,7 @@ mod tests {
 
         let result = processor.process(&large_input)?;
 
-        assert!(result.is_some());
+        // PassThroughProcessor always returns Some — unwrap is safe
         assert_eq!(result.unwrap().len(), expected_len);
         Ok(())
     }
