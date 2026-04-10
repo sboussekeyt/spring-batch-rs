@@ -6,149 +6,58 @@ hero:
   title: |
     Enterprise Batch Processing
     <span class="hero-gradient">Powered by Rust</span>
-  tagline: Spring Batch patterns you know. Rust performance you need.
+  tagline: Spring Batch patterns you know. Rust performance you need. No GC. No surprises.
   actions:
     - text: Get Started →
-      link: /spring-batch-rs/getting-started/
+      link: /getting-started/
       icon: right-arrow
       variant: primary
     - text: View Examples
-      link: /spring-batch-rs/quick-examples/
+      link: /quick-examples/
       icon: document
       variant: minimal
 ---
 
-import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+import { LinkCard, CardGrid } from "@astrojs/starlight/components";
 
-<div class="problem-solution">
-  <div class="problem-block">
-    <span class="block-label">The Problem</span>
-    <p>Batch jobs fail silently. Memory grows until the process crashes. Errors get swallowed. Retries are manual. Monitoring is an afterthought. Rolling your own framework means reinventing the same hard parts every time.</p>
-  </div>
-  <div class="solution-block">
-    <span class="block-label">The Solution</span>
-    <p>Spring Batch RS brings proven patterns from the Java ecosystem — chunk-oriented processing, skip &amp; retry policies, job lifecycle tracking — rewritten in Rust for memory safety and predictable performance. No GC. No surprises.</p>
-  </div>
-</div>
 
-<div class="tech-specs">
-  <div class="spec-card spec-primary">
-    <div class="spec-header">
-      <div class="spec-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 6v6l4 2"/>
-        </svg>
+
+
+<div class="bench-section">
+  <span class="bench-tag">Performance · benchmark reproductible</span>
+  <h2>4.5× faster than Spring Batch Java</h2>
+  <p class="bench-subtitle">10 million financial transactions · CSV → PostgreSQL → XML · same chunk size, same connection pool</p>
+  <div class="bench-grid">
+    <div class="bench-row">
+      <span class="bench-label">Total pipeline</span>
+      <div class="bench-track">
+        <div class="bench-bar-rust" style="width: 22.5%">42s</div>
+        <div class="bench-bar-java"></div>
       </div>
-      <div class="spec-meta">
-        <span class="spec-tag">RUNTIME</span>
-        <h3>No GC Pauses</h3>
-      </div>
+      <span class="bench-delta"><strong>4.5×</strong> faster · 187s</span>
     </div>
-    <p>Rust's ownership model means no garbage collector to interrupt your batch jobs at runtime. Your throughput is consistent — no pause-the-world surprises at 3 AM.</p>
-  </div>
-
-  <div class="spec-card">
-    <div class="spec-header">
-      <div class="spec-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        </svg>
+    <div class="bench-row">
+      <span class="bench-label">Peak memory</span>
+      <div class="bench-track">
+        <div class="bench-bar-rust" style="width: 3.4%"></div>
+        <div class="bench-bar-java"></div>
       </div>
-      <div class="spec-meta">
-        <span class="spec-tag">SAFETY</span>
-        <h3>Memory Safety</h3>
-      </div>
+      <span class="bench-delta"><strong>30×</strong> less · 62 MB vs 1 840 MB</span>
     </div>
-    <p>Buffer overflows and null pointer errors are compile-time failures, not production incidents. The compiler catches entire classes of bugs before they reach your data.</p>
-  </div>
-
-  <div class="spec-card">
-    <div class="spec-header">
-      <div class="spec-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-          <polyline points="2 17 12 22 22 17"/>
-          <polyline points="2 12 12 17 22 12"/>
-        </svg>
+    <div class="bench-row">
+      <span class="bench-label">Cold start</span>
+      <div class="bench-track">
+        <div class="bench-bar-rust" style="width: 0.5%; min-width: 8px"></div>
+        <div class="bench-bar-java"></div>
       </div>
-      <div class="spec-meta">
-        <span class="spec-tag">ABSTRACTIONS</span>
-        <h3>Zero-Cost Abstractions</h3>
-      </div>
-    </div>
-    <p>The chunk-oriented pipeline, builder patterns, and trait-based extensibility add no overhead beyond what you explicitly write. High-level code, systems-level performance.</p>
-  </div>
-
-  <div class="spec-card">
-    <div class="spec-header">
-      <div class="spec-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="18" height="18" rx="2"/>
-          <path d="M9 9h6v6H9z"/>
-        </svg>
-      </div>
-      <div class="spec-meta">
-        <span class="spec-tag">TYPE SAFETY</span>
-        <h3>Type-Safe Pipelines</h3>
-      </div>
-    </div>
-    <p>Your reader, processor, and writer types must match at compile time. Connect a <code>CsvReader&lt;Product&gt;</code> to a <code>JsonWriter&lt;Order&gt;</code> and it simply won't compile.</p>
-  </div>
-</div>
-
-<div class="integration-matrix">
-  <h2>Works With Your Stack</h2>
-  <div class="matrix-grid">
-    <div class="matrix-section">
-      <div class="matrix-header">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <ellipse cx="12" cy="5" rx="9" ry="3"/>
-          <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
-          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-        </svg>
-        <span>Databases</span>
-      </div>
-      <div class="matrix-items">
-        <span class="matrix-tag">PostgreSQL</span>
-        <span class="matrix-tag">MySQL</span>
-        <span class="matrix-tag">SQLite</span>
-        <span class="matrix-tag">MongoDB</span>
-        <span class="matrix-tag">SeaORM</span>
-      </div>
-    </div>
-
-    <div class="matrix-section">
-      <div class="matrix-header">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-          <polyline points="13 2 13 9 20 9"/>
-        </svg>
-        <span>Formats</span>
-      </div>
-      <div class="matrix-items">
-        <span class="matrix-tag">CSV</span>
-        <span class="matrix-tag">JSON</span>
-        <span class="matrix-tag">XML</span>
-      </div>
-    </div>
-
-    <div class="matrix-section">
-      <div class="matrix-header">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-        </svg>
-        <span>Utilities</span>
-      </div>
-      <div class="matrix-items">
-        <span class="matrix-tag">Tokio Async</span>
-        <span class="matrix-tag">Fault Tolerance</span>
-        <span class="matrix-tag">ZIP</span>
-        <span class="matrix-tag">FTP</span>
-        <span class="matrix-tag">Fake Data</span>
-      </div>
+      <span class="bench-delta"><strong>320×</strong> faster · &lt;10ms vs 3.2s</span>
     </div>
   </div>
+  <div class="bench-legend">
+    <span class="bench-legend-item"><span class="bench-dot bench-dot-rust"></span>Spring Batch RS (Rust)</span>
+    <span class="bench-legend-item"><span class="bench-dot bench-dot-java"></span>Spring Batch (Java)</span>
+  </div>
+  <a href="/reference/java-vs-rust-benchmark/" class="bench-link">→ Methodology, full numbers &amp; how to reproduce</a>
 </div>
 
 <div class="code-showcase">
@@ -161,7 +70,7 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
       <span>LIVE EXAMPLE</span>
     </div>
     <h2>CSV → JSON Pipeline</h2>
-    <p>Transform data in just a few lines of elegant, type-safe code</p>
+    <p>Type-safe, fault-tolerant, zero boilerplate</p>
   </div>
 
 ```rust
@@ -202,90 +111,30 @@ let step = StepBuilder::new("convert-products")
 JobBuilder::new().start(&step).build().run();
 ```
   <div class="showcase-footer">
-    <div class="footer-metric">
-      <span class="metric-icon">⚙️</span>
-      <span>Type-Safe</span>
-    </div>
-    <div class="footer-metric">
-      <span class="metric-icon">⚡</span>
-      <span>Zero-Cost</span>
-    </div>
-    <div class="footer-metric">
-      <span class="metric-icon">🛡️</span>
-      <span>Fault Tolerant</span>
-    </div>
+    <a href="https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/csv_processing.rs" class="showcase-source-link">→ View full source on GitHub</a>
   </div>
 </div>
 
-<div class="terminal-cta">
-  <div class="terminal-header">
-    <div class="terminal-dots">
-      <span></span>
-      <span></span>
-      <span></span>
-    </div>
-    <div class="terminal-title">spring-batch-rs/</div>
-  </div>
-  <div class="terminal-body">
-    <div class="terminal-line">
-      <span class="terminal-prompt">$</span>
-      <span class="terminal-command">cargo new my-batch-app</span>
-    </div>
-    <div class="terminal-line">
-      <span class="terminal-prompt">$</span>
-      <span class="terminal-command">cd my-batch-app</span>
-    </div>
-    <div class="terminal-line">
-      <span class="terminal-prompt">$</span>
-      <span class="terminal-command typing">cargo add spring-batch-rs --features full</span>
-    </div>
-    <div class="terminal-output">
-      <span class="output-success">✓</span> Added spring-batch-rs v0.3.0
-    </div>
-  </div>
-  <div class="terminal-cta-actions">
-    <a href="/spring-batch-rs/getting-started/" class="terminal-btn terminal-primary">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-      </svg>
-      <span>Read Documentation</span>
-    </a>
-    <a href="/spring-batch-rs/quick-examples/" class="terminal-btn terminal-secondary">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="16 18 22 12 16 6"/>
-        <polyline points="8 6 2 12 8 18"/>
-      </svg>
-      <span>Browse Examples</span>
-    </a>
-    <a href="https://github.com/sboussekeyt/spring-batch-rs" class="terminal-btn terminal-outline">
-      <svg viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-      </svg>
-      <span>View on GitHub</span>
-    </a>
-  </div>
-</div>
 
-<div class="resource-grid">
+<CardGrid>
   <LinkCard
-    title="API Reference"
-    description="Complete API documentation with examples"
-    href="/spring-batch-rs/api/"
+    title="Getting Started"
+    description="First batch job in 5 minutes. Installation, setup, first example."
+    href="/getting-started/"
   />
   <LinkCard
-    title="Architecture Guide"
-    description="Core concepts & design patterns"
-    href="/spring-batch-rs/architecture/"
-  />
-  <LinkCard
-    title="Quick Start"
-    description="Get up and running in 5 minutes"
-    href="/spring-batch-rs/getting-started/"
+    title="Java vs Rust Benchmark"
+    description="Methodology, full numbers & how to reproduce on your own infrastructure."
+    href="/reference/java-vs-rust-benchmark/"
   />
   <LinkCard
     title="Examples Gallery"
-    description="24+ real-world code examples"
-    href="/spring-batch-rs/quick-examples/"
+    description="24+ pipelines with links to source code on GitHub."
+    href="/quick-examples/"
   />
-</div>
+  <LinkCard
+    title="Architecture"
+    description="Job → Step → Reader/Processor/Writer. Chunk-oriented processing."
+    href="/architecture/"
+  />
+</CardGrid>
