@@ -670,12 +670,15 @@ async fn upload_parts(
     let mut completed_parts = Vec::new();
 
     loop {
-        let mut buffer = vec![0u8; chunk_size];
-        let bytes_read = reader.read(&mut buffer).map_err(BatchError::Io)?;
+        let mut buffer = Vec::with_capacity(chunk_size);
+        let bytes_read = reader
+            .by_ref()
+            .take(chunk_size as u64)
+            .read_to_end(&mut buffer)
+            .map_err(BatchError::Io)?;
         if bytes_read == 0 {
             break;
         }
-        buffer.truncate(bytes_read);
 
         debug!("Multipart upload: part {} ({} bytes) -> s3://{}/{}", part_number, bytes_read, bucket, key);
 
@@ -883,12 +886,28 @@ mod tests {
     #[test]
     fn should_collect_files_from_directory() {
         let dir = temp_dir().join("spring_batch_rs_test_collect");
+        fs::remove_dir_all(&dir).ok(); // clean up any previous run
         fs::create_dir_all(&dir).unwrap(); // test setup — cannot fail in temp dir
         fs::write(dir.join("a.txt"), "a").unwrap(); // test setup
         fs::write(dir.join("b.txt"), "b").unwrap(); // test setup
 
         let files = collect_files(&dir).unwrap(); // dir exists — cannot fail
         assert_eq!(files.len(), 2, "should collect 2 files, got: {:?}", files);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn should_collect_files_from_nested_directories() {
+        let dir = temp_dir().join("spring_batch_rs_test_collect_nested");
+        let sub = dir.join("sub");
+        fs::remove_dir_all(&dir).ok(); // clean up any previous run
+        fs::create_dir_all(&sub).unwrap(); // test setup — cannot fail in temp dir
+        fs::write(dir.join("root.txt"), "r").unwrap(); // test setup
+        fs::write(sub.join("child.txt"), "c").unwrap(); // test setup
+
+        let files = collect_files(&dir).unwrap(); // dir exists — cannot fail
+        assert_eq!(files.len(), 2, "should collect files from nested dirs: {:?}", files);
 
         fs::remove_dir_all(&dir).ok();
     }
