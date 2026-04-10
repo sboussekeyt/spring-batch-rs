@@ -471,8 +471,6 @@ Run the standalone example:
 cargo run --example filter_records_from_csv_with_processor --features csv,json
 ```
 
-import { Aside } from '@astrojs/starlight/components';
-
 <Aside type="tip">
   Filtering with `Ok(None)` does **not** count toward `skip_limit`. Use it for intentional business
   filtering (e.g. age, category, status) and use `Err(BatchError)` + `skip_limit` for error recovery.
