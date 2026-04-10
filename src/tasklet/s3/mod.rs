@@ -116,7 +116,6 @@ pub struct S3ClientConfig {
 /// # Errors
 ///
 /// Returns [`BatchError::Configuration`] if the AWS SDK configuration cannot be loaded.
-#[allow(dead_code)]
 pub(crate) async fn build_s3_client(config: &S3ClientConfig) -> Result<aws_sdk_s3::Client, BatchError> {
     let region_provider = RegionProviderChain::first_try(
         config.region.clone().map(aws_sdk_s3::config::Region::new),
