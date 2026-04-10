@@ -82,11 +82,11 @@ The JSON reader expects an array of objects:
 struct TaxProcessor { rate: f64 }
 
 impl ItemProcessor<Order, Order> for TaxProcessor {
-    fn process(&self, item: &Order) -> Result<Order, BatchError> {
-        Ok(Order {
+    fn process(&self, item: &Order) -> ItemProcessorResult<Order> {
+        Ok(Some(Order {
             total: item.total * (1.0 + self.rate),
             ..item.clone()
-        })
+        }))
     }
 }
 ```

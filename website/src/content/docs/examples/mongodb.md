@@ -131,12 +131,12 @@ let reader = MongodbItemReaderBuilder::new()
 struct BookToCsvProcessor;
 
 impl ItemProcessor<Book, BookCsv> for BookToCsvProcessor {
-    fn process(&self, item: &Book) -> Result<BookCsv, BatchError> {
-        Ok(BookCsv {
+    fn process(&self, item: &Book) -> ItemProcessorResult<BookCsv> {
+        Ok(Some(BookCsv {
             title: item.title.clone(),
             author: item.author.clone(),
             // Exclude ObjectId for CSV
-        })
+        }))
     }
 }
 
@@ -155,14 +155,14 @@ let step = StepBuilder::new("mongo-to-csv")
 struct CsvToBookProcessor;
 
 impl ItemProcessor<BookInput, Book> for CsvToBookProcessor {
-    fn process(&self, item: &BookInput) -> Result<Book, BatchError> {
+    fn process(&self, item: &BookInput) -> ItemProcessorResult<Book> {
         let oid = ObjectId::new();
-        Ok(Book {
+        Ok(Some(Book {
             id: Some(oid),
             object_id: oid,
             title: item.title.clone(),
             author: item.author.clone(),
-        })
+        }))
     }
 }
 

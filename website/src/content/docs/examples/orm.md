@@ -125,14 +125,14 @@ use sea_orm::ActiveValue::Set;
 struct DtoToActiveModelProcessor;
 
 impl ItemProcessor<ProductDto, products::ActiveModel> for DtoToActiveModelProcessor {
-    fn process(&self, item: &ProductDto) -> Result<products::ActiveModel, BatchError> {
-        Ok(products::ActiveModel {
+    fn process(&self, item: &ProductDto) -> ItemProcessorResult<products::ActiveModel> {
+        Ok(Some(products::ActiveModel {
             id: Set(item.id),
             name: Set(item.name.clone()),
             category: Set(item.category.clone()),
             price: Set(item.price),
             in_stock: Set(item.in_stock),
-        })
+        }))
     }
 }
 
@@ -160,12 +160,12 @@ let query = orders::Entity::find()
 struct ModelToCsvProcessor;
 
 impl ItemProcessor<products::Model, ProductCsv> for ModelToCsvProcessor {
-    fn process(&self, item: &products::Model) -> Result<ProductCsv, BatchError> {
-        Ok(ProductCsv {
+    fn process(&self, item: &products::Model) -> ItemProcessorResult<ProductCsv> {
+        Ok(Some(ProductCsv {
             id: item.id,
             name: item.name.clone(),
             price: item.price,
-        })
+        }))
     }
 }
 
@@ -216,7 +216,7 @@ impl<T: Clone> InMemoryReader<T> {
 }
 
 impl<T: Clone> ItemReader<T> for InMemoryReader<T> {
-    fn read(&self) -> Result<Option<T>, BatchError> {
+    fn read(&self) -> ItemReaderResult<T> {
         Ok(self.items.borrow_mut().pop_front())
     }
 }

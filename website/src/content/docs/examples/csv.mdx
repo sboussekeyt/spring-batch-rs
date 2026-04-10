@@ -169,7 +169,7 @@ struct DiscountedProduct {
 struct DiscountProcessor;
 
 impl ItemProcessor<RawProduct, DiscountedProduct> for DiscountProcessor {
-    fn process(&self, item: RawProduct) -> Result<Option<DiscountedProduct>, BatchError> {
+    fn process(&self, item: RawProduct) -> ItemProcessorResult<DiscountedProduct> {
         // Category-based discounts
         let discount_percent = match item.category.as_str() {
             "Electronics" => 15,
@@ -250,7 +250,7 @@ struct ValidatedData {
 struct ValidationProcessor;
 
 impl ItemProcessor<RawData, ValidatedData> for ValidationProcessor {
-    fn process(&self, item: RawData) -> Result<Option<ValidatedData>, BatchError> {
+    fn process(&self, item: RawData) -> ItemProcessorResult<ValidatedData> {
         // Parse and validate
         let id = item.id.parse::<u32>()
             .map_err(|e| BatchError::ItemProcessor(
@@ -334,7 +334,7 @@ struct EnrichmentProcessor {
 }
 
 impl ItemProcessor<CustomerOrder, EnrichedOrder> for EnrichmentProcessor {
-    fn process(&self, item: CustomerOrder) -> Result<Option<EnrichedOrder>, BatchError> {
+    fn process(&self, item: CustomerOrder) -> ItemProcessorResult<EnrichedOrder> {
         let customer_name = self.customers
             .get(&item.customer_id)
             .cloned()
@@ -389,26 +389,90 @@ fn main() -> Result<(), BatchError> {
 }
 ```
 
-### Filtering and Aggregation
+### Filtering Records with a Processor
+
+Return `Ok(None)` from a processor to silently discard items. Filtered items are counted in
+`StepExecution::filter_count` and are **not** passed to the writer.
 
 ```rust
-struct FilterProcessor {
-    min_price: f64,
+use spring_batch_rs::{
+    core::{
+        item::{ItemProcessor, ItemProcessorResult},
+        job::JobBuilder,
+        step::StepBuilder,
+    },
+    item::{csv::CsvItemReaderBuilder, json::JsonItemWriterBuilder},
+    BatchError,
+};
+use serde::{Deserialize, Serialize};
+use std::env::temp_dir;
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct Person {
+    name: String,
+    age: u32,
 }
 
-impl ItemProcessor<Product, Product> for FilterProcessor {
-    fn process(&self, item: Product) -> Result<Option<Product>, BatchError> {
-        if item.price >= self.min_price {
-            Ok(Some(item))
+/// Keeps only adults (age >= 18). Minors are filtered with `Ok(None)`.
+#[derive(Default)]
+struct AdultFilter;
+
+impl ItemProcessor<Person, Person> for AdultFilter {
+    fn process(&self, item: &Person) -> ItemProcessorResult<Person> {
+        if item.age >= 18 {
+            Ok(Some(item.clone())) // keep
         } else {
-            Ok(None)  // Filter out items below minimum price
+            Ok(None) // discard — counted in filter_count
         }
     }
 }
 
-// Usage
-let processor = FilterProcessor { min_price: 50.0 };
+fn main() -> Result<(), BatchError> {
+    let csv_data = "name,age\nAlice,30\nBob,16\nCharlie,25\nDiana,15\nEve,42\nFrank,17\n";
+
+    // 1. Build reader from inline CSV
+    let reader = CsvItemReaderBuilder::<Person>::new()
+        .has_headers(true)
+        .from_reader(csv_data.as_bytes());
+
+    // 2. Build JSON writer
+    let output_path = temp_dir().join("adults.json");
+    let writer = JsonItemWriterBuilder::<Person>::new().from_path(&output_path);
+
+    // 3. Build and run step with filter processor
+    let processor = AdultFilter::default();
+    let step = StepBuilder::new("filter-adults")
+        .chunk::<Person, Person>(10)
+        .reader(&reader)
+        .processor(&processor)
+        .writer(&writer)
+        .build();
+
+    let job = JobBuilder::new().start(&step).build();
+    job.run()?;
+
+    // 4. Inspect filter statistics
+    let step_exec = job.get_step_execution("filter-adults").unwrap();
+    println!("Read:     {}", step_exec.read_count);    // 6
+    println!("Filtered: {}", step_exec.filter_count);  // 3 (minors)
+    println!("Written:  {}", step_exec.write_count);   // 3 (adults)
+
+    Ok(())
+}
 ```
+
+Run the standalone example:
+
+```bash
+cargo run --example filter_records_from_csv_with_processor --features csv,json
+```
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip">
+  Filtering with `Ok(None)` does **not** count toward `skip_limit`. Use it for intentional business
+  filtering (e.g. age, category, status) and use `Err(BatchError)` + `skip_limit` for error recovery.
+</Aside>
 
 ## Performance Tips
 
@@ -465,7 +529,7 @@ struct SalesProcessor {
 }
 
 impl ItemProcessor<SaleRecord, ProcessedSale> for SalesProcessor {
-    fn process(&self, item: SaleRecord) -> Result<Option<ProcessedSale>, BatchError> {
+    fn process(&self, item: SaleRecord) -> ItemProcessorResult<ProcessedSale> {
         let total_amount = item.unit_price * item.quantity as f64;
         let tax = total_amount * self.tax_rate;
         let final_amount = total_amount + tax;

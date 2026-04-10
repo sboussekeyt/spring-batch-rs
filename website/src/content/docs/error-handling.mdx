@@ -167,7 +167,7 @@ impl ValidatingProcessor {
 }
 
 impl ItemProcessor<Record, Record> for ValidatingProcessor {
-    fn process(&self, record: Record) -> Result<Option<Record>, BatchError> {
+    fn process(&self, record: Record) -> ItemProcessorResult<Record> {
         // Validation logic
         if record.data.is_empty() {
             let error_msg = format!("Record {} has empty data", record.id);
@@ -273,7 +273,7 @@ where
     P: ItemProcessor<I, O>,
     I: Clone,
 {
-    fn process(&self, item: I) -> Result<Option<O>, BatchError> {
+    fn process(&self, item: I) -> ItemProcessorResult<O> {
         let mut attempts = 0;
         let mut backoff = self.initial_backoff_ms;
 
@@ -342,7 +342,7 @@ impl<I, O, P> ItemProcessor<I, O> for CircuitBreakerProcessor<P>
 where
     P: ItemProcessor<I, O>,
 {
-    fn process(&self, item: I) -> Result<Option<O>, BatchError> {
+    fn process(&self, item: I) -> ItemProcessorResult<O> {
         // Check if circuit is open
         if self.circuit_open.load(Ordering::SeqCst) {
             return Err(BatchError::ProcessingError(
@@ -504,7 +504,7 @@ impl<T> ItemWriter<T> for TransactionalWriter
 where
     T: Serialize,
 {
-    fn write(&mut self, items: &[T]) -> Result<(), BatchError> {
+    fn write(&mut self, items: &[T]) -> ItemWriterResult {
         // Start transaction
         let mut tx = self.pool.begin().await?;
 
@@ -567,7 +567,7 @@ struct ResumableReader {
 }
 
 impl ItemReader<Record> for ResumableReader {
-    fn read(&mut self) -> Result<Option<Record>, BatchError> {
+    fn read(&mut self) -> ItemReaderResult<Record> {
         // Load checkpoint if exists
         if self.last_id == 0 {
             if let Ok(checkpoint) = Checkpoint::load(&self.checkpoint_file) {
@@ -623,7 +623,7 @@ where
         self.failed_items.lock().unwrap().push(item);
     }
 
-    fn flush(&self) -> Result<(), BatchError> {
+    fn flush(&self) -> ItemWriterResult {
         let items = self.failed_items.lock().unwrap();
 
         if items.is_empty() {
@@ -648,7 +648,7 @@ impl<P> ItemProcessor<Item, Item> for FaultTolerantProcessor<P>
 where
     P: ItemProcessor<Item, Item>,
 {
-    fn process(&self, item: Item) -> Result<Option<Item>, BatchError> {
+    fn process(&self, item: Item) -> ItemProcessorResult<Item> {
         match self.inner.process(item.clone()) {
             Ok(result) => Ok(result),
             Err(e) => {
