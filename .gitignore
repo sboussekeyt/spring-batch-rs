@@ -7,3 +7,4 @@ coverage/
 .superpowers
 tarpaulin-report.*
 .worktrees/
+.playwright-mcp

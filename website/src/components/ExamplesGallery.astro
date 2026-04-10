@@ -1,0 +1,385 @@
+---
+const categories = [
+  {
+    href: "/examples/csv/",
+    color: "#10b981",
+    badge: "FORMAT",
+    title: "CSV Processing",
+    desc: "Read and write CSV files with full header support, custom delimiters, and fault-tolerant parsing.",
+    features: ["csv", "json", "serde"],
+    icon: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <path d="M3 9h18M3 15h18M9 3v18"/>
+    </svg>`,
+  },
+  {
+    href: "/examples/json/",
+    color: "#3b82f6",
+    badge: "FORMAT",
+    title: "JSON Processing",
+    desc: "Stream JSON arrays, write with pretty-printing, and transform between formats seamlessly.",
+    features: ["json", "csv", "serde"],
+    icon: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/>
+      <path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/>
+    </svg>`,
+  },
+  {
+    href: "/examples/xml/",
+    color: "#f59e0b",
+    badge: "FORMAT",
+    title: "XML Processing",
+    desc: "Parse XML documents with namespace support, handle nested elements and attributes.",
+    features: ["xml", "json", "csv"],
+    icon: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="16 18 22 12 16 6"/>
+      <polyline points="8 6 2 12 8 18"/>
+    </svg>`,
+  },
+  {
+    href: "/examples/database/",
+    color: "#8b5cf6",
+    badge: "DATABASE",
+    title: "Database (RDBC)",
+    desc: "PostgreSQL, MySQL, and SQLite operations with paginated reads and efficient batch inserts.",
+    features: ["rdbc-postgres", "rdbc-sqlite", "rdbc-mysql"],
+    icon: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="12" cy="5" rx="9" ry="3"/>
+      <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
+      <path d="M3 12a9 3 0 0 0 18 0"/>
+    </svg>`,
+  },
+  {
+    href: "/examples/mongodb/",
+    color: "#14b8a6",
+    badge: "DATABASE",
+    title: "MongoDB",
+    desc: "Query collections, batch inserts, and cursor-based pagination for document databases.",
+    features: ["mongodb", "csv", "json"],
+    icon: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2C8 2 6 6 6 9c0 4.5 4 7 6 13 2-6 6-8.5 6-13 0-3-2-7-6-7z"/>
+    </svg>`,
+  },
+  {
+    href: "/examples/orm/",
+    color: "#ec4899",
+    badge: "DATABASE",
+    title: "ORM (SeaORM)",
+    desc: "Type-safe entity mapping, async queries, and seamless pagination with SeaORM integration.",
+    features: ["orm", "csv", "json"],
+    icon: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="3" width="8" height="8" rx="1"/>
+      <rect x="14" y="3" width="8" height="8" rx="1"/>
+      <rect x="2" y="13" width="8" height="8" rx="1"/>
+      <rect x="14" y="13" width="8" height="8" rx="1"/>
+    </svg>`,
+  },
+  {
+    href: "/examples/tasklets/",
+    color: "#ef4444",
+    badge: "OPERATIONS",
+    title: "Tasklets",
+    desc: "ZIP compression, FTP file transfers, and other single-task operations outside chunk processing.",
+    features: ["zip", "ftp"],
+    icon: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/>
+      <path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+      <path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>
+    </svg>`,
+  },
+  {
+    href: "/examples/advanced-patterns/",
+    color: "#00d9ff",
+    badge: "PATTERNS",
+    title: "Advanced Patterns",
+    desc: "Multi-step ETL pipelines, error recovery, processor chains, and complex production workflows.",
+    features: ["csv", "json", "logger"],
+    icon: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="18" cy="18" r="3"/>
+      <circle cx="6" cy="6" r="3"/>
+      <circle cx="6" cy="18" r="3"/>
+      <path d="M6 9v6M9 6h9a3 3 0 0 1 3 3v6"/>
+    </svg>`,
+  },
+];
+---
+
+<div class="eg-root">
+  <div class="eg-header">
+    <p class="eg-description">
+      Browse examples organized by feature. Each page includes documentation
+      and links to runnable source code on GitHub.
+    </p>
+    <div class="eg-stats">
+      <div class="eg-stat">
+        <span class="eg-stat-num">8</span>
+        <span class="eg-stat-label">Categories</span>
+      </div>
+      <div class="eg-stat-sep"></div>
+      <div class="eg-stat">
+        <span class="eg-stat-num">24+</span>
+        <span class="eg-stat-label">Examples</span>
+      </div>
+      <div class="eg-stat-sep"></div>
+      <div class="eg-stat">
+        <span class="eg-stat-num">100%</span>
+        <span class="eg-stat-label">Source on GitHub</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="eg-grid">
+    {categories.map((cat) => (
+      <a href={cat.href} class="eg-card" style={`--cat: ${cat.color}`}>
+        <div class="eg-card-glow" aria-hidden="true"></div>
+        <div class="eg-card-top">
+          <div class="eg-icon" set:html={cat.icon} />
+          <span class="eg-badge">{cat.badge}</span>
+        </div>
+        <h3 class="eg-title">{cat.title}</h3>
+        <p class="eg-desc">{cat.desc}</p>
+        <div class="eg-features">
+          {cat.features.map((f) => <span class="eg-tag">{f}</span>)}
+        </div>
+        <div class="eg-cta">
+          <span>View examples</span>
+          <svg class="eg-arrow" width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </a>
+    ))}
+  </div>
+</div>
+
+<style>
+  .eg-root {
+    margin-top: 1.5rem;
+  }
+
+  /* ── Header ── */
+  .eg-header {
+    margin-bottom: 2rem;
+  }
+
+  .eg-description {
+    color: var(--sl-color-gray-2);
+    font-size: 1rem;
+    line-height: 1.6;
+    margin: 0 0 1.25rem;
+  }
+
+  .eg-stats {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .eg-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .eg-stat-num {
+    font-family: var(--font-secondary, "Space Grotesk", sans-serif);
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--sl-color-white);
+    line-height: 1;
+  }
+
+  .eg-stat-label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sl-color-gray-3);
+  }
+
+  .eg-stat-sep {
+    width: 1px;
+    height: 2rem;
+    background: var(--sl-color-gray-6);
+  }
+
+  /* ── Grid ── */
+  .eg-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 640px) {
+    .eg-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .eg-grid {
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.25rem;
+    }
+  }
+
+  /* ── Card ── */
+  .eg-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.25rem;
+    border-radius: 0.875rem;
+    border: 1px solid var(--sl-color-gray-6);
+    background: var(--sl-color-bg);
+    text-decoration: none;
+    overflow: hidden;
+    transition: border-color 0.25s ease, transform 0.25s ease;
+  }
+
+  .eg-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--cat);
+    opacity: 0.6;
+    transition: opacity 0.25s ease;
+  }
+
+  .eg-card:hover {
+    border-color: color-mix(in srgb, var(--cat) 40%, transparent);
+    transform: translateY(-2px);
+  }
+
+  .eg-card:hover::before {
+    opacity: 1;
+  }
+
+  /* Glow effect */
+  .eg-card-glow {
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: var(--cat);
+    opacity: 0;
+    filter: blur(40px);
+    transition: opacity 0.35s ease;
+    pointer-events: none;
+  }
+
+  .eg-card:hover .eg-card-glow {
+    opacity: 0.12;
+  }
+
+  /* ── Card Top ── */
+  .eg-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .eg-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--cat) 15%, transparent);
+    color: var(--cat);
+    flex-shrink: 0;
+    transition: background 0.25s ease;
+  }
+
+  .eg-card:hover .eg-icon {
+    background: color-mix(in srgb, var(--cat) 22%, transparent);
+  }
+
+  .eg-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--cat);
+    background: color-mix(in srgb, var(--cat) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--cat) 25%, transparent);
+    padding: 0.2rem 0.45rem;
+    border-radius: 0.25rem;
+    white-space: nowrap;
+  }
+
+  /* ── Card Content ── */
+  .eg-title {
+    font-family: var(--font-secondary, "Space Grotesk", sans-serif);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--sl-color-white);
+    margin: 0;
+    line-height: 1.3;
+    border: none;
+  }
+
+  /* override Starlight h3 styles inside cards */
+  .eg-card .eg-title {
+    padding: 0;
+    border-bottom: none;
+  }
+
+  .eg-desc {
+    font-size: 0.825rem;
+    color: var(--sl-color-gray-3);
+    line-height: 1.55;
+    margin: 0;
+    flex: 1;
+  }
+
+  /* ── Feature tags ── */
+  .eg-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .eg-tag {
+    font-size: 0.65rem;
+    font-family: var(--sl-font-mono, monospace);
+    color: var(--sl-color-gray-3);
+    background: var(--sl-color-gray-6);
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.25rem;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── CTA ── */
+  .eg-cta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--cat);
+    margin-top: auto;
+    transition: gap 0.2s ease;
+  }
+
+  .eg-arrow {
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+  }
+
+  .eg-card:hover .eg-arrow {
+    transform: translateX(3px);
+  }
+
+  .eg-card:hover .eg-cta {
+    gap: 0.55rem;
+  }
+</style>

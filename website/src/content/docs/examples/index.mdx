@@ -1,0 +1,41 @@
+---
+title: Examples Gallery
+description: Complete examples for all Spring Batch RS features — CSV, JSON, XML, databases, tasklets, and advanced patterns.
+sidebar:
+  order: 0
+---
+
+import ExamplesGallery from '@/components/ExamplesGallery.astro';
+
+<ExamplesGallery />
+
+---
+
+## Quick Commands
+
+Run any example directly with `cargo`:
+
+```bash
+# CSV processing
+cargo run --example csv_processing --features csv,json
+
+# JSON processing
+cargo run --example json_processing --features json,csv,logger
+
+# XML processing
+cargo run --example xml_processing --features xml,json,csv
+
+# Database (SQLite)
+cargo run --example database_processing --features rdbc-sqlite,csv,json,logger
+
+# ORM (SeaORM)
+cargo run --example orm_processing --features orm,csv,json
+
+# ZIP tasklet
+cargo run --example tasklet_zip --features zip
+
+# Advanced multi-step ETL
+cargo run --example advanced_patterns --features csv,json,logger
+```
+
+See [`Cargo.toml`](https://github.com/sboussekeyt/spring-batch-rs/blob/main/Cargo.toml) for the complete list of examples and their required feature flags.
