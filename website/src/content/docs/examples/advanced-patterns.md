@@ -50,7 +50,7 @@ Filter and validate records before processing:
 struct ValidationProcessor;
 
 impl ItemProcessor<RawTransaction, ValidTransaction> for ValidationProcessor {
-    fn process(&self, item: &RawTransaction) -> Result<ValidTransaction, BatchError> {
+    fn process(&self, item: &RawTransaction) -> ItemProcessorResult<ValidTransaction> {
         // Skip non-completed transactions
         if item.status != "completed" {
             return Err(BatchError::ItemProcessor(
@@ -65,11 +65,11 @@ impl ItemProcessor<RawTransaction, ValidTransaction> for ValidationProcessor {
             ));
         }
 
-        Ok(ValidTransaction {
+        Ok(Some(ValidTransaction {
             id: item.id,
             account: item.account.clone(),
             amount: item.amount,
-        })
+        }))
     }
 }
 
@@ -92,22 +92,22 @@ struct EnrichmentProcessor {
 }
 
 impl ItemProcessor<Transaction, EnrichedTransaction> for EnrichmentProcessor {
-    fn process(&self, item: &Transaction) -> Result<EnrichedTransaction, BatchError> {
+    fn process(&self, item: &Transaction) -> ItemProcessorResult<EnrichedTransaction> {
         let fee = item.amount * self.fee_rate;
-        
+
         let category = match item.amount {
             a if a >= 10000.0 => "large",
             a if a >= 1000.0 => "medium",
             _ => "small",
         };
 
-        Ok(EnrichedTransaction {
+        Ok(Some(EnrichedTransaction {
             transaction_id: format!("TXN-{:06}", item.id),
             gross_amount: item.amount,
             fee,
             net_amount: item.amount - fee,
             category: category.to_string(),
-        })
+        }))
     }
 }
 ```
@@ -120,18 +120,18 @@ Process records differently based on conditions:
 struct ConditionalProcessor;
 
 impl ItemProcessor<Order, ProcessedOrder> for ConditionalProcessor {
-    fn process(&self, item: &Order) -> Result<ProcessedOrder, BatchError> {
+    fn process(&self, item: &Order) -> ItemProcessorResult<ProcessedOrder> {
         let (discount, priority) = match item.customer_type.as_str() {
             "premium" => (0.15, "high"),
             "regular" => (0.05, "normal"),
             _ => (0.0, "low"),
         };
 
-        Ok(ProcessedOrder {
+        Ok(Some(ProcessedOrder {
             order_id: item.id,
             final_amount: item.amount * (1.0 - discount),
             priority: priority.to_string(),
-        })
+        }))
     }
 }
 ```
@@ -286,7 +286,7 @@ impl<T: Clone> InMemoryReader<T> {
 }
 
 impl<T: Clone> ItemReader<T> for InMemoryReader<T> {
-    fn read(&self) -> Result<Option<T>, BatchError> {
+    fn read(&self) -> ItemReaderResult<T> {
         Ok(self.items.borrow_mut().pop_front())
     }
 }

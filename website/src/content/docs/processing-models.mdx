@@ -174,7 +174,7 @@ struct Order {
 struct OrderValidator;
 
 impl ItemProcessor<Order, Order> for OrderValidator {
-    fn process(&self, order: Order) -> Result<Option<Order>, BatchError> {
+    fn process(&self, order: Order) -> ItemProcessorResult<Order> {
         // Validate order
         if order.total < 0.0 {
             return Err(BatchError::ProcessingError(

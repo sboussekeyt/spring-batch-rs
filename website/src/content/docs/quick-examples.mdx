@@ -127,7 +127,7 @@ struct OrderProcessor {
 }
 
 impl ItemProcessor<RawOrder, ProcessedOrder> for OrderProcessor {
-    fn process(&self, order: RawOrder) -> Result<Option<ProcessedOrder>, BatchError> {
+    fn process(&self, order: RawOrder) -> ItemProcessorResult<ProcessedOrder> {
         // Parse items
         let items: Vec<String> = order.items
             .split(',')
@@ -220,7 +220,7 @@ impl ContactValidator {
 }
 
 impl ItemProcessor<Contact, Contact> for ContactValidator {
-    fn process(&self, contact: Contact) -> Result<Option<Contact>, BatchError> {
+    fn process(&self, contact: Contact) -> ItemProcessorResult<Contact> {
         // Validate name
         if contact.name.trim().is_empty() {
             self.log_error(format!("Empty name for email: {}", contact.email));
@@ -314,7 +314,7 @@ Migrate data from PostgreSQL to MySQL with transformation.
     struct UserMigrationProcessor;
 
     impl ItemProcessor<LegacyUser, ModernUser> for UserMigrationProcessor {
-        fn process(&self, legacy: LegacyUser) -> Result<Option<ModernUser>, BatchError> {
+        fn process(&self, legacy: LegacyUser) -> ItemProcessorResult<ModernUser> {
             Ok(Some(ModernUser {
                 id: legacy.user_id,
                 username: legacy.username,

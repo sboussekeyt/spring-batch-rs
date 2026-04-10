@@ -19,7 +19,7 @@ pub trait ItemProcessor<I, O> {
     /// - `Ok(Some(processed_item))` - Successfully processed, pass to writer
     /// - `Ok(None)` - Item filtered out, not passed to writer
     /// - `Err(BatchError)` - Processing failed
-    fn process(&self, item: &I) -> Result<Option<O>, BatchError>;
+    fn process(&self, item: &I) -> ItemProcessorResult<O>;
 }
 ```
 
