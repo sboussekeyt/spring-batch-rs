@@ -1,6 +1,27 @@
 {
   "main": [
     {
+      "label": "Guide",
+      "items": [
+        {
+          "label": "Getting Started",
+          "link": "/getting-started/"
+        },
+        {
+          "label": "Architecture",
+          "link": "/architecture/"
+        },
+        {
+          "label": "Processing Models",
+          "link": "/processing-models/"
+        },
+        {
+          "label": "Error Handling",
+          "link": "/error-handling/"
+        }
+      ]
+    },
+    {
       "label": "Examples",
       "items": [
         {
@@ -52,6 +73,18 @@
     {
       "label": "Reference",
       "items": [
+        {
+          "label": "[zap] Java vs Rust Benchmark",
+          "link": "/reference/java-vs-rust-benchmark/"
+        },
+        {
+          "label": "[list] Features",
+          "link": "/reference/features/"
+        },
+        {
+          "label": "[information] Error Types",
+          "link": "/reference/error-types/"
+        },
         {
           "label": "[external-link] API Documentation",
           "link": "https://docs.rs/spring-batch-rs",
