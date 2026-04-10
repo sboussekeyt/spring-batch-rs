@@ -74,11 +74,11 @@
       "label": "Reference",
       "items": [
         {
-          "label": "[zap] Java vs Rust Benchmark",
+          "label": "[rocket] Java vs Rust Benchmark",
           "link": "/reference/java-vs-rust-benchmark/"
         },
         {
-          "label": "[list] Features",
+          "label": "[list-format] Features",
           "link": "/reference/features/"
         },
         {
