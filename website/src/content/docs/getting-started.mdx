@@ -212,7 +212,7 @@ struct PriceDiscountProcessor {
 }
 
 impl ItemProcessor<Product, Product> for PriceDiscountProcessor {
-    fn process(&self, item: Product) -> Result<Option<Product>, BatchError> {
+    fn process(&self, item: Product) -> ItemProcessorResult<Product> {
         let mut product = item;
 
         // Apply discount
@@ -311,7 +311,7 @@ struct ProcessedProduct {
 struct ProductProcessor;
 
 impl ItemProcessor<RawProduct, ProcessedProduct> for ProductProcessor {
-    fn process(&self, item: RawProduct) -> Result<Option<ProcessedProduct>, BatchError> {
+    fn process(&self, item: RawProduct) -> ItemProcessorResult<ProcessedProduct> {
         // Validate price
         if item.price <= 0.0 {
             return Ok(None); // Skip invalid items

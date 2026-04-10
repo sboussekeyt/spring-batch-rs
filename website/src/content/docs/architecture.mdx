@@ -148,7 +148,7 @@ Abstracts data retrieval from various sources.
 
 ```rust
 pub trait ItemReader<T> {
-    fn read(&mut self) -> Result<Option<T>, BatchError>;
+    fn read(&mut self) -> ItemReaderResult<T>;
 }
 ```
 
@@ -177,7 +177,7 @@ Transforms and validates items during processing.
 
 ```rust
 pub trait ItemProcessor<I, O> {
-    fn process(&self, item: I) -> Result<Option<O>, BatchError>;
+    fn process(&self, item: I) -> ItemProcessorResult<O>;
 }
 ```
 
@@ -193,7 +193,7 @@ Outputs processed items to destinations.
 
 ```rust
 pub trait ItemWriter<T> {
-    fn write(&mut self, items: &[T]) -> Result<(), BatchError>;
+    fn write(&mut self, items: &[T]) -> ItemWriterResult;
 }
 ```
 
@@ -489,7 +489,7 @@ std::fs::rename("/tmp/output.json", "/final/output.json")?;
     where
         P: ItemProcessor<I, O>,
     {
-        fn process(&self, item: I) -> Result<Option<O>, BatchError> {
+        fn process(&self, item: I) -> ItemProcessorResult<O> {
             let mut attempts = 0;
             loop {
                 match self.inner.process(item.clone()) {
@@ -549,7 +549,7 @@ struct ApiItemReader {
 }
 
 impl ItemReader<Item> for ApiItemReader {
-    fn read(&mut self) -> Result<Option<Item>, BatchError> {
+    fn read(&mut self) -> ItemReaderResult<Item> {
         if self.buffer.is_empty() {
             // Fetch next page
             self.fetch_page()?;

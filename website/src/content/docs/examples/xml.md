@@ -135,13 +135,13 @@ struct Room {
 struct XmlToCsvProcessor;
 
 impl ItemProcessor<House, HouseCsv> for XmlToCsvProcessor {
-    fn process(&self, item: &House) -> Result<HouseCsv, BatchError> {
-        Ok(HouseCsv {
+    fn process(&self, item: &House) -> ItemProcessorResult<HouseCsv> {
+        Ok(Some(HouseCsv {
             id: item.id,
             address: item.address.clone(),
             city: item.city.clone(),
             room_count: item.rooms.len() as u32,
-        })
+        }))
     }
 }
 ```

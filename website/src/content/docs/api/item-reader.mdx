@@ -19,7 +19,7 @@ pub trait ItemReader<I> {
     /// - `Ok(Some(item))` - Successfully read an item
     /// - `Ok(None)` - End of data reached
     /// - `Err(BatchError)` - An error occurred
-    fn read(&self) -> Result<Option<I>, BatchError>;
+    fn read(&self) -> ItemReaderResult<I>;
 }
 ```
 

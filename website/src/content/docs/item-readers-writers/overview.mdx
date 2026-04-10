@@ -156,7 +156,7 @@ You can create custom implementations by implementing the respective traits:
     }
 
     impl ItemReader<String> for MyCustomReader {
-        fn read(&mut self) -> Result<Option<String>, BatchError> {
+        fn read(&mut self) -> ItemReaderResult<String> {
             if self.index < self.data.len() {
                 let item = self.data[self.index].clone();
                 self.index += 1;
@@ -179,7 +179,7 @@ You can create custom implementations by implementing the respective traits:
     }
 
     impl ItemWriter<String> for MyCustomWriter {
-        fn write(&mut self, items: &[String]) -> Result<(), BatchError> {
+        fn write(&mut self, items: &[String]) -> ItemWriterResult {
             for item in items {
                 self.output.push(item.clone());
                 // Custom write logic here

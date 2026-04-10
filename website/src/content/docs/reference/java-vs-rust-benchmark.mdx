@@ -130,7 +130,7 @@ transactions.csv (10M rows)
     struct TransactionProcessor;
 
     impl ItemProcessor<Transaction, Transaction> for TransactionProcessor {
-        fn process(&self, item: &Transaction) -> Result<Transaction, BatchError> {
+        fn process(&self, item: &Transaction) -> ItemProcessorResult<Transaction> {
             let rate = match item.currency.as_str() {
                 "USD" => 0.92,
                 "GBP" => 1.17,
@@ -141,7 +141,7 @@ transactions.csv (10M rows)
             } else {
                 item.status.clone()
             };
-            Ok(Transaction {
+            Ok(Some(Transaction {
                 amount_eur: (item.amount * rate * 100.0).round() / 100.0,
                 status,
                 ..item.clone()

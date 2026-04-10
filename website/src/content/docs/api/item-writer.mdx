@@ -14,16 +14,16 @@ The `ItemWriter<O>` trait defines how to write batches of items to any destinati
 ```rust
 pub trait ItemWriter<O> {
     /// Writes a batch of items
-    fn write(&self, items: &[O]) -> Result<(), BatchError>;
+    fn write(&self, items: &[O]) -> ItemWriterResult;
 
     /// Opens the writer (called once at start)
-    fn open(&self) -> Result<(), BatchError> { Ok(()) }
+    fn open(&self) -> ItemWriterResult { Ok(()) }
 
     /// Closes the writer (called once at end)
-    fn close(&self) -> Result<(), BatchError> { Ok(()) }
+    fn close(&self) -> ItemWriterResult { Ok(()) }
 
     /// Flushes any buffered data
-    fn flush(&self) -> Result<(), BatchError> { Ok(()) }
+    fn flush(&self) -> ItemWriterResult { Ok(()) }
 }
 ```
 
