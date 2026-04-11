@@ -355,6 +355,7 @@ impl S3GetFolderTasklet {
                 let key = object.key().unwrap_or_default();
                 // Strip prefix to get relative path within the local folder
                 let relative = key.strip_prefix(self.prefix.as_str()).unwrap_or(key);
+                let relative = relative.strip_prefix('/').unwrap_or(relative);
                 if relative.is_empty() {
                     continue; // skip the prefix "directory" placeholder object
                 }
@@ -715,5 +716,35 @@ mod tests {
             .local_folder("/tmp/imports")
             .build();
         assert!(result.is_ok(), "build should succeed: {:?}", result.err());
+    }
+
+    /// Verify that strip_prefix + leading-slash stripping produces a relative path
+    /// regardless of whether the prefix ends with a slash.
+    #[test]
+    fn should_strip_leading_slash_from_relative_key() {
+        let prefix_with_slash = "backups/2026/";
+        let prefix_without_slash = "backups/2026";
+        let key = "backups/2026/file.csv";
+        let local_folder = std::path::Path::new("/tmp/imports");
+
+        // Prefix ends with slash: strip_prefix returns "file.csv" (no leading slash)
+        let relative = key.strip_prefix(prefix_with_slash).unwrap_or(key);
+        let relative = relative.strip_prefix('/').unwrap_or(relative);
+        let path = local_folder.join(relative);
+        assert_eq!(
+            path,
+            std::path::Path::new("/tmp/imports/file.csv"),
+            "trailing-slash prefix should produce a correct local path"
+        );
+
+        // Prefix without slash: strip_prefix returns "/file.csv" (leading slash)
+        let relative = key.strip_prefix(prefix_without_slash).unwrap_or(key);
+        let relative = relative.strip_prefix('/').unwrap_or(relative);
+        let path = local_folder.join(relative);
+        assert_eq!(
+            path,
+            std::path::Path::new("/tmp/imports/file.csv"),
+            "non-trailing-slash prefix must not produce an absolute path"
+        );
     }
 }
