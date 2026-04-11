@@ -64,9 +64,7 @@ async fn main() -> Result<(), BatchError> {
         .build()?;
 
     // 4. Build steps
-    let upload_step = StepBuilder::new("s3-upload")
-        .tasklet(&put_tasklet)
-        .build();
+    let upload_step = StepBuilder::new("s3-upload").tasklet(&put_tasklet).build();
 
     let download_step = StepBuilder::new("s3-download")
         .tasklet(&get_tasklet)

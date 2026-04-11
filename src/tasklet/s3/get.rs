@@ -62,13 +62,17 @@ impl S3GetTasklet {
             .key(&self.key)
             .send()
             .await
-            .map_err(|e| BatchError::ItemReader(format!("S3 get_object failed for {}: {}", self.key, e)))?;
+            .map_err(|e| {
+                BatchError::ItemReader(format!("S3 get_object failed for {}: {}", self.key, e))
+            })?;
 
         let bytes = resp
             .body
             .collect()
             .await
-            .map_err(|e| BatchError::ItemReader(format!("Failed to read S3 body for {}: {}", self.key, e)))?
+            .map_err(|e| {
+                BatchError::ItemReader(format!("Failed to read S3 body for {}: {}", self.key, e))
+            })?
             .into_bytes();
 
         std::fs::write(&self.local_file, &bytes).map_err(BatchError::Io)?;
@@ -262,15 +266,15 @@ impl S3GetTaskletBuilder {
     /// # }
     /// ```
     pub fn build(self) -> Result<S3GetTasklet, BatchError> {
-        let bucket = self
-            .bucket
-            .ok_or_else(|| BatchError::Configuration("S3GetTasklet: 'bucket' is required".to_string()))?;
-        let key = self
-            .key
-            .ok_or_else(|| BatchError::Configuration("S3GetTasklet: 'key' is required".to_string()))?;
-        let local_file = self
-            .local_file
-            .ok_or_else(|| BatchError::Configuration("S3GetTasklet: 'local_file' is required".to_string()))?;
+        let bucket = self.bucket.ok_or_else(|| {
+            BatchError::Configuration("S3GetTasklet: 'bucket' is required".to_string())
+        })?;
+        let key = self.key.ok_or_else(|| {
+            BatchError::Configuration("S3GetTasklet: 'key' is required".to_string())
+        })?;
+        let local_file = self.local_file.ok_or_else(|| {
+            BatchError::Configuration("S3GetTasklet: 'local_file' is required".to_string())
+        })?;
 
         Ok(S3GetTasklet {
             bucket,
@@ -362,7 +366,12 @@ impl S3GetFolderTasklet {
                     std::fs::create_dir_all(parent).map_err(BatchError::Io)?;
                 }
 
-                debug!("Downloading s3://{}/{} -> {}", self.bucket, key, local_path.display());
+                debug!(
+                    "Downloading s3://{}/{} -> {}",
+                    self.bucket,
+                    key,
+                    local_path.display()
+                );
 
                 let resp = client
                     .get_object()
@@ -370,13 +379,17 @@ impl S3GetFolderTasklet {
                     .key(key)
                     .send()
                     .await
-                    .map_err(|e| BatchError::ItemReader(format!("get_object failed for {}: {}", key, e)))?;
+                    .map_err(|e| {
+                        BatchError::ItemReader(format!("get_object failed for {}: {}", key, e))
+                    })?;
 
                 let bytes = resp
                     .body
                     .collect()
                     .await
-                    .map_err(|e| BatchError::ItemReader(format!("Failed to read body for {}: {}", key, e)))?
+                    .map_err(|e| {
+                        BatchError::ItemReader(format!("Failed to read body for {}: {}", key, e))
+                    })?
                     .into_bytes();
 
                 std::fs::write(&local_path, &bytes).map_err(BatchError::Io)?;
@@ -577,15 +590,15 @@ impl S3GetFolderTaskletBuilder {
     /// # }
     /// ```
     pub fn build(self) -> Result<S3GetFolderTasklet, BatchError> {
-        let bucket = self
-            .bucket
-            .ok_or_else(|| BatchError::Configuration("S3GetFolderTasklet: 'bucket' is required".to_string()))?;
-        let prefix = self
-            .prefix
-            .ok_or_else(|| BatchError::Configuration("S3GetFolderTasklet: 'prefix' is required".to_string()))?;
-        let local_folder = self
-            .local_folder
-            .ok_or_else(|| BatchError::Configuration("S3GetFolderTasklet: 'local_folder' is required".to_string()))?;
+        let bucket = self.bucket.ok_or_else(|| {
+            BatchError::Configuration("S3GetFolderTasklet: 'bucket' is required".to_string())
+        })?;
+        let prefix = self.prefix.ok_or_else(|| {
+            BatchError::Configuration("S3GetFolderTasklet: 'prefix' is required".to_string())
+        })?;
+        let local_folder = self.local_folder.ok_or_else(|| {
+            BatchError::Configuration("S3GetFolderTasklet: 'local_folder' is required".to_string())
+        })?;
 
         Ok(S3GetFolderTasklet {
             bucket,
@@ -639,7 +652,11 @@ mod tests {
             .key("file.csv")
             .local_file("/tmp/file.csv")
             .build();
-        assert!(result.is_ok(), "build should succeed with required fields: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "build should succeed with required fields: {:?}",
+            result.err()
+        );
     }
 
     #[test]
@@ -655,7 +672,10 @@ mod tests {
             .build()
             .unwrap(); // required fields set — cannot fail
         assert_eq!(tasklet.config.region.as_deref(), Some("eu-west-1"));
-        assert_eq!(tasklet.config.endpoint_url.as_deref(), Some("http://localhost:9000"));
+        assert_eq!(
+            tasklet.config.endpoint_url.as_deref(),
+            Some("http://localhost:9000")
+        );
         assert_eq!(tasklet.config.access_key_id.as_deref(), Some("AKID"));
         assert_eq!(tasklet.config.secret_access_key.as_deref(), Some("SECRET"));
     }

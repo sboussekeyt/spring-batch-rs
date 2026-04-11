@@ -64,9 +64,9 @@ impl S3PutTasklet {
 
         if file_size < self.chunk_size {
             // Simple single-part upload
-            let body = ByteStream::from_path(&self.local_file)
-                .await
-                .map_err(|e| BatchError::ItemWriter(format!("Failed to read file for upload: {}", e)))?;
+            let body = ByteStream::from_path(&self.local_file).await.map_err(|e| {
+                BatchError::ItemWriter(format!("Failed to read file for upload: {}", e))
+            })?;
 
             client
                 .put_object()
@@ -78,7 +78,14 @@ impl S3PutTasklet {
                 .map_err(|e| BatchError::ItemWriter(format!("S3 put_object failed: {}", e)))?;
         } else {
             // Multipart upload
-            upload_multipart(&client, &self.bucket, &self.key, &self.local_file, self.chunk_size).await?;
+            upload_multipart(
+                &client,
+                &self.bucket,
+                &self.key,
+                &self.local_file,
+                self.chunk_size,
+            )
+            .await?;
         }
 
         info!("Upload complete: s3://{}/{}", self.bucket, self.key);
@@ -289,15 +296,15 @@ impl S3PutTaskletBuilder {
     /// # }
     /// ```
     pub fn build(self) -> Result<S3PutTasklet, BatchError> {
-        let bucket = self
-            .bucket
-            .ok_or_else(|| BatchError::Configuration("S3PutTasklet: 'bucket' is required".to_string()))?;
-        let key = self
-            .key
-            .ok_or_else(|| BatchError::Configuration("S3PutTasklet: 'key' is required".to_string()))?;
-        let local_file = self
-            .local_file
-            .ok_or_else(|| BatchError::Configuration("S3PutTasklet: 'local_file' is required".to_string()))?;
+        let bucket = self.bucket.ok_or_else(|| {
+            BatchError::Configuration("S3PutTasklet: 'bucket' is required".to_string())
+        })?;
+        let key = self.key.ok_or_else(|| {
+            BatchError::Configuration("S3PutTasklet: 'key' is required".to_string())
+        })?;
+        let local_file = self.local_file.ok_or_else(|| {
+            BatchError::Configuration("S3PutTasklet: 'local_file' is required".to_string())
+        })?;
 
         Ok(S3PutTasklet {
             bucket,
@@ -364,16 +371,29 @@ impl S3PutFolderTasklet {
             let relative = local_path
                 .strip_prefix(&self.local_folder)
                 .map_err(|e| BatchError::Io(std::io::Error::other(e.to_string())))?;
-            let key = format!("{}{}", self.prefix, relative.to_string_lossy().replace('\\', "/"));
+            let key = format!(
+                "{}{}",
+                self.prefix,
+                relative.to_string_lossy().replace('\\', "/")
+            );
 
             let file_size = std::fs::metadata(local_path).map_err(BatchError::Io)?.len() as usize;
 
-            debug!("Uploading {} -> s3://{}/{}", local_path.display(), self.bucket, key);
+            debug!(
+                "Uploading {} -> s3://{}/{}",
+                local_path.display(),
+                self.bucket,
+                key
+            );
 
             if file_size < self.chunk_size {
-                let body = ByteStream::from_path(local_path)
-                    .await
-                    .map_err(|e| BatchError::ItemWriter(format!("Failed to read {}: {}", local_path.display(), e)))?;
+                let body = ByteStream::from_path(local_path).await.map_err(|e| {
+                    BatchError::ItemWriter(format!(
+                        "Failed to read {}: {}",
+                        local_path.display(),
+                        e
+                    ))
+                })?;
 
                 client
                     .put_object()
@@ -382,7 +402,9 @@ impl S3PutFolderTasklet {
                     .body(body)
                     .send()
                     .await
-                    .map_err(|e| BatchError::ItemWriter(format!("S3 put_object failed for {}: {}", key, e)))?;
+                    .map_err(|e| {
+                        BatchError::ItemWriter(format!("S3 put_object failed for {}: {}", key, e))
+                    })?;
             } else {
                 upload_multipart(&client, &self.bucket, &key, local_path, self.chunk_size).await?;
             }
@@ -589,15 +611,15 @@ impl S3PutFolderTaskletBuilder {
     /// # }
     /// ```
     pub fn build(self) -> Result<S3PutFolderTasklet, BatchError> {
-        let bucket = self
-            .bucket
-            .ok_or_else(|| BatchError::Configuration("S3PutFolderTasklet: 'bucket' is required".to_string()))?;
-        let prefix = self
-            .prefix
-            .ok_or_else(|| BatchError::Configuration("S3PutFolderTasklet: 'prefix' is required".to_string()))?;
-        let local_folder = self
-            .local_folder
-            .ok_or_else(|| BatchError::Configuration("S3PutFolderTasklet: 'local_folder' is required".to_string()))?;
+        let bucket = self.bucket.ok_or_else(|| {
+            BatchError::Configuration("S3PutFolderTasklet: 'bucket' is required".to_string())
+        })?;
+        let prefix = self.prefix.ok_or_else(|| {
+            BatchError::Configuration("S3PutFolderTasklet: 'prefix' is required".to_string())
+        })?;
+        let local_folder = self.local_folder.ok_or_else(|| {
+            BatchError::Configuration("S3PutFolderTasklet: 'local_folder' is required".to_string())
+        })?;
 
         Ok(S3PutFolderTasklet {
             bucket,
@@ -629,11 +651,15 @@ async fn upload_multipart(
         .key(key)
         .send()
         .await
-        .map_err(|e| BatchError::ItemWriter(format!("create_multipart_upload failed for {}: {}", key, e)))?;
+        .map_err(|e| {
+            BatchError::ItemWriter(format!("create_multipart_upload failed for {}: {}", key, e))
+        })?;
 
     let upload_id = create_resp
         .upload_id()
-        .ok_or_else(|| BatchError::ItemWriter("create_multipart_upload returned no upload_id".to_string()))?
+        .ok_or_else(|| {
+            BatchError::ItemWriter("create_multipart_upload returned no upload_id".to_string())
+        })?
         .to_string();
 
     let result = upload_parts(client, bucket, key, &upload_id, local_file, chunk_size).await;
@@ -680,7 +706,10 @@ async fn upload_parts(
             break;
         }
 
-        debug!("Multipart upload: part {} ({} bytes) -> s3://{}/{}", part_number, bytes_read, bucket, key);
+        debug!(
+            "Multipart upload: part {} ({} bytes) -> s3://{}/{}",
+            part_number, bytes_read, bucket, key
+        );
 
         let body = ByteStream::from(buffer);
         let part_resp = client
@@ -692,11 +721,15 @@ async fn upload_parts(
             .body(body)
             .send()
             .await
-            .map_err(|e| BatchError::ItemWriter(format!("upload_part {} failed: {}", part_number, e)))?;
+            .map_err(|e| {
+                BatchError::ItemWriter(format!("upload_part {} failed: {}", part_number, e))
+            })?;
 
         let etag = part_resp
             .e_tag()
-            .ok_or_else(|| BatchError::ItemWriter(format!("upload_part {} returned no ETag", part_number)))?
+            .ok_or_else(|| {
+                BatchError::ItemWriter(format!("upload_part {} returned no ETag", part_number))
+            })?
             .to_string();
 
         completed_parts.push(
@@ -721,7 +754,12 @@ async fn upload_parts(
         .multipart_upload(completed)
         .send()
         .await
-        .map_err(|e| BatchError::ItemWriter(format!("complete_multipart_upload failed for {}: {}", key, e)))?;
+        .map_err(|e| {
+            BatchError::ItemWriter(format!(
+                "complete_multipart_upload failed for {}: {}",
+                key, e
+            ))
+        })?;
 
     Ok(())
 }
@@ -795,7 +833,11 @@ mod tests {
             .key("file.csv")
             .local_file("/tmp/file.csv")
             .build();
-        assert!(result.is_ok(), "build should succeed with required fields: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "build should succeed with required fields: {:?}",
+            result.err()
+        );
     }
 
     #[test]
@@ -806,7 +848,10 @@ mod tests {
             .local_file("/tmp/f")
             .build()
             .unwrap(); // required fields are set — cannot fail
-        assert_eq!(tasklet.chunk_size, DEFAULT_CHUNK_SIZE, "default chunk_size should be 8 MiB");
+        assert_eq!(
+            tasklet.chunk_size, DEFAULT_CHUNK_SIZE,
+            "default chunk_size should be 8 MiB"
+        );
     }
 
     #[test]
@@ -834,7 +879,10 @@ mod tests {
             .build()
             .unwrap(); // required fields are set — cannot fail
         assert_eq!(tasklet.config.region.as_deref(), Some("us-east-1"));
-        assert_eq!(tasklet.config.endpoint_url.as_deref(), Some("http://localhost:9000"));
+        assert_eq!(
+            tasklet.config.endpoint_url.as_deref(),
+            Some("http://localhost:9000")
+        );
         assert_eq!(tasklet.config.access_key_id.as_deref(), Some("AKID"));
         assert_eq!(tasklet.config.secret_access_key.as_deref(), Some("SECRET"));
     }
@@ -878,7 +926,11 @@ mod tests {
             .prefix("backups/")
             .local_folder("/tmp/exports")
             .build();
-        assert!(result.is_ok(), "build should succeed with required fields: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "build should succeed with required fields: {:?}",
+            result.err()
+        );
     }
 
     // --- collect_files helper tests ---
@@ -907,7 +959,12 @@ mod tests {
         fs::write(sub.join("child.txt"), "c").unwrap(); // test setup
 
         let files = collect_files(&dir).unwrap(); // dir exists — cannot fail
-        assert_eq!(files.len(), 2, "should collect files from nested dirs: {:?}", files);
+        assert_eq!(
+            files.len(),
+            2,
+            "should collect files from nested dirs: {:?}",
+            files
+        );
 
         fs::remove_dir_all(&dir).ok();
     }

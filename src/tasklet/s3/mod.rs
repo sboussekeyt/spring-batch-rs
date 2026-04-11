@@ -116,11 +116,12 @@ pub struct S3ClientConfig {
 /// # Errors
 ///
 /// Returns [`BatchError::Configuration`] if the AWS SDK configuration cannot be loaded.
-pub(crate) async fn build_s3_client(config: &S3ClientConfig) -> Result<aws_sdk_s3::Client, BatchError> {
-    let region_provider = RegionProviderChain::first_try(
-        config.region.clone().map(aws_sdk_s3::config::Region::new),
-    )
-    .or_default_provider();
+pub(crate) async fn build_s3_client(
+    config: &S3ClientConfig,
+) -> Result<aws_sdk_s3::Client, BatchError> {
+    let region_provider =
+        RegionProviderChain::first_try(config.region.clone().map(aws_sdk_s3::config::Region::new))
+            .or_default_provider();
 
     let sdk_config = aws_config::defaults(BehaviorVersion::latest())
         .region(region_provider)
@@ -149,9 +150,18 @@ mod tests {
     fn should_default_to_none_fields() {
         let config = S3ClientConfig::default();
         assert!(config.region.is_none(), "region should default to None");
-        assert!(config.endpoint_url.is_none(), "endpoint_url should default to None");
-        assert!(config.access_key_id.is_none(), "access_key_id should default to None");
-        assert!(config.secret_access_key.is_none(), "secret_access_key should default to None");
+        assert!(
+            config.endpoint_url.is_none(),
+            "endpoint_url should default to None"
+        );
+        assert!(
+            config.access_key_id.is_none(),
+            "access_key_id should default to None"
+        );
+        assert!(
+            config.secret_access_key.is_none(),
+            "secret_access_key should default to None"
+        );
     }
 
     #[test]
@@ -169,7 +179,10 @@ mod tests {
             endpoint_url: Some("http://localhost:9000".to_string()),
             ..Default::default()
         };
-        assert_eq!(config.endpoint_url.as_deref(), Some("http://localhost:9000"));
+        assert_eq!(
+            config.endpoint_url.as_deref(),
+            Some("http://localhost:9000")
+        );
     }
 
     #[test]
