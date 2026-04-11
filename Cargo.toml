@@ -140,6 +140,10 @@ required-features = ["zip"]
 name = "tasklet_ftp"
 required-features = ["ftp"]
 
+[[example]]
+name = "tasklet_s3"
+required-features = ["s3"]
+
 # =============================================================================
 # Examples - Advanced Patterns
 # =============================================================================
