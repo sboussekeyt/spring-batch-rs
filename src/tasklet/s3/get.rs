@@ -11,7 +11,8 @@ use tokio::runtime::Handle;
 
 /// A tasklet that downloads a single S3 object to a local file.
 ///
-/// The object body is collected into memory before being written to the local file.
+/// The object body is streamed directly to the local file without loading it into memory,
+/// making it safe for large files common in batch processing.
 ///
 /// # Examples
 ///
@@ -66,20 +67,17 @@ impl S3GetTasklet {
                 BatchError::ItemReader(format!("S3 get_object failed for {}: {}", self.key, e))
             })?;
 
-        let bytes = resp
-            .body
-            .collect()
+        let mut body = resp.body.into_async_read();
+        let mut file = tokio::fs::File::create(&self.local_file)
             .await
-            .map_err(|e| {
-                BatchError::ItemReader(format!("Failed to read S3 body for {}: {}", self.key, e))
-            })?
-            .into_bytes();
-
-        std::fs::write(&self.local_file, &bytes).map_err(BatchError::Io)?;
+            .map_err(BatchError::Io)?;
+        let bytes_written = tokio::io::copy(&mut body, &mut file)
+            .await
+            .map_err(BatchError::Io)?;
 
         info!(
             "Download complete: {} bytes written to {}",
-            bytes.len(),
+            bytes_written,
             self.local_file.display()
         );
         Ok(RepeatStatus::Finished)
@@ -383,16 +381,13 @@ impl S3GetFolderTasklet {
                         BatchError::ItemReader(format!("get_object failed for {}: {}", key, e))
                     })?;
 
-                let bytes = resp
-                    .body
-                    .collect()
+                let mut body = resp.body.into_async_read();
+                let mut file = tokio::fs::File::create(&local_path)
                     .await
-                    .map_err(|e| {
-                        BatchError::ItemReader(format!("Failed to read body for {}: {}", key, e))
-                    })?
-                    .into_bytes();
-
-                std::fs::write(&local_path, &bytes).map_err(BatchError::Io)?;
+                    .map_err(BatchError::Io)?;
+                tokio::io::copy(&mut body, &mut file)
+                    .await
+                    .map_err(BatchError::Io)?;
                 total_files += 1;
             }
 
