@@ -279,7 +279,8 @@ impl S3PutTaskletBuilder {
     ///
     /// # Errors
     ///
-    /// Returns [`BatchError::Configuration`] if `bucket`, `key`, or `local_file` are not set.
+    /// Returns [`BatchError::Configuration`] if `bucket`, `key`, or `local_file` are not set,
+    /// or if `chunk_size` is less than 5 MiB (AWS multipart upload minimum).
     ///
     /// # Examples
     ///
@@ -305,6 +306,12 @@ impl S3PutTaskletBuilder {
         let local_file = self.local_file.ok_or_else(|| {
             BatchError::Configuration("S3PutTasklet: 'local_file' is required".to_string())
         })?;
+
+        if self.chunk_size < 5 * 1024 * 1024 {
+            return Err(BatchError::Configuration(
+                "S3PutTasklet: 'chunk_size' must be at least 5 MiB".to_string(),
+            ));
+        }
 
         Ok(S3PutTasklet {
             bucket,
