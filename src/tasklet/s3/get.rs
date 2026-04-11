@@ -11,8 +11,7 @@ use tokio::runtime::Handle;
 
 /// A tasklet that downloads a single S3 object to a local file.
 ///
-/// The object body is streamed from S3 and written directly to the local file
-/// without loading it entirely into memory.
+/// The object body is collected into memory before being written to the local file.
 ///
 /// # Examples
 ///
