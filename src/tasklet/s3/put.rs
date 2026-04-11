@@ -601,7 +601,8 @@ impl S3PutFolderTaskletBuilder {
     ///
     /// # Errors
     ///
-    /// Returns [`BatchError::Configuration`] if `bucket`, `prefix`, or `local_folder` are not set.
+    /// Returns [`BatchError::Configuration`] if `bucket`, `prefix`, or `local_folder` are not set,
+    /// or if `chunk_size` is less than 5 MiB (AWS multipart upload minimum).
     ///
     /// # Examples
     ///
@@ -627,6 +628,12 @@ impl S3PutFolderTaskletBuilder {
         let local_folder = self.local_folder.ok_or_else(|| {
             BatchError::Configuration("S3PutFolderTasklet: 'local_folder' is required".to_string())
         })?;
+
+        if self.chunk_size < 5 * 1024 * 1024 {
+            return Err(BatchError::Configuration(
+                "S3PutFolderTasklet: 'chunk_size' must be at least 5 MiB".to_string(),
+            ));
+        }
 
         Ok(S3PutFolderTasklet {
             bucket,
@@ -874,6 +881,21 @@ mod tests {
     }
 
     #[test]
+    fn should_fail_build_when_chunk_size_below_minimum() {
+        let result = S3PutTaskletBuilder::new()
+            .bucket("b")
+            .key("k")
+            .local_file("/tmp/f")
+            .chunk_size(1024) // 1 KiB — below the 5 MiB minimum
+            .build();
+        assert!(result.is_err(), "build should fail with chunk_size < 5 MiB");
+        assert!(
+            result.unwrap_err().to_string().contains("chunk_size"),
+            "error message should mention 'chunk_size'"
+        );
+    }
+
+    #[test]
     fn should_store_optional_config_fields() {
         let tasklet = S3PutTaskletBuilder::new()
             .bucket("b")
@@ -937,6 +959,24 @@ mod tests {
             result.is_ok(),
             "build should succeed with required fields: {:?}",
             result.err()
+        );
+    }
+
+    #[test]
+    fn should_fail_folder_build_when_chunk_size_below_minimum() {
+        let result = S3PutFolderTaskletBuilder::new()
+            .bucket("b")
+            .prefix("p/")
+            .local_folder("/tmp/exports")
+            .chunk_size(1024) // 1 KiB — below the 5 MiB minimum
+            .build();
+        assert!(
+            result.is_err(),
+            "build should fail with chunk_size < 5 MiB"
+        );
+        assert!(
+            result.unwrap_err().to_string().contains("chunk_size"),
+            "error message should mention 'chunk_size'"
         );
     }
 
