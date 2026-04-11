@@ -29,12 +29,13 @@ use spring_batch_rs::{
         step::StepBuilder,
     },
     tasklet::s3::{get::S3GetTaskletBuilder, put::S3PutTaskletBuilder},
+    BatchError,
 };
 use std::env::temp_dir;
 use std::fs;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), BatchError> {
     // 1. Prepare a sample file to upload
     let upload_path = temp_dir().join("spring_batch_s3_sample.csv");
     fs::write(&upload_path, "id,name\n1,Alice\n2,Bob\n").unwrap(); // example setup — panics on error
@@ -49,8 +50,7 @@ async fn main() {
         .access_key_id("test")
         .secret_access_key("test")
         .region("us-east-1")
-        .build()
-        .unwrap(); // panics on misconfiguration — intentional in examples
+        .build()?;
 
     // 3. Build the download tasklet (S3GetTasklet)
     let get_tasklet = S3GetTaskletBuilder::new()
@@ -61,8 +61,7 @@ async fn main() {
         .access_key_id("test")
         .secret_access_key("test")
         .region("us-east-1")
-        .build()
-        .unwrap(); // panics on misconfiguration — intentional in examples
+        .build()?;
 
     // 4. Build steps
     let upload_step = StepBuilder::new("s3-upload")
@@ -79,18 +78,14 @@ async fn main() {
         .next(&download_step)
         .build();
 
-    match job.run() {
-        Ok(result) => {
-            println!("Step 1: Uploaded sample.csv to S3");
-            println!("Step 2: Downloaded sample.csv from S3");
-            println!("Total duration: {:?}", result.duration);
-        }
-        Err(e) => {
-            eprintln!("Job failed: {:?}", e);
-        }
-    }
+    let result = job.run()?;
+
+    println!("Job status: completed");
+    println!("Total duration: {:?}", result.duration);
 
     // Cleanup
     fs::remove_file(&upload_path).ok();
     fs::remove_file(&download_path).ok();
+
+    Ok(())
 }
