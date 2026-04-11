@@ -10,3 +10,7 @@ pub mod zip;
 #[cfg(feature = "ftp")]
 #[cfg_attr(docsrs, doc(cfg(feature = "ftp")))]
 pub mod ftp;
+
+#[cfg(feature = "s3")]
+#[cfg_attr(docsrs, doc(cfg(feature = "s3")))]
+pub mod s3;

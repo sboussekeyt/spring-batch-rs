@@ -82,7 +82,7 @@ pub trait ItemReader<I> {
 /// # Filtering
 ///
 /// Returning `Ok(None)` filters the item silently: it is not passed to the writer
-/// and is counted in [`StepExecution::filter_count`]. This is different from returning
+/// and is counted in [`crate::core::step::StepExecution::filter_count`]. This is different from returning
 /// `Err(BatchError)` which counts as a processing error and may trigger fault tolerance.
 ///
 /// # Design Pattern
