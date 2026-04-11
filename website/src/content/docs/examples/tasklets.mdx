@@ -1,6 +1,6 @@
 ---
 title: Tasklet Examples
-description: Complete examples for ZIP compression and FTP transfers with Spring Batch RS
+description: Complete examples for ZIP compression, FTP transfers, and S3 file transfers with Spring Batch RS
 sidebar:
   order: 6
 ---
@@ -8,7 +8,7 @@ sidebar:
 import { Tabs, TabItem, Card, CardGrid, Aside } from '@astrojs/starlight/components';
 
 <Aside type="tip">
-  View the complete sources: [examples/tasklet_zip.rs](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/tasklet_zip.rs) · [examples/tasklet_ftp.rs](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/tasklet_ftp.rs)
+  View the complete sources: [examples/tasklet_zip.rs](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/tasklet_zip.rs) · [examples/tasklet_ftp.rs](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/tasklet_ftp.rs) · [examples/tasklet_s3.rs](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/tasklet_s3.rs)
 </Aside>
 
 This page provides comprehensive examples for using tasklets in Spring Batch RS for file operations and single-task processing.
@@ -30,10 +30,16 @@ Add tasklet features to your `Cargo.toml`:
     spring-batch-rs = { version = "0.1", features = ["ftp"] }
     ```
   </TabItem>
-  <TabItem label="Both">
+  <TabItem label="S3 Tasklet">
     ```toml
     [dependencies]
-    spring-batch-rs = { version = "0.1", features = ["zip", "ftp"] }
+    spring-batch-rs = { version = "0.1", features = ["s3"] }
+    ```
+  </TabItem>
+  <TabItem label="All Tasklets">
+    ```toml
+    [dependencies]
+    spring-batch-rs = { version = "0.1", features = ["zip", "ftp", "s3"] }
     ```
   </TabItem>
 </Tabs>
@@ -245,6 +251,132 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Pipeline completed successfully!");
     Ok(())
 }
+```
+
+---
+
+## S3 Transfer Examples
+
+### Upload File to S3
+
+```rust
+use spring_batch_rs::{
+    core::{job::JobBuilder, step::StepBuilder},
+    tasklet::s3::put::S3PutTaskletBuilder,
+};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let put_tasklet = S3PutTaskletBuilder::new()
+        .bucket("my-batch-bucket")
+        .key("exports/data.csv")
+        .local_file("./output/data.csv")
+        .region("eu-west-1")
+        .build()?;
+
+    let step = StepBuilder::new("s3-upload")
+        .tasklet(&put_tasklet)
+        .build();
+
+    let job = JobBuilder::new().start(&step).build();
+    job.run()?;
+
+    println!("Upload completed!");
+    Ok(())
+}
+```
+
+### Download File from S3
+
+```rust
+use spring_batch_rs::tasklet::s3::get::S3GetTaskletBuilder;
+
+let get_tasklet = S3GetTaskletBuilder::new()
+    .bucket("my-batch-bucket")
+    .key("imports/data.csv")
+    .local_file("./input/data.csv")
+    .region("eu-west-1")
+    .build()?;
+```
+
+### S3-Compatible Services (MinIO / LocalStack)
+
+```rust
+let put_tasklet = S3PutTaskletBuilder::new()
+    .bucket("my-bucket")
+    .key("file.csv")
+    .local_file("./output/file.csv")
+    .endpoint_url("http://localhost:9000")  // MinIO
+    .access_key_id("minioadmin")
+    .secret_access_key("minioadmin")
+    .build()?;
+```
+
+<Aside type="tip">
+  Use `endpoint_url` to connect to LocalStack (`http://localhost:4566`) or MinIO (`http://localhost:9000`) during development. Remove it in production to use the real AWS endpoint.
+</Aside>
+
+### Upload Then Download Pipeline
+
+```rust
+use spring_batch_rs::{
+    core::{job::JobBuilder, step::StepBuilder},
+    tasklet::s3::{get::S3GetTaskletBuilder, put::S3PutTaskletBuilder},
+};
+use std::env::temp_dir;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let upload_path = temp_dir().join("sample.csv");
+    let download_path = temp_dir().join("downloaded.csv");
+
+    // Step 1: Upload
+    let put_tasklet = S3PutTaskletBuilder::new()
+        .bucket("my-batch-bucket")
+        .key("exports/sample.csv")
+        .local_file(&upload_path)
+        .endpoint_url("http://localhost:4566")  // LocalStack
+        .access_key_id("test")
+        .secret_access_key("test")
+        .region("us-east-1")
+        .build()?;
+
+    let upload_step = StepBuilder::new("s3-upload").tasklet(&put_tasklet).build();
+
+    // Step 2: Download
+    let get_tasklet = S3GetTaskletBuilder::new()
+        .bucket("my-batch-bucket")
+        .key("exports/sample.csv")
+        .local_file(&download_path)
+        .endpoint_url("http://localhost:4566")
+        .access_key_id("test")
+        .secret_access_key("test")
+        .region("us-east-1")
+        .build()?;
+
+    let download_step = StepBuilder::new("s3-download").tasklet(&get_tasklet).build();
+
+    // Run job
+    let job = JobBuilder::new()
+        .start(&upload_step)
+        .next(&download_step)
+        .build();
+
+    let result = job.run()?;
+    println!("Job status: completed, duration: {:?}", result.duration);
+    Ok(())
+}
+```
+
+Run this example with:
+
+```bash
+# Start LocalStack first
+docker run --rm -p 4566:4566 localstack/localstack
+aws --endpoint-url=http://localhost:4566 s3 mb s3://my-batch-bucket
+
+# Run example
+cargo run --example tasklet_s3 --features s3
 ```
 
 ---

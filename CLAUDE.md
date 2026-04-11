@@ -252,6 +252,23 @@ cargo audit                         # No security issues
 
 Run `make dev` to execute format, lint, and test in one command.
 
+### Website Sync — MANDATORY
+
+**Any time a new feature, reader, writer, tasklet, or example is added or modified, the website MUST be updated in the same change.** This is non-negotiable.
+
+Required updates per change type:
+
+| Change | Files to update |
+|---|---|
+| New tasklet | `website/src/content/docs/tasklets/index.md` + `examples/tasklets.mdx` + `reference/features.mdx` |
+| New reader/writer | `website/src/content/docs/item-readers-writers/overview.mdx` + `reference/features.mdx` |
+| New example | `website/src/content/docs/examples/<category>.mdx` |
+| New feature flag | `reference/features.mdx` + README.md features table |
+
+See `@.claude/rules/04-documentation.md` for the full sync checklist.
+
+---
+
 ### Documentation Requirements
 
 All public APIs must have rustdoc comments with:

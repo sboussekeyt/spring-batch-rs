@@ -270,6 +270,36 @@ spring-batch-rs = { version = "0.1", features = ["ftp"] }
 
 ---
 
+### Amazon S3 Transfers
+
+```toml
+[dependencies]
+spring-batch-rs = { version = "0.1", features = ["s3"] }
+```
+
+**Provides:**
+- `S3PutTasklet` - Upload a local file to an S3 object
+- `S3GetTasklet` - Download an S3 object to a local file
+
+**Capabilities:**
+- Single-file and multipart uploads (auto-selected by file size, default threshold 8 MiB)
+- Streaming downloads (safe for large files — no full-file buffering)
+- Explicit credentials or AWS default credential chain
+- Custom endpoint URL for S3-compatible services (MinIO, LocalStack)
+- Configurable AWS region
+
+**Use for:**
+- Cloud file ingestion / export
+- ETL pipelines with S3 staging
+- Backup and archival to object storage
+
+**Dependencies:**
+- `aws-sdk-s3` crate
+- `aws-config` crate
+- `tokio` async runtime
+
+---
+
 ## Testing Feature
 
 ### Fake Data Generation
@@ -432,7 +462,7 @@ Can't find a feature you need? We welcome contributions!
 **Contribution Areas:**
 
 - Additional database backends (Oracle, MSSQL, etc.)
-- Cloud storage (S3, Azure Blob, GCS)
+- Cloud storage (Azure Blob, GCS)
 - Message queues (Kafka, RabbitMQ, Redis)
 - Additional file formats (Parquet, Avro, Protobuf)
 - Network protocols (SFTP, SCP, HTTP/S)

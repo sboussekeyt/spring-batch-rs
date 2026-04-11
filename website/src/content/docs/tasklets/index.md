@@ -9,7 +9,8 @@ sidebar:
 
 Tasklets are single-task operations that are useful for:
 
-- File operations (ZIP compression, FTP transfers)
+- File operations (ZIP compression, FTP transfers, S3 uploads/downloads)
+- Cloud storage transfers (Amazon S3, MinIO, LocalStack)
 - Cleanup operations
 - Single-step processing tasks
 
