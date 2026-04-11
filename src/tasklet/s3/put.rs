@@ -970,10 +970,7 @@ mod tests {
             .local_folder("/tmp/exports")
             .chunk_size(1024) // 1 KiB — below the 5 MiB minimum
             .build();
-        assert!(
-            result.is_err(),
-            "build should fail with chunk_size < 5 MiB"
-        );
+        assert!(result.is_err(), "build should fail with chunk_size < 5 MiB");
         assert!(
             result.unwrap_err().to_string().contains("chunk_size"),
             "error message should mention 'chunk_size'"
