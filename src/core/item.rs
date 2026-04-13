@@ -800,14 +800,18 @@ impl<W> CompositeItemWriterBuilder<W> {
     /// ```
     /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
     ///
-    /// struct NoOpWriter;
-    /// impl ItemWriter<i32> for NoOpWriter {
-    ///     fn write(&self, _items: &[i32]) -> Result<(), spring_batch_rs::BatchError> { Ok(()) }
+    /// struct CountingWriter { count: std::cell::Cell<usize> }
+    /// impl CountingWriter { fn new() -> Self { Self { count: std::cell::Cell::new(0) } } }
+    /// impl ItemWriter<i32> for CountingWriter {
+    ///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
+    ///         self.count.set(self.count.get() + items.len());
+    ///         Ok(())
+    ///     }
     /// }
     ///
-    /// let builder = CompositeItemWriterBuilder::new(NoOpWriter);
-    /// let writer = builder.build();
-    /// assert!(writer.write(&[]).is_ok());
+    /// let writer = CompositeItemWriterBuilder::new(CountingWriter::new()).build();
+    /// writer.write(&[1, 2, 3]).unwrap();
+    /// assert_eq!(writer.count.get(), 3, "writer should receive all items");
     /// ```
     pub fn new(first: W) -> Self {
         Self { writer: first }
@@ -828,17 +832,24 @@ impl<W> CompositeItemWriterBuilder<W> {
     /// ```
     /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
     ///
-    /// struct NoOpWriter;
-    /// impl ItemWriter<i32> for NoOpWriter {
-    ///     fn write(&self, _items: &[i32]) -> Result<(), spring_batch_rs::BatchError> { Ok(()) }
+    /// struct CountingWriter { count: std::cell::Cell<usize> }
+    /// impl CountingWriter { fn new() -> Self { Self { count: std::cell::Cell::new(0) } } }
+    /// impl ItemWriter<i32> for CountingWriter {
+    ///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
+    ///         self.count.set(self.count.get() + items.len());
+    ///         Ok(())
+    ///     }
     /// }
     ///
-    /// let composite = CompositeItemWriterBuilder::new(NoOpWriter)
-    ///     .add(NoOpWriter)
+    /// let composite = CompositeItemWriterBuilder::new(CountingWriter::new())
+    ///     .add(CountingWriter::new())
     ///     .build();
     ///
-    /// assert!(composite.write(&[1, 2, 3]).is_ok());
+    /// composite.write(&[1, 2, 3]).unwrap();
+    /// assert_eq!(composite.first.count.get(), 3, "first writer should receive all items");
+    /// assert_eq!(composite.second.count.get(), 3, "second writer should receive all items");
     /// ```
+    #[allow(clippy::should_implement_trait)]
     pub fn add<W2>(self, next: W2) -> CompositeItemWriterBuilder<CompositeItemWriter<W, W2>> {
         CompositeItemWriterBuilder {
             writer: CompositeItemWriter {
@@ -861,16 +872,22 @@ impl<W> CompositeItemWriterBuilder<W> {
     /// ```
     /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
     ///
-    /// struct NoOpWriter;
-    /// impl ItemWriter<i32> for NoOpWriter {
-    ///     fn write(&self, _items: &[i32]) -> Result<(), spring_batch_rs::BatchError> { Ok(()) }
+    /// struct CountingWriter { count: std::cell::Cell<usize> }
+    /// impl CountingWriter { fn new() -> Self { Self { count: std::cell::Cell::new(0) } } }
+    /// impl ItemWriter<i32> for CountingWriter {
+    ///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
+    ///         self.count.set(self.count.get() + items.len());
+    ///         Ok(())
+    ///     }
     /// }
     ///
-    /// let composite = CompositeItemWriterBuilder::new(NoOpWriter)
-    ///     .add(NoOpWriter)
+    /// let composite = CompositeItemWriterBuilder::new(CountingWriter::new())
+    ///     .add(CountingWriter::new())
     ///     .build();
     ///
-    /// assert!(composite.write(&[]).is_ok());
+    /// composite.write(&[1, 2, 3]).unwrap();
+    /// assert_eq!(composite.first.count.get(), 3);
+    /// assert_eq!(composite.second.count.get(), 3);
     /// ```
     pub fn build(self) -> W {
         self.writer
