@@ -450,12 +450,12 @@ where
 
                 // If we're using pagination and have reached the end of the current page,
                 // increment the page number for the next page load
-                if let Some(page_size) = self.page_size {
-                    if self.offset.get().is_multiple_of(page_size) {
-                        // We've read all items in the current page
-                        // Move to the next page for the next read cycle
-                        self.current_page.set(self.current_page.get() + 1);
-                    }
+                if let Some(page_size) = self.page_size
+                    && self.offset.get().is_multiple_of(page_size)
+                {
+                    // We've read all items in the current page
+                    // Move to the next page for the next read cycle
+                    self.current_page.set(self.current_page.get() + 1);
                 }
 
                 // Clone the item to give ownership to the caller

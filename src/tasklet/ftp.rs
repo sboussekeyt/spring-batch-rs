@@ -483,10 +483,10 @@ impl FtpGetTasklet {
         let local_path = local_file.as_ref().to_path_buf();
 
         // Ensure local directory exists
-        if let Some(parent) = local_path.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent).map_err(BatchError::Io)?;
-            }
+        if let Some(parent) = local_path.parent()
+            && !parent.exists()
+        {
+            std::fs::create_dir_all(parent).map_err(BatchError::Io)?;
         }
 
         Ok(Self {
@@ -1040,10 +1040,10 @@ impl FtpGetFolderTasklet {
                         local_path.display()
                     );
 
-                    if self.create_directories {
-                        if let Some(parent) = local_path.parent() {
-                            fs::create_dir_all(parent).map_err(BatchError::Io)?;
-                        }
+                    if self.create_directories
+                        && let Some(parent) = local_path.parent()
+                    {
+                        fs::create_dir_all(parent).map_err(BatchError::Io)?;
                     }
                 }
                 Err(_) if self.recursive => {
@@ -1133,10 +1133,10 @@ impl FtpGetFolderTasklet {
                         local_path.display()
                     );
 
-                    if self.create_directories {
-                        if let Some(parent) = local_path.parent() {
-                            fs::create_dir_all(parent).map_err(BatchError::Io)?;
-                        }
+                    if self.create_directories
+                        && let Some(parent) = local_path.parent()
+                    {
+                        fs::create_dir_all(parent).map_err(BatchError::Io)?;
                     }
                 }
                 Err(_) if self.recursive => {
