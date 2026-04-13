@@ -906,6 +906,27 @@ impl<I, O, P: ItemProcessor<I, O> + ?Sized> ItemProcessor<I, O> for Box<P> {
     }
 }
 
+/// Allows any `Box<W>` where `W: ItemWriter<T>` to be used wherever
+/// `&dyn ItemWriter<T>` is expected — including boxed concrete types
+/// (`Box<MyWriter>`) and boxed trait objects (`Box<dyn ItemWriter<T>>`).
+///
+/// The `?Sized` bound makes this cover trait objects: `dyn Trait` is
+/// unsized, so without `?Sized` the impl would not apply to them.
+impl<T, W: ItemWriter<T> + ?Sized> ItemWriter<T> for Box<W> {
+    fn write(&self, items: &[T]) -> ItemWriterResult {
+        (**self).write(items)
+    }
+    fn flush(&self) -> ItemWriterResult {
+        (**self).flush()
+    }
+    fn open(&self) -> ItemWriterResult {
+        (**self).open()
+    }
+    fn close(&self) -> ItemWriterResult {
+        (**self).close()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1416,6 +1437,26 @@ mod tests {
         assert_eq!(composite.first.first.items_written.get(), 4, "writer 1 should receive 4 items");
         assert_eq!(composite.first.second.items_written.get(), 4, "writer 2 should receive 4 items");
         assert_eq!(composite.second.items_written.get(), 4, "writer 3 should receive 4 items");
+        Ok(())
+    }
+
+    #[test]
+    fn should_use_box_blanket_impl_as_item_writer() -> Result<(), BatchError> {
+        let composite = CompositeItemWriterBuilder::new(RecordingWriter::new())
+            .add(RecordingWriter::new())
+            .build();
+        let boxed: Box<dyn ItemWriter<i32>> = Box::new(composite);
+        boxed.write(&[5, 6, 7])?;
+        // The test verifies that Box<dyn ItemWriter<T>> can be used as an ItemWriter<T>.
+        // We can't inspect the inner writers through Box<dyn>, so asserting Ok is sufficient.
+        Ok(())
+    }
+
+    #[test]
+    fn should_use_box_concrete_writer_as_item_writer() -> Result<(), BatchError> {
+        let boxed: Box<RecordingWriter> = Box::new(RecordingWriter::new());
+        boxed.write(&[1, 2])?;
+        assert_eq!(boxed.items_written.get(), 2, "boxed concrete writer should delegate write");
         Ok(())
     }
 }
