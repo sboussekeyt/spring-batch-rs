@@ -31,7 +31,7 @@ serde = { version = "1.0", features = ["derive"] }
 thiserror = "2.0"
 csv = { version = "1.4", optional = true }
 fake = { version = "5.1", features = ["time"], optional = true }
-rand = { version = "0.10" }
+rand = { version = "0.9" }
 time = { version = "0.3", features = ["serde-human-readable"], optional = true }
 serde_json = { version = "1.0" }
 tokio = { version = "1.49", features = ["full"] }
@@ -52,7 +52,7 @@ tokio-util = { version = "0.7", features = ["io"], optional = true }
 
 [dev-dependencies]
 spring-batch-rs = { path = ".", features = ["tests-cfg"] }
-rand = { version = "0.10" }
+rand = { version = "0.9" }
 mockall = "0.14"
 testcontainers = "0.27"
 testcontainers-modules = { version = "0.15", features = ["postgres", "mysql", "mongo", "blocking", "localstack"] }
