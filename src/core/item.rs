@@ -332,21 +332,28 @@ impl<T: Clone> PassThroughProcessor<T> {
     }
 }
 
-/// A composite processor that chains two processors sequentially.
+/// A composite processor that chains two processors sequentially using static dispatch.
 ///
 /// The output of the first processor becomes the input of the second.
 /// If the first processor filters an item (returns `Ok(None)`), the chain
 /// stops immediately and `Ok(None)` is returned — the second processor is
 /// never called.
 ///
+/// Both processors are stored by value — no heap allocation occurs inside the
+/// struct itself. This mirrors the pattern used by standard library iterator
+/// adapters such as [`std::iter::Chain`].
+///
 /// Construct chains using [`CompositeItemProcessorBuilder`] rather than
 /// instantiating this struct directly.
 ///
 /// # Type Parameters
 ///
-/// - `I`: Input item type (fed into the first processor)
-/// - `M`: Intermediate item type (output of first, input of second)
-/// - `O`: Output item type (produced by the second processor)
+/// - `P1`: The first processor type. Must implement `ItemProcessor<I, M>` for
+///   some input type `I` and intermediate type `M`.
+/// - `P2`: The second processor type. Must implement `ItemProcessor<M, O>` where
+///   `M` is the output type of `P1` and `O` is the final output type.
+/// - `M`: The intermediate type — output of `P1`, input of `P2`. Tracked via
+///   `PhantomData` so it participates in type inference without being stored.
 ///
 /// # Examples
 ///
@@ -379,12 +386,20 @@ impl<T: Clone> PassThroughProcessor<T> {
 /// # Errors
 ///
 /// Returns [`BatchError`] if any processor in the chain returns an error.
-pub struct CompositeItemProcessor<I, M, O> {
-    first: Box<dyn ItemProcessor<I, M>>,
-    second: Box<dyn ItemProcessor<M, O>>,
+pub struct CompositeItemProcessor<P1, P2, M> {
+    first: P1,
+    second: P2,
+    /// Tracks the intermediate type `M` (output of `P1`, input of `P2`).
+    /// Uses `fn(M) -> M` to keep the type parameter invariant and avoid
+    /// unintended variance.
+    _marker: std::marker::PhantomData<fn(M) -> M>,
 }
 
-impl<I, M, O> ItemProcessor<I, O> for CompositeItemProcessor<I, M, O> {
+impl<I, M, O, P1, P2> ItemProcessor<I, O> for CompositeItemProcessor<P1, P2, M>
+where
+    P1: ItemProcessor<I, M>,
+    P2: ItemProcessor<M, O>,
+{
     /// Applies the first processor, then — if the result is `Some` — applies
     /// the second. Returns `Ok(None)` immediately if the first processor
     /// filters the item.
@@ -400,17 +415,23 @@ impl<I, M, O> ItemProcessor<I, O> for CompositeItemProcessor<I, M, O> {
     }
 }
 
-/// Builder for creating a chain of [`ItemProcessor`]s.
+/// Builder for creating a chain of [`ItemProcessor`]s using static dispatch.
 ///
 /// Start the chain with [`new`](CompositeItemProcessorBuilder::new), append
 /// processors with [`link`](CompositeItemProcessorBuilder::link), and finalise
 /// with [`build`](CompositeItemProcessorBuilder::build). Each call to `link`
-/// changes the output type, so mismatched types are caught at compile time.
+/// wraps the accumulated chain in a [`CompositeItemProcessor`], changing the
+/// output type. Mismatched types are caught at compile time.
+///
+/// The built chain stores all processors by value — no heap allocations occur
+/// inside the processor itself. The type of the built value encodes the full
+/// chain structure (e.g. `CompositeItemProcessor<P1, CompositeItemProcessor<P2, P3>>`),
+/// similar to how `Iterator` adapters compose in the standard library.
 ///
 /// # Type Parameters
 ///
-/// - `I`: The original input type — fixed when the builder is created.
-/// - `O`: The current output type — updated by each `link` call.
+/// - `P`: The accumulated processor type. Starts as the first processor and
+///   is wrapped in [`CompositeItemProcessor`] with each [`link`](CompositeItemProcessorBuilder::link) call.
 ///
 /// # Examples
 ///
@@ -476,17 +497,16 @@ impl<I, M, O> ItemProcessor<I, O> for CompositeItemProcessor<I, M, O> {
 /// // (4 + 1) * 2 = 10 → "10"
 /// assert_eq!(composite.process(&4).unwrap(), Some("10".to_string()));
 /// ```
-pub struct CompositeItemProcessorBuilder<I, O> {
-    processor: Box<dyn ItemProcessor<I, O>>,
+pub struct CompositeItemProcessorBuilder<P> {
+    processor: P,
 }
 
-impl<I: 'static, O: 'static> CompositeItemProcessorBuilder<I, O> {
+impl<P> CompositeItemProcessorBuilder<P> {
     /// Creates a new builder with the given processor as the first in the chain.
     ///
     /// # Parameters
     ///
-    /// - `first`: The first processor in the chain. Must be `'static` (no
-    ///   borrowed references).
+    /// - `first`: The first processor in the chain.
     ///
     /// # Examples
     ///
@@ -505,21 +525,21 @@ impl<I: 'static, O: 'static> CompositeItemProcessorBuilder<I, O> {
     /// let composite = builder.build();
     /// assert_eq!(composite.process(&"hello".to_string()).unwrap(), Some("HELLO".to_string()));
     /// ```
-    pub fn new<P: ItemProcessor<I, O> + 'static>(first: P) -> Self {
-        Self {
-            processor: Box::new(first),
-        }
+    pub fn new(first: P) -> Self {
+        Self { processor: first }
     }
 
     /// Appends a processor to the end of the chain.
     ///
-    /// The output type changes from `O` to `O2`, reflecting the new last
-    /// processor. Returns a new builder so additional processors can be linked.
+    /// Returns a new builder whose accumulated type is
+    /// `CompositeItemProcessor<P, P2>`. The input/output types are verified
+    /// at compile time when the chain is used.
     ///
     /// # Type Parameters
     ///
-    /// - `O2`: The output type produced by `next`. Must be `'static`.
-    /// - `P`: The processor type to append. Must be `'static`.
+    /// - `P2`: The processor type to append.
+    /// - `M`: The intermediate type connecting `P` and `P2`. Inferred by the
+    ///   compiler from the `ItemProcessor` impls on `P` and `P2`.
     ///
     /// # Parameters
     ///
@@ -551,23 +571,27 @@ impl<I: 'static, O: 'static> CompositeItemProcessorBuilder<I, O> {
     ///
     /// assert_eq!(composite.process(&41).unwrap(), Some("42".to_string()));
     /// ```
-    pub fn link<O2: 'static, P: ItemProcessor<O, O2> + 'static>(
+    pub fn link<P2, M>(
         self,
-        next: P,
-    ) -> CompositeItemProcessorBuilder<I, O2> {
+        next: P2,
+    ) -> CompositeItemProcessorBuilder<CompositeItemProcessor<P, P2, M>> {
         CompositeItemProcessorBuilder {
-            processor: Box::new(CompositeItemProcessor {
+            processor: CompositeItemProcessor {
                 first: self.processor,
-                second: Box::new(next),
-            }),
+                second: next,
+                _marker: std::marker::PhantomData,
+            },
         }
     }
 
     /// Builds and returns the composite processor.
     ///
-    /// The returned [`Box`] implements [`ItemProcessor<I, O>`]. Pass `&*composite`
-    /// to the step builder's `.processor()` method, or use `&composite` directly
-    /// (this works via the blanket impl provided in this module).
+    /// Returns the accumulated processor value `P`. When chained via `link`,
+    /// `P` will be a nested `CompositeItemProcessor` such as
+    /// `CompositeItemProcessor<P1, CompositeItemProcessor<P2, P3>>`.
+    ///
+    /// Pass `&composite` to the step builder's `.processor()` method — Rust
+    /// will coerce it to `&dyn ItemProcessor<I, O>` automatically.
     ///
     /// # Examples
     ///
@@ -596,7 +620,7 @@ impl<I: 'static, O: 'static> CompositeItemProcessorBuilder<I, O> {
     /// // 5 * 2 = 10, then 10 + 10 = 20
     /// assert_eq!(composite.process(&5).unwrap(), Some(20));
     /// ```
-    pub fn build(self) -> Box<dyn ItemProcessor<I, O>> {
+    pub fn build(self) -> P {
         self.processor
     }
 }
@@ -913,13 +937,14 @@ mod tests {
 
     #[test]
     fn should_use_box_blanket_impl_as_item_processor() -> Result<(), BatchError> {
-        // Box<dyn ItemProcessor<I, O>> implements ItemProcessor<I, O> via the ?Sized blanket impl
-        let composite: Box<dyn ItemProcessor<i32, String>> =
-            CompositeItemProcessorBuilder::new(DoubleProcessor)
-                .link(ToStringProcessor)
-                .build();
+        // build() returns the concrete type; Box::new() it to get a trait object.
+        // Box<dyn ItemProcessor<I, O>> implements ItemProcessor<I, O> via the ?Sized blanket impl.
+        let composite = CompositeItemProcessorBuilder::new(DoubleProcessor)
+            .link(ToStringProcessor)
+            .build();
+        let boxed: Box<dyn ItemProcessor<i32, String>> = Box::new(composite);
 
-        let result = (&composite).process(&3)?;
+        let result = boxed.process(&3)?;
         assert_eq!(
             result,
             Some("6".to_string()),
