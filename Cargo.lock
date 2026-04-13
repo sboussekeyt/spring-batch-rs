@@ -4354,7 +4354,7 @@ dependencies = [
  "mockall",
  "mongodb",
  "quick-xml",
- "rand 0.9.3",
+ "rand 0.10.1",
  "sea-orm",
  "serde",
  "serde_json",
