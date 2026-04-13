@@ -36,6 +36,7 @@ use spring_batch_rs::{
         json::json_writer::JsonItemWriterBuilder,
         logger::LoggerWriterBuilder,
     },
+    BatchError,
 };
 use std::env::temp_dir;
 
@@ -47,7 +48,7 @@ struct Product {
     price: f64,
 }
 
-fn main() {
+fn main() -> Result<(), BatchError> {
     let csv = "\
 id,name,price
 1,Widget,9.99
@@ -84,11 +85,14 @@ id,name,price
 
     // 6. Run job
     let job = JobBuilder::new().start(&step).build();
-    job.run().expect("job failed"); // unwrap is intentional in examples — panics on error
+    job.run()?;
 
     // 7. Report results
-    let exec = job.get_step_execution("fan-out-products").unwrap();
+    let exec = job.get_step_execution("fan-out-products").unwrap(); // step name is always registered after successful job.run()
     println!("JSON output: {}", output.display());
-    println!("Read:    {}", exec.read_count); // 5
-    println!("Written: {}", exec.write_count); // 5
+    println!("Read:      {}", exec.read_count);    // 5
+    println!("Processed: {}", exec.process_count); // 5 (pass-through)
+    println!("Written:   {}", exec.write_count);   // 5 (to both writers)
+
+    Ok(())
 }
