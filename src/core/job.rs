@@ -7,7 +7,7 @@ use std::{
 use log::info;
 use uuid::Uuid;
 
-use crate::{core::step::StepExecution, BatchError};
+use crate::{BatchError, core::step::StepExecution};
 
 use super::step::Step;
 
@@ -299,11 +299,11 @@ impl<'a> JobBuilder<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Job, JobBuilder};
+    use crate::BatchError;
     use crate::core::{
         item::{ItemReader, ItemReaderResult, ItemWriter, ItemWriterResult, PassThroughProcessor},
         step::{StepBuilder, StepStatus},
     };
-    use crate::BatchError;
     use mockall::mock;
 
     mock! {

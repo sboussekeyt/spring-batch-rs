@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::item::rdbc::DatabaseItemBinder;
-use sqlx::{query_builder::Separated, FromRow, Sqlite};
+use sqlx::{FromRow, Sqlite, query_builder::Separated};
 
 /// SQLite-specific item binder for Car items.
 ///

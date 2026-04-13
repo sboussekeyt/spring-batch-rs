@@ -1,10 +1,10 @@
 use sqlx::{MySql, Pool, Postgres, Sqlite};
 
+use super::DatabaseItemBinder;
 use super::database_type::DatabaseType;
 use super::mysql_writer::MySqlItemWriter;
 use super::postgres_writer::PostgresItemWriter;
 use super::sqlite_writer::SqliteItemWriter;
-use super::DatabaseItemBinder;
 
 /// Unified builder for creating RDBC item writers for any supported database type.
 ///

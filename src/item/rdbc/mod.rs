@@ -1,4 +1,4 @@
-use sqlx::{query_builder::Separated, Database};
+use sqlx::{Database, query_builder::Separated};
 
 /// Common utilities for database item writers.
 mod writer_common;

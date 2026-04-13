@@ -1436,6 +1436,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use crate::{
+        BatchError,
         core::{
             item::{
                 ItemProcessor, ItemProcessorResult, ItemReader, ItemReaderResult, ItemWriter,
@@ -1443,7 +1444,6 @@ mod tests {
             },
             step::{StepExecution, StepStatus},
         },
-        BatchError,
     };
 
     use super::{

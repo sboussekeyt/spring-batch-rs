@@ -4,7 +4,7 @@ use std::{io::Read, path::Path};
 
 use helpers::{
     common::{DEFAULT_CHUNK_SIZE, EXPECTED_PERSON_COUNT, EXPECTED_PERSON_CSV, SAMPLE_CARS_CSV},
-    sqlite_helpers::{Car, SqliteCarItemBinder, CREATE_CARS_TABLE_SQL, SELECT_ALL_CARS_SQL},
+    sqlite_helpers::{CREATE_CARS_TABLE_SQL, Car, SELECT_ALL_CARS_SQL, SqliteCarItemBinder},
 };
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
@@ -19,8 +19,8 @@ use spring_batch_rs::{
     },
 };
 use sqlx::{
-    migrate::{MigrateDatabase, Migrator},
     FromRow, Sqlite, SqlitePool,
+    migrate::{MigrateDatabase, Migrator},
 };
 use tempfile::NamedTempFile;
 

@@ -1,5 +1,5 @@
 use sqlx::{
-    mysql::MySqlRow, postgres::PgRow, sqlite::SqliteRow, FromRow, MySql, Pool, Postgres, Sqlite,
+    FromRow, MySql, Pool, Postgres, Sqlite, mysql::MySqlRow, postgres::PgRow, sqlite::SqliteRow,
 };
 use std::marker::PhantomData;
 

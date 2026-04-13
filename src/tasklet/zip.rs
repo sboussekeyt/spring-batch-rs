@@ -67,8 +67,8 @@
 //! ```
 
 use crate::{
-    core::step::{RepeatStatus, StepExecution, Tasklet},
     BatchError,
+    core::step::{RepeatStatus, StepExecution, Tasklet},
 };
 use log::{debug, info, warn};
 use std::{
@@ -76,7 +76,7 @@ use std::{
     io::{self, Write},
     path::{Path, PathBuf},
 };
-use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
+use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
 /// A tasklet for creating ZIP archives from files and directories.
 ///
@@ -260,15 +260,15 @@ impl ZipTasklet {
         }
 
         // Ensure target directory exists
-        if let Some(parent) = target.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent).map_err(|e| {
-                    BatchError::Io(io::Error::new(
-                        io::ErrorKind::PermissionDenied,
-                        format!("Cannot create target directory {}: {}", parent.display(), e),
-                    ))
-                })?;
-            }
+        if let Some(parent) = target.parent()
+            && !parent.exists()
+        {
+            fs::create_dir_all(parent).map_err(|e| {
+                BatchError::Io(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    format!("Cannot create target directory {}: {}", parent.display(), e),
+                ))
+            })?;
         }
 
         self.target_path = target;
@@ -406,19 +406,19 @@ impl ZipTasklet {
         let path_str = path.to_string_lossy();
 
         // Check exclude pattern first
-        if let Some(ref exclude) = self.exclude_pattern {
-            if self.matches_pattern(&path_str, exclude) {
-                debug!("Excluding file due to exclude pattern: {}", path.display());
-                return false;
-            }
+        if let Some(ref exclude) = self.exclude_pattern
+            && self.matches_pattern(&path_str, exclude)
+        {
+            debug!("Excluding file due to exclude pattern: {}", path.display());
+            return false;
         }
 
         // Check include pattern
-        if let Some(ref include) = self.include_pattern {
-            if !self.matches_pattern(&path_str, include) {
-                debug!("Excluding file due to include pattern: {}", path.display());
-                return false;
-            }
+        if let Some(ref include) = self.include_pattern
+            && !self.matches_pattern(&path_str, include)
+        {
+            debug!("Excluding file due to include pattern: {}", path.display());
+            return false;
         }
 
         true

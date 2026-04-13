@@ -1,10 +1,10 @@
 use std::cell::{Cell, RefCell};
 
-use sqlx::{sqlite::SqliteRow, Execute, FromRow, Pool, QueryBuilder, Sqlite};
+use sqlx::{Execute, FromRow, Pool, QueryBuilder, Sqlite, sqlite::SqliteRow};
 
 use super::reader_common::{calculate_page_index, should_load_page};
-use crate::core::item::{ItemReader, ItemReaderResult};
 use crate::BatchError;
+use crate::core::item::{ItemReader, ItemReaderResult};
 
 /// SQLite RDBC Item Reader for batch processing
 ///

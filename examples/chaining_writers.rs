@@ -26,6 +26,7 @@
 
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
+    BatchError,
     core::{
         item::{CompositeItemWriterBuilder, PassThroughProcessor},
         job::{Job, JobBuilder},
@@ -35,7 +36,6 @@ use spring_batch_rs::{
         csv::csv_reader::CsvItemReaderBuilder, json::json_writer::JsonItemWriterBuilder,
         logger::LoggerWriterBuilder,
     },
-    BatchError,
 };
 use std::env::temp_dir;
 

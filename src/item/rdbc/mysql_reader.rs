@@ -1,10 +1,10 @@
 use std::cell::{Cell, RefCell};
 
-use sqlx::{mysql::MySqlRow, Execute, FromRow, MySql, Pool, QueryBuilder};
+use sqlx::{Execute, FromRow, MySql, Pool, QueryBuilder, mysql::MySqlRow};
 
 use super::reader_common::{calculate_page_index, should_load_page};
-use crate::core::item::{ItemReader, ItemReaderResult};
 use crate::BatchError;
+use crate::core::item::{ItemReader, ItemReaderResult};
 
 /// MySQL RDBC Item Reader for batch processing
 ///

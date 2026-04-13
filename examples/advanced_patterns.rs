@@ -17,6 +17,7 @@
 
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
+    BatchError,
     core::{
         item::{ItemProcessor, ItemReader, PassThroughProcessor},
         job::{Job, JobBuilder},
@@ -27,7 +28,6 @@ use spring_batch_rs::{
         json::json_reader::JsonItemReaderBuilder, json::json_writer::JsonItemWriterBuilder,
         logger::LoggerWriterBuilder,
     },
-    BatchError,
 };
 use std::{cell::RefCell, collections::VecDeque, env::temp_dir, fs::File};
 

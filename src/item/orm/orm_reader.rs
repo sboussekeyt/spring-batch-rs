@@ -3,8 +3,8 @@ use std::cell::{Cell, RefCell};
 use sea_orm::{DatabaseConnection, DbErr, EntityTrait, FromQueryResult, PaginatorTrait, Select};
 
 use crate::{
-    core::item::{ItemReader, ItemReaderResult},
     BatchError,
+    core::item::{ItemReader, ItemReaderResult},
 };
 
 /// A reader for reading entities from a database using SeaORM.
@@ -450,12 +450,12 @@ where
 
                 // If we're using pagination and have reached the end of the current page,
                 // increment the page number for the next page load
-                if let Some(page_size) = self.page_size {
-                    if self.offset.get().is_multiple_of(page_size) {
-                        // We've read all items in the current page
-                        // Move to the next page for the next read cycle
-                        self.current_page.set(self.current_page.get() + 1);
-                    }
+                if let Some(page_size) = self.page_size
+                    && self.offset.get().is_multiple_of(page_size)
+                {
+                    // We've read all items in the current page
+                    // Move to the next page for the next read cycle
+                    self.current_page.set(self.current_page.get() + 1);
                 }
 
                 // Clone the item to give ownership to the caller
@@ -811,7 +811,7 @@ where
 mod tests {
     use super::*;
     use crate::core::item::ItemReader;
-    use sea_orm::{entity::prelude::*, DatabaseBackend, MockDatabase};
+    use sea_orm::{DatabaseBackend, MockDatabase, entity::prelude::*};
 
     // Minimal entity definition for testing
     #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]

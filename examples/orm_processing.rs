@@ -16,11 +16,12 @@
 //! ```
 
 use sea_orm::{
-    entity::prelude::*, ActiveValue::Set, Database, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder,
+    ActiveValue::Set, Database, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    entity::prelude::*,
 };
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
+    BatchError,
     core::{
         item::{ItemProcessor, ItemReader, PassThroughProcessor},
         job::{Job, JobBuilder},
@@ -31,7 +32,6 @@ use spring_batch_rs::{
         json::json_writer::JsonItemWriterBuilder,
         orm::{OrmItemReaderBuilder, OrmItemWriterBuilder},
     },
-    BatchError,
 };
 use std::env::temp_dir;
 

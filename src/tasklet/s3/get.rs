@@ -1,9 +1,9 @@
 //! S3 GET tasklets for downloading files and folders from Amazon S3.
 
 use crate::{
-    core::step::{RepeatStatus, StepExecution, Tasklet},
-    tasklet::s3::{build_s3_client, S3ClientConfig},
     BatchError,
+    core::step::{RepeatStatus, StepExecution, Tasklet},
+    tasklet::s3::{S3ClientConfig, build_s3_client},
 };
 use log::{debug, info};
 use std::path::{Path, PathBuf};

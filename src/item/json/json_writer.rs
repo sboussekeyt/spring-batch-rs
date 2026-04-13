@@ -7,8 +7,8 @@ use std::{
 };
 
 use crate::{
-    core::item::{ItemWriter, ItemWriterResult},
     BatchError,
+    core::item::{ItemWriter, ItemWriterResult},
 };
 
 /// A writer that writes items to a JSON output.

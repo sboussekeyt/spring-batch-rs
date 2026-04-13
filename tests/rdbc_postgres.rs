@@ -5,7 +5,7 @@ use std::{io::Read, path::Path};
 use anyhow::Error;
 use helpers::{
     common::{DEFAULT_CHUNK_SIZE, EXPECTED_PERSON_COUNT, EXPECTED_PERSON_CSV, SAMPLE_CARS_CSV},
-    postgres_helpers::{Car, PostgresCarItemBinder, CREATE_CARS_TABLE_SQL, SELECT_ALL_CARS_SQL},
+    postgres_helpers::{CREATE_CARS_TABLE_SQL, Car, PostgresCarItemBinder, SELECT_ALL_CARS_SQL},
 };
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
@@ -19,7 +19,7 @@ use spring_batch_rs::{
         rdbc::{RdbcItemReaderBuilder, RdbcItemWriterBuilder},
     },
 };
-use sqlx::{migrate::Migrator, FromRow, PgPool};
+use sqlx::{FromRow, PgPool, migrate::Migrator};
 use tempfile::NamedTempFile;
 use testcontainers_modules::{postgres, testcontainers::runners::AsyncRunner};
 
@@ -241,8 +241,8 @@ async fn postgres_reader_should_build_without_page_size() -> Result<(), Box<dyn 
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn postgres_reader_should_build_using_builder_method(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn postgres_reader_should_build_using_builder_method()
+-> Result<(), Box<dyn std::error::Error>> {
     let (pool, _container) = setup_reader_test_db().await?;
 
     let reader = RdbcItemReaderBuilder::<TestUser>::new()
@@ -261,8 +261,8 @@ async fn postgres_reader_should_build_using_builder_method(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn postgres_reader_should_read_all_items_without_pagination(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn postgres_reader_should_read_all_items_without_pagination()
+-> Result<(), Box<dyn std::error::Error>> {
     let (pool, _container) = setup_reader_test_db().await?;
 
     let reader: PostgresRdbcItemReader<TestUser> =
@@ -283,8 +283,8 @@ async fn postgres_reader_should_read_all_items_without_pagination(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn postgres_reader_should_read_items_with_pagination(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn postgres_reader_should_read_items_with_pagination()
+-> Result<(), Box<dyn std::error::Error>> {
     let (pool, _container) = setup_reader_test_db().await?;
 
     let reader: PostgresRdbcItemReader<TestUser> =
@@ -342,8 +342,8 @@ async fn postgres_reader_should_handle_single_page_result() -> Result<(), Box<dy
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn postgres_reader_should_handle_page_size_larger_than_result_set(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn postgres_reader_should_handle_page_size_larger_than_result_set()
+-> Result<(), Box<dyn std::error::Error>> {
     let (pool, _container) = setup_reader_test_db().await?;
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
@@ -387,8 +387,8 @@ async fn postgres_reader_should_handle_page_size_of_one() -> Result<(), Box<dyn 
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn postgres_reader_should_handle_complex_query_with_where_clause(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn postgres_reader_should_handle_complex_query_with_where_clause()
+-> Result<(), Box<dyn std::error::Error>> {
     let (pool, _container) = setup_reader_test_db().await?;
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
@@ -411,8 +411,8 @@ async fn postgres_reader_should_handle_complex_query_with_where_clause(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn postgres_reader_should_maintain_correct_read_order(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn postgres_reader_should_maintain_correct_read_order()
+-> Result<(), Box<dyn std::error::Error>> {
     let (pool, _container) = setup_reader_test_db().await?;
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
@@ -435,8 +435,8 @@ async fn postgres_reader_should_maintain_correct_read_order(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn postgres_reader_should_handle_sequential_reads_correctly(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn postgres_reader_should_handle_sequential_reads_correctly()
+-> Result<(), Box<dyn std::error::Error>> {
     let (pool, _container) = setup_reader_test_db().await?;
 
     let reader: PostgresRdbcItemReader<TestUser> =
@@ -460,8 +460,8 @@ async fn postgres_reader_should_handle_sequential_reads_correctly(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn postgres_reader_should_work_with_different_data_types(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn postgres_reader_should_work_with_different_data_types()
+-> Result<(), Box<dyn std::error::Error>> {
     let (pool, _container) = setup_reader_test_db().await?;
 
     sqlx::query(
@@ -525,8 +525,8 @@ async fn postgres_reader_should_work_with_different_data_types(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn postgres_reader_should_handle_large_result_sets_efficiently(
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn postgres_reader_should_handle_large_result_sets_efficiently()
+-> Result<(), Box<dyn std::error::Error>> {
     let (pool, _container) = setup_reader_test_db().await?;
 
     for i in 11..=100 {

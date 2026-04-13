@@ -5,11 +5,12 @@ use std::str::FromStr;
 use anyhow::Error;
 use sea_orm::prelude::Decimal;
 use sea_orm::{
-    entity::prelude::*, Database, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    Database, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, entity::prelude::*,
 };
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::core::item::PassThroughProcessor;
 use spring_batch_rs::{
+    BatchError,
     core::{
         item::{ItemProcessor, ItemProcessorResult, ItemReader, ItemWriter},
         job::{Job, JobBuilder},
@@ -19,7 +20,6 @@ use spring_batch_rs::{
         csv::csv_writer::CsvItemWriterBuilder,
         orm::{OrmItemReaderBuilder, OrmItemWriterBuilder},
     },
-    BatchError,
 };
 use tempfile::NamedTempFile;
 use testcontainers_modules::{postgres, testcontainers::runners::AsyncRunner};

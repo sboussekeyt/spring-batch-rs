@@ -8,8 +8,8 @@ use log::debug;
 use serde::de::DeserializeOwned;
 
 use crate::{
-    core::item::{ItemReader, ItemReaderResult},
     BatchError,
+    core::item::{ItemReader, ItemReaderResult},
 };
 
 /// Internal structure to represent the parsing state result
@@ -244,7 +244,7 @@ impl<I: DeserializeOwned, R: Read> ItemReader<I> for JsonItemReader<I, R> {
                         buf_reader.consume(self.capacity)
                     }
                     JsonParserResult::ParsingError { error } => {
-                        return Err(BatchError::ItemReader(error.to_string()))
+                        return Err(BatchError::ItemReader(error.to_string()));
                     }
                 }
             }

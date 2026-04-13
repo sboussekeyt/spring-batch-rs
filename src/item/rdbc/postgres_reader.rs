@@ -1,10 +1,10 @@
 use std::cell::{Cell, RefCell};
 
-use sqlx::{postgres::PgRow, Execute, FromRow, Pool, Postgres, QueryBuilder};
+use sqlx::{Execute, FromRow, Pool, Postgres, QueryBuilder, postgres::PgRow};
 
 use super::reader_common::{calculate_page_index, should_load_page};
-use crate::core::item::{ItemReader, ItemReaderResult};
 use crate::BatchError;
+use crate::core::item::{ItemReader, ItemReaderResult};
 
 /// PostgreSQL RDBC Item Reader for batch processing
 ///
