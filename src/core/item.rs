@@ -636,6 +636,9 @@ impl<P> CompositeItemProcessorBuilder<P> {
 /// The type encodes the full chain:
 /// `CompositeItemWriter<CompositeItemWriter<W1, W2>, W3>` for three writers.
 ///
+/// Prefer constructing instances via [`CompositeItemWriterBuilder`] rather than
+/// direct struct literal syntax.
+///
 /// # Type Parameters
 ///
 /// - `W1`: The first writer type. Must implement `ItemWriter<T>`.
@@ -644,7 +647,7 @@ impl<P> CompositeItemProcessorBuilder<P> {
 /// # Examples
 ///
 /// ```
-/// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriter};
+/// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
 ///
 /// struct CountingWriter { count: std::cell::Cell<usize> }
 /// impl CountingWriter { fn new() -> Self { Self { count: std::cell::Cell::new(0) } } }
@@ -655,10 +658,9 @@ impl<P> CompositeItemProcessorBuilder<P> {
 ///     }
 /// }
 ///
-/// let composite = CompositeItemWriter {
-///     first: CountingWriter::new(),
-///     second: CountingWriter::new(),
-/// };
+/// let composite = CompositeItemWriterBuilder::new(CountingWriter::new())
+///     .add(CountingWriter::new())
+///     .build();
 /// composite.write(&[1, 2, 3]).unwrap();
 /// assert_eq!(composite.first.count.get(), 3);
 /// assert_eq!(composite.second.count.get(), 3);
@@ -717,6 +719,161 @@ where
     fn close(&self) -> ItemWriterResult {
         self.first.close()?;
         self.second.close()
+    }
+}
+
+/// Builder for creating a fan-out chain of [`ItemWriter`]s using static dispatch.
+///
+/// Start the chain with [`new`](CompositeItemWriterBuilder::new), append writers
+/// with [`add`](CompositeItemWriterBuilder::add), and finalise with
+/// [`build`](CompositeItemWriterBuilder::build). Each call to `add` wraps the
+/// accumulated chain in a [`CompositeItemWriter`]. The built chain stores all
+/// writers by value — no heap allocations occur inside the chain itself.
+///
+/// # Type Parameters
+///
+/// - `W`: The accumulated writer type. Starts as the first writer and is wrapped
+///   in [`CompositeItemWriter`] with each [`add`](CompositeItemWriterBuilder::add) call.
+///
+/// # Examples
+///
+/// Two writers:
+///
+/// ```
+/// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+///
+/// struct CountingWriter { count: std::cell::Cell<usize> }
+/// impl CountingWriter { fn new() -> Self { Self { count: std::cell::Cell::new(0) } } }
+/// impl ItemWriter<i32> for CountingWriter {
+///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
+///         self.count.set(self.count.get() + items.len());
+///         Ok(())
+///     }
+/// }
+///
+/// let composite = CompositeItemWriterBuilder::new(CountingWriter::new())
+///     .add(CountingWriter::new())
+///     .build();
+///
+/// composite.write(&[1, 2, 3]).unwrap();
+/// assert_eq!(composite.first.count.get(), 3);
+/// assert_eq!(composite.second.count.get(), 3);
+/// ```
+///
+/// Three writers:
+///
+/// ```
+/// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+///
+/// struct CountingWriter { count: std::cell::Cell<usize> }
+/// impl CountingWriter { fn new() -> Self { Self { count: std::cell::Cell::new(0) } } }
+/// impl ItemWriter<i32> for CountingWriter {
+///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
+///         self.count.set(self.count.get() + items.len());
+///         Ok(())
+///     }
+/// }
+///
+/// let composite = CompositeItemWriterBuilder::new(CountingWriter::new())
+///     .add(CountingWriter::new())
+///     .add(CountingWriter::new())
+///     .build();
+///
+/// composite.write(&[1, 2]).unwrap();
+/// assert_eq!(composite.first.first.count.get(), 2);
+/// assert_eq!(composite.first.second.count.get(), 2);
+/// assert_eq!(composite.second.count.get(), 2);
+/// ```
+pub struct CompositeItemWriterBuilder<W> {
+    writer: W,
+}
+
+impl<W> CompositeItemWriterBuilder<W> {
+    /// Creates a new builder with the given writer as the first delegate.
+    ///
+    /// # Parameters
+    ///
+    /// - `first`: The first writer in the fan-out chain.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+    ///
+    /// struct NoOpWriter;
+    /// impl ItemWriter<i32> for NoOpWriter {
+    ///     fn write(&self, _items: &[i32]) -> Result<(), spring_batch_rs::BatchError> { Ok(()) }
+    /// }
+    ///
+    /// let builder = CompositeItemWriterBuilder::new(NoOpWriter);
+    /// let writer = builder.build();
+    /// assert!(writer.write(&[]).is_ok());
+    /// ```
+    pub fn new(first: W) -> Self {
+        Self { writer: first }
+    }
+
+    /// Appends a writer to the fan-out chain.
+    ///
+    /// Returns a new builder whose accumulated type is `CompositeItemWriter<W, W2>`.
+    /// Both writers must implement `ItemWriter<T>` for the same `T` — verified at
+    /// compile time.
+    ///
+    /// # Parameters
+    ///
+    /// - `next`: The writer to add to the chain.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+    ///
+    /// struct NoOpWriter;
+    /// impl ItemWriter<i32> for NoOpWriter {
+    ///     fn write(&self, _items: &[i32]) -> Result<(), spring_batch_rs::BatchError> { Ok(()) }
+    /// }
+    ///
+    /// let composite = CompositeItemWriterBuilder::new(NoOpWriter)
+    ///     .add(NoOpWriter)
+    ///     .build();
+    ///
+    /// assert!(composite.write(&[1, 2, 3]).is_ok());
+    /// ```
+    pub fn add<W2>(self, next: W2) -> CompositeItemWriterBuilder<CompositeItemWriter<W, W2>> {
+        CompositeItemWriterBuilder {
+            writer: CompositeItemWriter {
+                first: self.writer,
+                second: next,
+            },
+        }
+    }
+
+    /// Builds and returns the composite writer.
+    ///
+    /// Returns the accumulated writer value `W`. When chained via `add`, `W` is a
+    /// nested `CompositeItemWriter` such as
+    /// `CompositeItemWriter<CompositeItemWriter<W1, W2>, W3>`.
+    ///
+    /// Pass `&composite` to the step builder's `.writer()` method.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+    ///
+    /// struct NoOpWriter;
+    /// impl ItemWriter<i32> for NoOpWriter {
+    ///     fn write(&self, _items: &[i32]) -> Result<(), spring_batch_rs::BatchError> { Ok(()) }
+    /// }
+    ///
+    /// let composite = CompositeItemWriterBuilder::new(NoOpWriter)
+    ///     .add(NoOpWriter)
+    ///     .build();
+    ///
+    /// assert!(composite.write(&[]).is_ok());
+    /// ```
+    pub fn build(self) -> W {
+        self.writer
     }
 }
 
@@ -1216,5 +1373,32 @@ mod tests {
         let result = composite.close();
         assert!(result.is_err(), "error should propagate");
         assert_eq!(composite.second.close_calls.get(), 0, "second writer should not be closed after first fails");
+    }
+
+    #[test]
+    fn should_chain_two_writers_via_builder() -> Result<(), BatchError> {
+        let composite = CompositeItemWriterBuilder::new(RecordingWriter::new())
+            .add(RecordingWriter::new())
+            .build();
+        composite.write(&[10, 20])?;
+        assert_eq!(composite.first.items_written.get(), 2, "first writer should receive 2 items");
+        assert_eq!(composite.second.items_written.get(), 2, "second writer should receive 2 items");
+        Ok(())
+    }
+
+    #[test]
+    fn should_chain_three_writers() -> Result<(), BatchError> {
+        let composite = CompositeItemWriterBuilder::new(RecordingWriter::new())
+            .add(RecordingWriter::new())
+            .add(RecordingWriter::new())
+            .build();
+        composite.write(&[1, 2, 3, 4])?;
+        // composite type: CompositeItemWriter<CompositeItemWriter<W1, W2>, W3>
+        // composite.first is CompositeItemWriter<W1, W2>
+        // composite.second is W3
+        assert_eq!(composite.first.first.items_written.get(), 4, "writer 1 should receive 4 items");
+        assert_eq!(composite.first.second.items_written.get(), 4, "writer 2 should receive 4 items");
+        assert_eq!(composite.second.items_written.get(), 4, "writer 3 should receive 4 items");
+        Ok(())
     }
 }
