@@ -32,8 +32,7 @@ use spring_batch_rs::{
         step::StepBuilder,
     },
     item::{
-        csv::csv_reader::CsvItemReaderBuilder,
-        json::json_writer::JsonItemWriterBuilder,
+        csv::csv_reader::CsvItemReaderBuilder, json::json_writer::JsonItemWriterBuilder,
         logger::LoggerWriterBuilder,
     },
     BatchError,
@@ -90,9 +89,9 @@ id,name,price
     // 7. Report results
     let exec = job.get_step_execution("fan-out-products").unwrap(); // step name is always registered after successful job.run()
     println!("JSON output: {}", output.display());
-    println!("Read:      {}", exec.read_count);    // 5
+    println!("Read:      {}", exec.read_count); // 5
     println!("Processed: {}", exec.process_count); // 5 (pass-through)
-    println!("Written:   {}", exec.write_count);   // 5 (to both writers)
+    println!("Written:   {}", exec.write_count); // 5 (to both writers)
 
     Ok(())
 }

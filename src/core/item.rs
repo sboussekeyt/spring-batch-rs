@@ -1288,10 +1288,16 @@ mod tests {
             }
         }
         fn failing_write() -> Self {
-            Self { fail_write: true, ..Self::new() }
+            Self {
+                fail_write: true,
+                ..Self::new()
+            }
         }
         fn failing_open() -> Self {
-            Self { fail_open: true, ..Self::new() }
+            Self {
+                fail_open: true,
+                ..Self::new()
+            }
         }
     }
 
@@ -1301,7 +1307,8 @@ mod tests {
                 return Err(BatchError::ItemWriter("forced write failure".to_string()));
             }
             self.write_calls.set(self.write_calls.get() + 1);
-            self.items_written.set(self.items_written.get() + items.len());
+            self.items_written
+                .set(self.items_written.get() + items.len());
             Ok(())
         }
         fn open(&self) -> ItemWriterResult {
@@ -1331,12 +1338,31 @@ mod tests {
     fn should_write_to_both_writers() -> Result<(), BatchError> {
         let w1 = RecordingWriter::new();
         let w2 = RecordingWriter::new();
-        let composite = CompositeItemWriter { first: w1, second: w2 };
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
         composite.write(&[1, 2, 3])?;
-        assert_eq!(composite.first.write_calls.get(), 1, "first writer should be called");
-        assert_eq!(composite.first.items_written.get(), 3, "first writer should receive 3 items");
-        assert_eq!(composite.second.write_calls.get(), 1, "second writer should be called");
-        assert_eq!(composite.second.items_written.get(), 3, "second writer should receive 3 items");
+        assert_eq!(
+            composite.first.write_calls.get(),
+            1,
+            "first writer should be called"
+        );
+        assert_eq!(
+            composite.first.items_written.get(),
+            3,
+            "first writer should receive 3 items"
+        );
+        assert_eq!(
+            composite.second.write_calls.get(),
+            1,
+            "second writer should be called"
+        );
+        assert_eq!(
+            composite.second.items_written.get(),
+            3,
+            "second writer should receive 3 items"
+        );
         Ok(())
     }
 
@@ -1344,10 +1370,21 @@ mod tests {
     fn should_open_both_writers_in_order() -> Result<(), BatchError> {
         let w1 = RecordingWriter::new();
         let w2 = RecordingWriter::new();
-        let composite = CompositeItemWriter { first: w1, second: w2 };
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
         composite.open()?;
-        assert_eq!(composite.first.open_calls.get(), 1, "first writer should be opened");
-        assert_eq!(composite.second.open_calls.get(), 1, "second writer should be opened");
+        assert_eq!(
+            composite.first.open_calls.get(),
+            1,
+            "first writer should be opened"
+        );
+        assert_eq!(
+            composite.second.open_calls.get(),
+            1,
+            "second writer should be opened"
+        );
         Ok(())
     }
 
@@ -1355,10 +1392,21 @@ mod tests {
     fn should_close_both_writers_in_order() -> Result<(), BatchError> {
         let w1 = RecordingWriter::new();
         let w2 = RecordingWriter::new();
-        let composite = CompositeItemWriter { first: w1, second: w2 };
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
         composite.close()?;
-        assert_eq!(composite.first.close_calls.get(), 1, "first writer should be closed");
-        assert_eq!(composite.second.close_calls.get(), 1, "second writer should be closed");
+        assert_eq!(
+            composite.first.close_calls.get(),
+            1,
+            "first writer should be closed"
+        );
+        assert_eq!(
+            composite.second.close_calls.get(),
+            1,
+            "second writer should be closed"
+        );
         Ok(())
     }
 
@@ -1366,10 +1414,21 @@ mod tests {
     fn should_flush_both_writers() -> Result<(), BatchError> {
         let w1 = RecordingWriter::new();
         let w2 = RecordingWriter::new();
-        let composite = CompositeItemWriter { first: w1, second: w2 };
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
         composite.flush()?;
-        assert_eq!(composite.first.flush_calls.get(), 1, "first writer should be flushed");
-        assert_eq!(composite.second.flush_calls.get(), 1, "second writer should be flushed");
+        assert_eq!(
+            composite.first.flush_calls.get(),
+            1,
+            "first writer should be flushed"
+        );
+        assert_eq!(
+            composite.second.flush_calls.get(),
+            1,
+            "second writer should be flushed"
+        );
         Ok(())
     }
 
@@ -1377,40 +1436,74 @@ mod tests {
     fn should_short_circuit_on_write_error() {
         let w1 = RecordingWriter::failing_write();
         let w2 = RecordingWriter::new();
-        let composite = CompositeItemWriter { first: w1, second: w2 };
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
         let result = composite.write(&[1, 2, 3]);
         assert!(result.is_err(), "error should propagate");
-        assert_eq!(composite.second.write_calls.get(), 0, "second writer should not be called after first fails");
+        assert_eq!(
+            composite.second.write_calls.get(),
+            0,
+            "second writer should not be called after first fails"
+        );
     }
 
     #[test]
     fn should_short_circuit_on_open_error() {
         let w1 = RecordingWriter::failing_open();
         let w2 = RecordingWriter::new();
-        let composite = CompositeItemWriter { first: w1, second: w2 };
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
         let result = composite.open();
         assert!(result.is_err(), "error should propagate");
-        assert_eq!(composite.second.open_calls.get(), 0, "second writer should not be opened after first fails");
+        assert_eq!(
+            composite.second.open_calls.get(),
+            0,
+            "second writer should not be opened after first fails"
+        );
     }
 
     #[test]
     fn should_short_circuit_on_flush_error() {
-        let w1 = RecordingWriter { fail_flush: true, ..RecordingWriter::new() };
+        let w1 = RecordingWriter {
+            fail_flush: true,
+            ..RecordingWriter::new()
+        };
         let w2 = RecordingWriter::new();
-        let composite = CompositeItemWriter { first: w1, second: w2 };
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
         let result = composite.flush();
         assert!(result.is_err(), "error should propagate");
-        assert_eq!(composite.second.flush_calls.get(), 0, "second writer should not be flushed after first fails");
+        assert_eq!(
+            composite.second.flush_calls.get(),
+            0,
+            "second writer should not be flushed after first fails"
+        );
     }
 
     #[test]
     fn should_short_circuit_on_close_error() {
-        let w1 = RecordingWriter { fail_close: true, ..RecordingWriter::new() };
+        let w1 = RecordingWriter {
+            fail_close: true,
+            ..RecordingWriter::new()
+        };
         let w2 = RecordingWriter::new();
-        let composite = CompositeItemWriter { first: w1, second: w2 };
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
         let result = composite.close();
         assert!(result.is_err(), "error should propagate");
-        assert_eq!(composite.second.close_calls.get(), 0, "second writer should not be closed after first fails");
+        assert_eq!(
+            composite.second.close_calls.get(),
+            0,
+            "second writer should not be closed after first fails"
+        );
     }
 
     #[test]
@@ -1419,8 +1512,16 @@ mod tests {
             .add(RecordingWriter::new())
             .build();
         composite.write(&[10, 20])?;
-        assert_eq!(composite.first.items_written.get(), 2, "first writer should receive 2 items");
-        assert_eq!(composite.second.items_written.get(), 2, "second writer should receive 2 items");
+        assert_eq!(
+            composite.first.items_written.get(),
+            2,
+            "first writer should receive 2 items"
+        );
+        assert_eq!(
+            composite.second.items_written.get(),
+            2,
+            "second writer should receive 2 items"
+        );
         Ok(())
     }
 
@@ -1434,9 +1535,21 @@ mod tests {
         // composite type: CompositeItemWriter<CompositeItemWriter<W1, W2>, W3>
         // composite.first is CompositeItemWriter<W1, W2>
         // composite.second is W3
-        assert_eq!(composite.first.first.items_written.get(), 4, "writer 1 should receive 4 items");
-        assert_eq!(composite.first.second.items_written.get(), 4, "writer 2 should receive 4 items");
-        assert_eq!(composite.second.items_written.get(), 4, "writer 3 should receive 4 items");
+        assert_eq!(
+            composite.first.first.items_written.get(),
+            4,
+            "writer 1 should receive 4 items"
+        );
+        assert_eq!(
+            composite.first.second.items_written.get(),
+            4,
+            "writer 2 should receive 4 items"
+        );
+        assert_eq!(
+            composite.second.items_written.get(),
+            4,
+            "writer 3 should receive 4 items"
+        );
         Ok(())
     }
 
@@ -1459,10 +1572,26 @@ mod tests {
         boxed.write(&[1, 2])?;
         boxed.flush()?;
         boxed.close()?;
-        assert_eq!(boxed.items_written.get(), 2, "boxed concrete writer should delegate write");
-        assert_eq!(boxed.open_calls.get(), 1, "boxed concrete writer should delegate open");
-        assert_eq!(boxed.flush_calls.get(), 1, "boxed concrete writer should delegate flush");
-        assert_eq!(boxed.close_calls.get(), 1, "boxed concrete writer should delegate close");
+        assert_eq!(
+            boxed.items_written.get(),
+            2,
+            "boxed concrete writer should delegate write"
+        );
+        assert_eq!(
+            boxed.open_calls.get(),
+            1,
+            "boxed concrete writer should delegate open"
+        );
+        assert_eq!(
+            boxed.flush_calls.get(),
+            1,
+            "boxed concrete writer should delegate flush"
+        );
+        assert_eq!(
+            boxed.close_calls.get(),
+            1,
+            "boxed concrete writer should delegate close"
+        );
         Ok(())
     }
 }
