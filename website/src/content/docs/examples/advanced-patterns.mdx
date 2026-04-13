@@ -109,6 +109,109 @@ cargo run --example filter_records_from_csv_with_processor --features csv,json
 
 ---
 
+## Chaining Item Processors
+
+<Aside type="tip">
+  View the complete source: [examples/chaining_processors.rs](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/chaining_processors.rs)
+</Aside>
+
+`CompositeItemProcessorBuilder` lets you chain multiple processors into a single pipeline.
+The output of each processor becomes the input of the next. If any processor returns
+`Ok(None)`, the chain stops immediately and the item is filtered — subsequent processors
+are never called.
+
+### How It Works
+
+```
+item → p1 → intermediate₁ → p2 → intermediate₂ → ... → pN → output
+         ↓ Ok(None)?
+        stop — item filtered
+```
+
+### Chaining Processors with Different Types
+
+```rust
+use spring_batch_rs::core::item::{
+    ItemProcessor, ItemProcessorResult, CompositeItemProcessorBuilder,
+};
+use spring_batch_rs::BatchError;
+
+struct RawOrder { id: String, customer: String, amount: String }
+
+#[derive(Clone)]
+struct ParsedOrder { id: u32, customer: String, amount: f64 }
+
+struct EnrichedOrder { id: u32, customer: String, amount: f64, tax: f64, total: f64 }
+
+// Step 1: parse raw strings into typed values
+struct ParseProcessor;
+impl ItemProcessor<RawOrder, ParsedOrder> for ParseProcessor {
+    fn process(&self, item: &RawOrder) -> ItemProcessorResult<ParsedOrder> {
+        let id = item.id.trim().parse().ok();
+        let amount = item.amount.trim().parse().ok();
+        match (id, amount) {
+            (Some(id), Some(amount)) => Ok(Some(ParsedOrder {
+                id, amount, customer: item.customer.clone(),
+            })),
+            _ => Ok(None), // unparseable — filter silently
+        }
+    }
+}
+
+// Step 2: filter orders below threshold
+struct ValidateProcessor { min_amount: f64 }
+impl ItemProcessor<ParsedOrder, ParsedOrder> for ValidateProcessor {
+    fn process(&self, item: &ParsedOrder) -> ItemProcessorResult<ParsedOrder> {
+        if item.amount < self.min_amount { Ok(None) } else { Ok(Some(item.clone())) }
+    }
+}
+
+// Step 3: add tax and total
+struct EnrichProcessor;
+impl ItemProcessor<ParsedOrder, EnrichedOrder> for EnrichProcessor {
+    fn process(&self, item: &ParsedOrder) -> ItemProcessorResult<EnrichedOrder> {
+        let tax = (item.amount * 0.20 * 100.0).round() / 100.0;
+        Ok(Some(EnrichedOrder {
+            id: item.id, customer: item.customer.clone(),
+            amount: item.amount, tax, total: item.amount + tax,
+        }))
+    }
+}
+
+// Wire together: RawOrder → ParsedOrder → ParsedOrder → EnrichedOrder
+let composite = CompositeItemProcessorBuilder::new(ParseProcessor)
+    .link(ValidateProcessor { min_amount: 10.0 })
+    .link(EnrichProcessor)
+    .build();
+
+// Use with a step builder
+let step = StepBuilder::new("enrich-orders")
+    .chunk::<RawOrder, EnrichedOrder>(100)
+    .reader(&reader)
+    .processor(&composite)
+    .writer(&writer)
+    .build();
+```
+
+```bash
+cargo run --example chaining_processors --features csv,json
+```
+
+### Filter Propagation in a Chain
+
+| Scenario | Result |
+|---|---|
+| Processor N returns `Ok(Some(item))` | Item forwarded to processor N+1 |
+| Processor N returns `Ok(None)` | Chain stops — `filter_count++`, no write |
+| Processor N returns `Err(e)` | Chain stops — `process_error_count++`, skip logic applies |
+
+<Aside type="tip">
+  Chains of any length are supported. Each `.link()` call changes the output type, so
+  type mismatches are caught at compile time.
+</Aside>
+
+---
+
 ## Multi-Step ETL Job
 
 This example demonstrates a complete Extract, Transform, Load (ETL) job with two distinct steps. This is a common pattern for processing data from one source, transforming it, and loading it into another destination.

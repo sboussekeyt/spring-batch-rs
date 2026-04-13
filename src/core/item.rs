@@ -332,6 +332,311 @@ impl<T: Clone> PassThroughProcessor<T> {
     }
 }
 
+/// A composite processor that chains two processors sequentially using static dispatch.
+///
+/// The output of the first processor becomes the input of the second.
+/// If the first processor filters an item (returns `Ok(None)`), the chain
+/// stops immediately and `Ok(None)` is returned — the second processor is
+/// never called.
+///
+/// Both processors are stored by value — no heap allocation occurs inside the
+/// struct itself. This mirrors the pattern used by standard library iterator
+/// adapters such as [`std::iter::Chain`].
+///
+/// Construct chains using [`CompositeItemProcessorBuilder`] rather than
+/// instantiating this struct directly.
+///
+/// # Type Parameters
+///
+/// - `P1`: The first processor type. Must implement `ItemProcessor<I, M>` for
+///   some input type `I` and intermediate type `M`.
+/// - `P2`: The second processor type. Must implement `ItemProcessor<M, O>` where
+///   `M` is the output type of `P1` and `O` is the final output type.
+/// - `M`: The intermediate type — output of `P1`, input of `P2`. Tracked via
+///   `PhantomData` so it participates in type inference without being stored.
+///
+/// # Examples
+///
+/// ```
+/// use spring_batch_rs::core::item::{ItemProcessor, CompositeItemProcessorBuilder};
+/// use spring_batch_rs::BatchError;
+///
+/// struct DoubleProcessor;
+/// impl ItemProcessor<i32, i32> for DoubleProcessor {
+///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+///         Ok(Some(item * 2))
+///     }
+/// }
+///
+/// struct ToStringProcessor;
+/// impl ItemProcessor<i32, String> for ToStringProcessor {
+///     fn process(&self, item: &i32) -> Result<Option<String>, BatchError> {
+///         Ok(Some(item.to_string()))
+///     }
+/// }
+///
+/// let composite = CompositeItemProcessorBuilder::new(DoubleProcessor)
+///     .link(ToStringProcessor)
+///     .build();
+///
+/// // 21 * 2 = 42, then converted to "42"
+/// assert_eq!(composite.process(&21).unwrap(), Some("42".to_string()));
+/// ```
+///
+/// # Errors
+///
+/// Returns [`BatchError`] if any processor in the chain returns an error.
+pub struct CompositeItemProcessor<P1, P2, M> {
+    first: P1,
+    second: P2,
+    /// Tracks the intermediate type `M` (output of `P1`, input of `P2`).
+    /// Uses `fn(M) -> M` to keep the type parameter invariant and avoid
+    /// unintended variance.
+    _marker: std::marker::PhantomData<fn(M) -> M>,
+}
+
+impl<I, M, O, P1, P2> ItemProcessor<I, O> for CompositeItemProcessor<P1, P2, M>
+where
+    P1: ItemProcessor<I, M>,
+    P2: ItemProcessor<M, O>,
+{
+    /// Applies the first processor, then — if the result is `Some` — applies
+    /// the second. Returns `Ok(None)` immediately if the first processor
+    /// filters the item.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BatchError`] if either processor fails.
+    fn process(&self, item: &I) -> ItemProcessorResult<O> {
+        match self.first.process(item)? {
+            Some(intermediate) => self.second.process(&intermediate),
+            None => Ok(None),
+        }
+    }
+}
+
+/// Builder for creating a chain of [`ItemProcessor`]s using static dispatch.
+///
+/// Start the chain with [`new`](CompositeItemProcessorBuilder::new), append
+/// processors with [`link`](CompositeItemProcessorBuilder::link), and finalise
+/// with [`build`](CompositeItemProcessorBuilder::build). Each call to `link`
+/// wraps the accumulated chain in a [`CompositeItemProcessor`], changing the
+/// output type. Mismatched types are caught at compile time.
+///
+/// The built chain stores all processors by value — no heap allocations occur
+/// inside the processor itself. The type of the built value encodes the full
+/// chain structure (e.g. `CompositeItemProcessor<P1, CompositeItemProcessor<P2, P3>>`),
+/// similar to how `Iterator` adapters compose in the standard library.
+///
+/// # Type Parameters
+///
+/// - `P`: The accumulated processor type. Starts as the first processor and
+///   is wrapped in [`CompositeItemProcessor`] with each [`link`](CompositeItemProcessorBuilder::link) call.
+///
+/// # Examples
+///
+/// Two processors (`i32 → i32 → String`):
+///
+/// ```
+/// use spring_batch_rs::core::item::{ItemProcessor, CompositeItemProcessorBuilder};
+/// use spring_batch_rs::BatchError;
+///
+/// struct DoubleProcessor;
+/// impl ItemProcessor<i32, i32> for DoubleProcessor {
+///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+///         Ok(Some(item * 2))
+///     }
+/// }
+///
+/// struct ToStringProcessor;
+/// impl ItemProcessor<i32, String> for ToStringProcessor {
+///     fn process(&self, item: &i32) -> Result<Option<String>, BatchError> {
+///         Ok(Some(item.to_string()))
+///     }
+/// }
+///
+/// let composite = CompositeItemProcessorBuilder::new(DoubleProcessor)
+///     .link(ToStringProcessor)
+///     .build();
+///
+/// assert_eq!(composite.process(&21).unwrap(), Some("42".to_string()));
+/// ```
+///
+/// Three processors (`i32 → i32 → i32 → String`):
+///
+/// ```
+/// use spring_batch_rs::core::item::{ItemProcessor, CompositeItemProcessorBuilder};
+/// use spring_batch_rs::BatchError;
+///
+/// struct AddOneProcessor;
+/// impl ItemProcessor<i32, i32> for AddOneProcessor {
+///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+///         Ok(Some(item + 1))
+///     }
+/// }
+///
+/// struct DoubleProcessor;
+/// impl ItemProcessor<i32, i32> for DoubleProcessor {
+///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+///         Ok(Some(item * 2))
+///     }
+/// }
+///
+/// struct ToStringProcessor;
+/// impl ItemProcessor<i32, String> for ToStringProcessor {
+///     fn process(&self, item: &i32) -> Result<Option<String>, BatchError> {
+///         Ok(Some(item.to_string()))
+///     }
+/// }
+///
+/// let composite = CompositeItemProcessorBuilder::new(AddOneProcessor)
+///     .link(DoubleProcessor)
+///     .link(ToStringProcessor)
+///     .build();
+///
+/// // (4 + 1) * 2 = 10 → "10"
+/// assert_eq!(composite.process(&4).unwrap(), Some("10".to_string()));
+/// ```
+pub struct CompositeItemProcessorBuilder<P> {
+    processor: P,
+}
+
+impl<P> CompositeItemProcessorBuilder<P> {
+    /// Creates a new builder with the given processor as the first in the chain.
+    ///
+    /// # Parameters
+    ///
+    /// - `first`: The first processor in the chain.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use spring_batch_rs::core::item::{ItemProcessor, CompositeItemProcessorBuilder};
+    /// use spring_batch_rs::BatchError;
+    ///
+    /// struct UppercaseProcessor;
+    /// impl ItemProcessor<String, String> for UppercaseProcessor {
+    ///     fn process(&self, item: &String) -> Result<Option<String>, BatchError> {
+    ///         Ok(Some(item.to_uppercase()))
+    ///     }
+    /// }
+    ///
+    /// let builder = CompositeItemProcessorBuilder::new(UppercaseProcessor);
+    /// let composite = builder.build();
+    /// assert_eq!(composite.process(&"hello".to_string()).unwrap(), Some("HELLO".to_string()));
+    /// ```
+    pub fn new(first: P) -> Self {
+        Self { processor: first }
+    }
+
+    /// Appends a processor to the end of the chain.
+    ///
+    /// Returns a new builder whose accumulated type is
+    /// `CompositeItemProcessor<P, P2>`. The input/output types are verified
+    /// at compile time when the chain is used.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `P2`: The processor type to append.
+    /// - `M`: The intermediate type connecting `P` and `P2`. Inferred by the
+    ///   compiler from the `ItemProcessor` impls on `P` and `P2`.
+    ///
+    /// # Parameters
+    ///
+    /// - `next`: The processor to append to the chain.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use spring_batch_rs::core::item::{ItemProcessor, CompositeItemProcessorBuilder};
+    /// use spring_batch_rs::BatchError;
+    ///
+    /// struct AddOneProcessor;
+    /// impl ItemProcessor<i32, i32> for AddOneProcessor {
+    ///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+    ///         Ok(Some(item + 1))
+    ///     }
+    /// }
+    ///
+    /// struct ToStringProcessor;
+    /// impl ItemProcessor<i32, String> for ToStringProcessor {
+    ///     fn process(&self, item: &i32) -> Result<Option<String>, BatchError> {
+    ///         Ok(Some(item.to_string()))
+    ///     }
+    /// }
+    ///
+    /// let composite = CompositeItemProcessorBuilder::new(AddOneProcessor)
+    ///     .link(ToStringProcessor)
+    ///     .build();
+    ///
+    /// assert_eq!(composite.process(&41).unwrap(), Some("42".to_string()));
+    /// ```
+    pub fn link<P2, M>(
+        self,
+        next: P2,
+    ) -> CompositeItemProcessorBuilder<CompositeItemProcessor<P, P2, M>> {
+        CompositeItemProcessorBuilder {
+            processor: CompositeItemProcessor {
+                first: self.processor,
+                second: next,
+                _marker: std::marker::PhantomData,
+            },
+        }
+    }
+
+    /// Builds and returns the composite processor.
+    ///
+    /// Returns the accumulated processor value `P`. When chained via `link`,
+    /// `P` will be a nested `CompositeItemProcessor` such as
+    /// `CompositeItemProcessor<P1, CompositeItemProcessor<P2, P3>>`.
+    ///
+    /// Pass `&composite` to the step builder's `.processor()` method — Rust
+    /// will coerce it to `&dyn ItemProcessor<I, O>` automatically.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use spring_batch_rs::core::item::{ItemProcessor, CompositeItemProcessorBuilder};
+    /// use spring_batch_rs::BatchError;
+    ///
+    /// struct DoubleProcessor;
+    /// impl ItemProcessor<i32, i32> for DoubleProcessor {
+    ///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+    ///         Ok(Some(item * 2))
+    ///     }
+    /// }
+    ///
+    /// struct AddTenProcessor;
+    /// impl ItemProcessor<i32, i32> for AddTenProcessor {
+    ///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+    ///         Ok(Some(item + 10))
+    ///     }
+    /// }
+    ///
+    /// let composite = CompositeItemProcessorBuilder::new(DoubleProcessor)
+    ///     .link(AddTenProcessor)
+    ///     .build();
+    ///
+    /// // 5 * 2 = 10, then 10 + 10 = 20
+    /// assert_eq!(composite.process(&5).unwrap(), Some(20));
+    /// ```
+    pub fn build(self) -> P {
+        self.processor
+    }
+}
+
+/// Allows any `Box<P>` where `P: ItemProcessor<I, O>` to be used wherever
+/// `&dyn ItemProcessor<I, O>` is expected — including boxed concrete types
+/// (`Box<MyProcessor>`) and boxed trait objects (`Box<dyn ItemProcessor<I, O>>`).
+///
+/// The `?Sized` bound is what makes this cover trait objects: `dyn Trait` is
+/// unsized, so without `?Sized` the impl would not apply to them.
+impl<I, O, P: ItemProcessor<I, O> + ?Sized> ItemProcessor<I, O> for Box<P> {
+    fn process(&self, item: &I) -> ItemProcessorResult<O> {
+        (**self).process(item)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -495,5 +800,170 @@ mod tests {
         assert!(w.flush().is_ok(), "default flush should return Ok");
         assert!(w.open().is_ok(), "default open should return Ok");
         assert!(w.close().is_ok(), "default close should return Ok");
+    }
+
+    // --- CompositeItemProcessor / CompositeItemProcessorBuilder ---
+
+    struct DoubleProcessor;
+    impl ItemProcessor<i32, i32> for DoubleProcessor {
+        fn process(&self, item: &i32) -> ItemProcessorResult<i32> {
+            Ok(Some(item * 2))
+        }
+    }
+
+    struct AddTenProcessor;
+    impl ItemProcessor<i32, i32> for AddTenProcessor {
+        fn process(&self, item: &i32) -> ItemProcessorResult<i32> {
+            Ok(Some(item + 10))
+        }
+    }
+
+    struct ToStringProcessor;
+    impl ItemProcessor<i32, String> for ToStringProcessor {
+        fn process(&self, item: &i32) -> ItemProcessorResult<String> {
+            Ok(Some(item.to_string()))
+        }
+    }
+
+    struct FilterEvenProcessor;
+    impl ItemProcessor<i32, i32> for FilterEvenProcessor {
+        fn process(&self, item: &i32) -> ItemProcessorResult<i32> {
+            if item % 2 == 0 {
+                Ok(Some(*item))
+            } else {
+                Ok(None) // filter odd numbers
+            }
+        }
+    }
+
+    struct FailingProcessor;
+    impl ItemProcessor<i32, i32> for FailingProcessor {
+        fn process(&self, _item: &i32) -> ItemProcessorResult<i32> {
+            Err(BatchError::ItemProcessor("forced failure".to_string()))
+        }
+    }
+
+    #[test]
+    fn should_chain_two_same_type_processors() -> Result<(), BatchError> {
+        let composite = CompositeItemProcessorBuilder::new(DoubleProcessor)
+            .link(AddTenProcessor)
+            .build();
+
+        // 5 * 2 = 10, then 10 + 10 = 20
+        assert_eq!(
+            composite.process(&5)?,
+            Some(20),
+            "5 * 2 + 10 should equal 20"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn should_chain_two_type_changing_processors() -> Result<(), BatchError> {
+        let composite = CompositeItemProcessorBuilder::new(DoubleProcessor)
+            .link(ToStringProcessor)
+            .build();
+
+        // 21 * 2 = 42, then "42"
+        assert_eq!(composite.process(&21)?, Some("42".to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn should_chain_three_processors() -> Result<(), BatchError> {
+        let composite = CompositeItemProcessorBuilder::new(DoubleProcessor)
+            .link(AddTenProcessor)
+            .link(ToStringProcessor)
+            .build();
+
+        // 5 * 2 = 10, then 10 + 10 = 20, then "20"
+        assert_eq!(composite.process(&5)?, Some("20".to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn should_stop_chain_when_first_processor_filters_item() -> Result<(), BatchError> {
+        let composite = CompositeItemProcessorBuilder::new(FilterEvenProcessor)
+            .link(ToStringProcessor)
+            .build();
+
+        // 3 is odd → filtered by first processor → second processor never called
+        assert_eq!(
+            composite.process(&3)?,
+            None,
+            "odd number should be filtered"
+        );
+        // 4 is even → passes through → converted to string
+        assert_eq!(
+            composite.process(&4)?,
+            Some("4".to_string()),
+            "even number should pass"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn should_propagate_error_from_first_processor() {
+        let composite = CompositeItemProcessorBuilder::new(FailingProcessor)
+            .link(ToStringProcessor)
+            .build();
+
+        let result = composite.process(&1);
+        assert!(
+            result.is_err(),
+            "error from first processor should propagate"
+        );
+    }
+
+    #[test]
+    fn should_propagate_error_from_second_processor() {
+        struct AlwaysFailI32;
+        impl ItemProcessor<i32, i32> for AlwaysFailI32 {
+            fn process(&self, _: &i32) -> ItemProcessorResult<i32> {
+                Err(BatchError::ItemProcessor("second failed".to_string()))
+            }
+        }
+
+        let composite = CompositeItemProcessorBuilder::new(DoubleProcessor)
+            .link(AlwaysFailI32)
+            .build();
+
+        let result = composite.process(&5);
+        assert!(
+            result.is_err(),
+            "error from second processor should propagate"
+        );
+    }
+
+    #[test]
+    fn should_use_box_blanket_impl_as_item_processor() -> Result<(), BatchError> {
+        // build() returns the concrete type; Box::new() it to get a trait object.
+        // Box<dyn ItemProcessor<I, O>> implements ItemProcessor<I, O> via the ?Sized blanket impl.
+        let composite = CompositeItemProcessorBuilder::new(DoubleProcessor)
+            .link(ToStringProcessor)
+            .build();
+        let boxed: Box<dyn ItemProcessor<i32, String>> = Box::new(composite);
+
+        let result = boxed.process(&3)?;
+        assert_eq!(
+            result,
+            Some("6".to_string()),
+            "boxed trait object should delegate to inner processor"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn should_use_box_concrete_type_as_item_processor() -> Result<(), BatchError> {
+        // Box<ConcreteProcessor> also implements ItemProcessor<I, O> via the ?Sized blanket impl
+        let boxed: Box<DoubleProcessor> = Box::new(DoubleProcessor);
+
+        let result = boxed.process(&7)?;
+        assert_eq!(
+            result,
+            Some(14),
+            "boxed concrete processor should delegate to inner processor"
+        );
+        Ok(())
     }
 }

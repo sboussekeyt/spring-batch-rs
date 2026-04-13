@@ -503,7 +503,7 @@ where
 /// ```text
 /// let reader = OrmItemReaderBuilder::new()
 ///     .connection(&db)           // Required
-///     .query(entity_query)       // Required  
+///     .query(entity_query)       // Required
 ///     .page_size(100)           // Optional
 ///     .build();                 // Creates the reader
 /// ```
@@ -811,9 +811,7 @@ where
 mod tests {
     use super::*;
     use crate::core::item::ItemReader;
-    use sea_orm::{
-        entity::prelude::*, ActiveValue::Set, DatabaseBackend, MockDatabase, MockExecResult,
-    };
+    use sea_orm::{entity::prelude::*, DatabaseBackend, MockDatabase};
 
     // Minimal entity definition for testing
     #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
