@@ -601,10 +601,13 @@ impl<I: 'static, O: 'static> CompositeItemProcessorBuilder<I, O> {
     }
 }
 
-/// Allows a `Box<dyn ItemProcessor<I, O>>` to be used wherever
-/// `&dyn ItemProcessor<I, O>` is expected, including the step builder's
-/// `.processor(&composite)` call.
-impl<I, O> ItemProcessor<I, O> for Box<dyn ItemProcessor<I, O>> {
+/// Allows any `Box<P>` where `P: ItemProcessor<I, O>` to be used wherever
+/// `&dyn ItemProcessor<I, O>` is expected — including boxed concrete types
+/// (`Box<MyProcessor>`) and boxed trait objects (`Box<dyn ItemProcessor<I, O>>`).
+///
+/// The `?Sized` bound is what makes this cover trait objects: `dyn Trait` is
+/// unsized, so without `?Sized` the impl would not apply to them.
+impl<I, O, P: ItemProcessor<I, O> + ?Sized> ItemProcessor<I, O> for Box<P> {
     fn process(&self, item: &I) -> ItemProcessorResult<O> {
         (**self).process(item)
     }
@@ -910,15 +913,32 @@ mod tests {
 
     #[test]
     fn should_use_box_blanket_impl_as_item_processor() -> Result<(), BatchError> {
-        // Box<dyn ItemProcessor<I, O>> itself implements ItemProcessor<I, O>
+        // Box<dyn ItemProcessor<I, O>> implements ItemProcessor<I, O> via the ?Sized blanket impl
         let composite: Box<dyn ItemProcessor<i32, String>> =
             CompositeItemProcessorBuilder::new(DoubleProcessor)
                 .link(ToStringProcessor)
                 .build();
 
-        // Use via reference — tests the blanket impl
         let result = (&composite).process(&3)?;
-        assert_eq!(result, Some("6".to_string()));
+        assert_eq!(
+            result,
+            Some("6".to_string()),
+            "boxed trait object should delegate to inner processor"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn should_use_box_concrete_type_as_item_processor() -> Result<(), BatchError> {
+        // Box<ConcreteProcessor> also implements ItemProcessor<I, O> via the ?Sized blanket impl
+        let boxed: Box<DoubleProcessor> = Box::new(DoubleProcessor);
+
+        let result = boxed.process(&7)?;
+        assert_eq!(
+            result,
+            Some(14),
+            "boxed concrete processor should delegate to inner processor"
+        );
         Ok(())
     }
 }
