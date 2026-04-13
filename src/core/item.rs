@@ -648,9 +648,13 @@ impl<P> CompositeItemProcessorBuilder<P> {
 ///
 /// ```
 /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+/// use std::rc::Rc;
+/// use std::cell::Cell;
 ///
-/// struct CountingWriter { count: std::cell::Cell<usize> }
-/// impl CountingWriter { fn new() -> Self { Self { count: std::cell::Cell::new(0) } } }
+/// struct CountingWriter { count: Rc<Cell<usize>> }
+/// impl CountingWriter {
+///     fn new(count: Rc<Cell<usize>>) -> Self { Self { count } }
+/// }
 /// impl ItemWriter<i32> for CountingWriter {
 ///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
 ///         self.count.set(self.count.get() + items.len());
@@ -658,22 +662,22 @@ impl<P> CompositeItemProcessorBuilder<P> {
 ///     }
 /// }
 ///
-/// let composite = CompositeItemWriterBuilder::new(CountingWriter::new())
-///     .add(CountingWriter::new())
+/// let c1 = Rc::new(Cell::new(0usize));
+/// let c2 = Rc::new(Cell::new(0usize));
+/// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
+///     .add(CountingWriter::new(c2.clone()))
 ///     .build();
 /// composite.write(&[1, 2, 3]).unwrap();
-/// assert_eq!(composite.first.count.get(), 3);
-/// assert_eq!(composite.second.count.get(), 3);
+/// assert_eq!(c1.get(), 3);
+/// assert_eq!(c2.get(), 3);
 /// ```
 ///
 /// # Errors
 ///
 /// Returns [`BatchError`] if any writer in the chain returns an error.
 pub struct CompositeItemWriter<W1, W2> {
-    /// The first writer in the fan-out chain.
-    pub first: W1,
-    /// The second writer in the fan-out chain.
-    pub second: W2,
+    first: W1,
+    second: W2,
 }
 
 impl<T, W1, W2> ItemWriter<T> for CompositeItemWriter<W1, W2>
@@ -741,9 +745,13 @@ where
 ///
 /// ```
 /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+/// use std::rc::Rc;
+/// use std::cell::Cell;
 ///
-/// struct CountingWriter { count: std::cell::Cell<usize> }
-/// impl CountingWriter { fn new() -> Self { Self { count: std::cell::Cell::new(0) } } }
+/// struct CountingWriter { count: Rc<Cell<usize>> }
+/// impl CountingWriter {
+///     fn new(count: Rc<Cell<usize>>) -> Self { Self { count } }
+/// }
 /// impl ItemWriter<i32> for CountingWriter {
 ///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
 ///         self.count.set(self.count.get() + items.len());
@@ -751,22 +759,28 @@ where
 ///     }
 /// }
 ///
-/// let composite = CompositeItemWriterBuilder::new(CountingWriter::new())
-///     .add(CountingWriter::new())
+/// let c1 = Rc::new(Cell::new(0usize));
+/// let c2 = Rc::new(Cell::new(0usize));
+/// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
+///     .add(CountingWriter::new(c2.clone()))
 ///     .build();
 ///
 /// composite.write(&[1, 2, 3]).unwrap();
-/// assert_eq!(composite.first.count.get(), 3);
-/// assert_eq!(composite.second.count.get(), 3);
+/// assert_eq!(c1.get(), 3);
+/// assert_eq!(c2.get(), 3);
 /// ```
 ///
 /// Three writers:
 ///
 /// ```
 /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+/// use std::rc::Rc;
+/// use std::cell::Cell;
 ///
-/// struct CountingWriter { count: std::cell::Cell<usize> }
-/// impl CountingWriter { fn new() -> Self { Self { count: std::cell::Cell::new(0) } } }
+/// struct CountingWriter { count: Rc<Cell<usize>> }
+/// impl CountingWriter {
+///     fn new(count: Rc<Cell<usize>>) -> Self { Self { count } }
+/// }
 /// impl ItemWriter<i32> for CountingWriter {
 ///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
 ///         self.count.set(self.count.get() + items.len());
@@ -774,15 +788,18 @@ where
 ///     }
 /// }
 ///
-/// let composite = CompositeItemWriterBuilder::new(CountingWriter::new())
-///     .add(CountingWriter::new())
-///     .add(CountingWriter::new())
+/// let c1 = Rc::new(Cell::new(0usize));
+/// let c2 = Rc::new(Cell::new(0usize));
+/// let c3 = Rc::new(Cell::new(0usize));
+/// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
+///     .add(CountingWriter::new(c2.clone()))
+///     .add(CountingWriter::new(c3.clone()))
 ///     .build();
 ///
 /// composite.write(&[1, 2]).unwrap();
-/// assert_eq!(composite.first.first.count.get(), 2);
-/// assert_eq!(composite.first.second.count.get(), 2);
-/// assert_eq!(composite.second.count.get(), 2);
+/// assert_eq!(c1.get(), 2);
+/// assert_eq!(c2.get(), 2);
+/// assert_eq!(c3.get(), 2);
 /// ```
 pub struct CompositeItemWriterBuilder<W> {
     writer: W,
@@ -831,9 +848,13 @@ impl<W> CompositeItemWriterBuilder<W> {
     ///
     /// ```
     /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+    /// use std::rc::Rc;
+    /// use std::cell::Cell;
     ///
-    /// struct CountingWriter { count: std::cell::Cell<usize> }
-    /// impl CountingWriter { fn new() -> Self { Self { count: std::cell::Cell::new(0) } } }
+    /// struct CountingWriter { count: Rc<Cell<usize>> }
+    /// impl CountingWriter {
+    ///     fn new(count: Rc<Cell<usize>>) -> Self { Self { count } }
+    /// }
     /// impl ItemWriter<i32> for CountingWriter {
     ///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
     ///         self.count.set(self.count.get() + items.len());
@@ -841,13 +862,15 @@ impl<W> CompositeItemWriterBuilder<W> {
     ///     }
     /// }
     ///
-    /// let composite = CompositeItemWriterBuilder::new(CountingWriter::new())
-    ///     .add(CountingWriter::new())
+    /// let c1 = Rc::new(Cell::new(0usize));
+    /// let c2 = Rc::new(Cell::new(0usize));
+    /// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
+    ///     .add(CountingWriter::new(c2.clone()))
     ///     .build();
     ///
     /// composite.write(&[1, 2, 3]).unwrap();
-    /// assert_eq!(composite.first.count.get(), 3, "first writer should receive all items");
-    /// assert_eq!(composite.second.count.get(), 3, "second writer should receive all items");
+    /// assert_eq!(c1.get(), 3, "first writer should receive all items");
+    /// assert_eq!(c2.get(), 3, "second writer should receive all items");
     /// ```
     #[allow(clippy::should_implement_trait)]
     pub fn add<W2>(self, next: W2) -> CompositeItemWriterBuilder<CompositeItemWriter<W, W2>> {
@@ -871,9 +894,13 @@ impl<W> CompositeItemWriterBuilder<W> {
     ///
     /// ```
     /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+    /// use std::rc::Rc;
+    /// use std::cell::Cell;
     ///
-    /// struct CountingWriter { count: std::cell::Cell<usize> }
-    /// impl CountingWriter { fn new() -> Self { Self { count: std::cell::Cell::new(0) } } }
+    /// struct CountingWriter { count: Rc<Cell<usize>> }
+    /// impl CountingWriter {
+    ///     fn new(count: Rc<Cell<usize>>) -> Self { Self { count } }
+    /// }
     /// impl ItemWriter<i32> for CountingWriter {
     ///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
     ///         self.count.set(self.count.get() + items.len());
@@ -881,13 +908,15 @@ impl<W> CompositeItemWriterBuilder<W> {
     ///     }
     /// }
     ///
-    /// let composite = CompositeItemWriterBuilder::new(CountingWriter::new())
-    ///     .add(CountingWriter::new())
+    /// let c1 = Rc::new(Cell::new(0usize));
+    /// let c2 = Rc::new(Cell::new(0usize));
+    /// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
+    ///     .add(CountingWriter::new(c2.clone()))
     ///     .build();
     ///
     /// composite.write(&[1, 2, 3]).unwrap();
-    /// assert_eq!(composite.first.count.get(), 3);
-    /// assert_eq!(composite.second.count.get(), 3);
+    /// assert_eq!(c1.get(), 3);
+    /// assert_eq!(c2.get(), 3);
     /// ```
     pub fn build(self) -> W {
         self.writer
