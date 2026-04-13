@@ -1074,6 +1074,8 @@ mod tests {
         flush_calls: Cell<usize>,
         fail_write: bool,
         fail_open: bool,
+        fail_flush: bool,
+        fail_close: bool,
     }
 
     impl RecordingWriter {
@@ -1086,6 +1088,8 @@ mod tests {
                 flush_calls: Cell::new(0),
                 fail_write: false,
                 fail_open: false,
+                fail_flush: false,
+                fail_close: false,
             }
         }
         fn failing_write() -> Self {
@@ -1113,10 +1117,16 @@ mod tests {
             Ok(())
         }
         fn close(&self) -> ItemWriterResult {
+            if self.fail_close {
+                return Err(BatchError::ItemWriter("forced close failure".to_string()));
+            }
             self.close_calls.set(self.close_calls.get() + 1);
             Ok(())
         }
         fn flush(&self) -> ItemWriterResult {
+            if self.fail_flush {
+                return Err(BatchError::ItemWriter("forced flush failure".to_string()));
+            }
             self.flush_calls.set(self.flush_calls.get() + 1);
             Ok(())
         }
@@ -1186,5 +1196,25 @@ mod tests {
         let result = composite.open();
         assert!(result.is_err(), "error should propagate");
         assert_eq!(composite.second.open_calls.get(), 0, "second writer should not be opened after first fails");
+    }
+
+    #[test]
+    fn should_short_circuit_on_flush_error() {
+        let w1 = RecordingWriter { fail_flush: true, ..RecordingWriter::new() };
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter { first: w1, second: w2 };
+        let result = composite.flush();
+        assert!(result.is_err(), "error should propagate");
+        assert_eq!(composite.second.flush_calls.get(), 0, "second writer should not be flushed after first fails");
+    }
+
+    #[test]
+    fn should_short_circuit_on_close_error() {
+        let w1 = RecordingWriter { fail_close: true, ..RecordingWriter::new() };
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter { first: w1, second: w2 };
+        let result = composite.close();
+        assert!(result.is_err(), "error should propagate");
+        assert_eq!(composite.second.close_calls.get(), 0, "second writer should not be closed after first fails");
     }
 }
