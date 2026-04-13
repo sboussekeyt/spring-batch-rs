@@ -625,6 +625,314 @@ impl<P> CompositeItemProcessorBuilder<P> {
     }
 }
 
+/// A composite writer that fans out the same chunk to two writers sequentially using static dispatch.
+///
+/// Both writers receive identical slices on every `write` call. All four lifecycle
+/// methods (`write`, `flush`, `open`, `close`) are forwarded to `first` then `second`,
+/// short-circuiting on the first `Err`. If `open()` on `first` fails, `second.open()`
+/// is never called — lifecycle management is the step's responsibility.
+///
+/// Both writers are stored by value — no heap allocation occurs inside the struct.
+/// The type encodes the full chain:
+/// `CompositeItemWriter<CompositeItemWriter<W1, W2>, W3>` for three writers.
+///
+/// Prefer constructing instances via [`CompositeItemWriterBuilder`] rather than
+/// direct struct literal syntax.
+///
+/// # Type Parameters
+///
+/// - `W1`: The first writer type. Must implement `ItemWriter<T>`.
+/// - `W2`: The second writer type. Must implement `ItemWriter<T>`.
+///
+/// # Examples
+///
+/// ```
+/// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+/// use std::rc::Rc;
+/// use std::cell::Cell;
+///
+/// struct CountingWriter { count: Rc<Cell<usize>> }
+/// impl CountingWriter {
+///     fn new(count: Rc<Cell<usize>>) -> Self { Self { count } }
+/// }
+/// impl ItemWriter<i32> for CountingWriter {
+///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
+///         self.count.set(self.count.get() + items.len());
+///         Ok(())
+///     }
+/// }
+///
+/// let c1 = Rc::new(Cell::new(0usize));
+/// let c2 = Rc::new(Cell::new(0usize));
+/// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
+///     .link(CountingWriter::new(c2.clone()))
+///     .build();
+/// composite.write(&[1, 2, 3]).unwrap();
+/// assert_eq!(c1.get(), 3);
+/// assert_eq!(c2.get(), 3);
+/// ```
+///
+/// # Errors
+///
+/// Returns [`BatchError`] if any writer in the chain returns an error.
+pub struct CompositeItemWriter<W1, W2> {
+    first: W1,
+    second: W2,
+}
+
+impl<T, W1, W2> ItemWriter<T> for CompositeItemWriter<W1, W2>
+where
+    W1: ItemWriter<T>,
+    W2: ItemWriter<T>,
+{
+    /// Writes `items` to `first`, then to `second`. Short-circuits on the first error.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BatchError::ItemWriter`] if either writer fails.
+    fn write(&self, items: &[T]) -> ItemWriterResult {
+        self.first.write(items)?;
+        self.second.write(items)
+    }
+
+    /// Flushes both writers regardless of errors. Returns the first error encountered.
+    ///
+    /// Both `first` and `second` are always flushed, even if `first` fails,
+    /// to avoid silently skipping buffered output in the second writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BatchError::ItemWriter`] if either flush fails. If both fail,
+    /// the error from `first` is returned.
+    fn flush(&self) -> ItemWriterResult {
+        let r1 = self.first.flush();
+        let r2 = self.second.flush();
+        r1.and(r2)
+    }
+
+    /// Opens `first`, then `second`. Short-circuits on the first error.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BatchError::ItemWriter`] if either open fails.
+    fn open(&self) -> ItemWriterResult {
+        self.first.open()?;
+        self.second.open()
+    }
+
+    /// Closes both writers regardless of errors. Returns the first error encountered.
+    ///
+    /// Both `first` and `second` are always closed, even if `first` fails,
+    /// to avoid resource leaks.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BatchError::ItemWriter`] if either close fails. If both fail,
+    /// the error from `first` is returned.
+    fn close(&self) -> ItemWriterResult {
+        let r1 = self.first.close();
+        let r2 = self.second.close();
+        r1.and(r2)
+    }
+}
+
+/// Builder for creating a fan-out chain of [`ItemWriter`]s using static dispatch.
+///
+/// Start the chain with [`new`](CompositeItemWriterBuilder::new), append writers
+/// with [`add`](CompositeItemWriterBuilder::add), and finalise with
+/// [`build`](CompositeItemWriterBuilder::build). Each call to `add` wraps the
+/// accumulated chain in a [`CompositeItemWriter`]. The built chain stores all
+/// writers by value — no heap allocations occur inside the chain itself.
+///
+/// # Type Parameters
+///
+/// - `W`: The accumulated writer type. Starts as the first writer and is wrapped
+///   in [`CompositeItemWriter`] with each [`add`](CompositeItemWriterBuilder::add) call.
+///
+/// # Examples
+///
+/// Two writers:
+///
+/// ```
+/// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+/// use std::rc::Rc;
+/// use std::cell::Cell;
+///
+/// struct CountingWriter { count: Rc<Cell<usize>> }
+/// impl CountingWriter {
+///     fn new(count: Rc<Cell<usize>>) -> Self { Self { count } }
+/// }
+/// impl ItemWriter<i32> for CountingWriter {
+///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
+///         self.count.set(self.count.get() + items.len());
+///         Ok(())
+///     }
+/// }
+///
+/// let c1 = Rc::new(Cell::new(0usize));
+/// let c2 = Rc::new(Cell::new(0usize));
+/// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
+///     .link(CountingWriter::new(c2.clone()))
+///     .build();
+///
+/// composite.write(&[1, 2, 3]).unwrap();
+/// assert_eq!(c1.get(), 3);
+/// assert_eq!(c2.get(), 3);
+/// ```
+///
+/// Three writers:
+///
+/// ```
+/// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+/// use std::rc::Rc;
+/// use std::cell::Cell;
+///
+/// struct CountingWriter { count: Rc<Cell<usize>> }
+/// impl CountingWriter {
+///     fn new(count: Rc<Cell<usize>>) -> Self { Self { count } }
+/// }
+/// impl ItemWriter<i32> for CountingWriter {
+///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
+///         self.count.set(self.count.get() + items.len());
+///         Ok(())
+///     }
+/// }
+///
+/// let c1 = Rc::new(Cell::new(0usize));
+/// let c2 = Rc::new(Cell::new(0usize));
+/// let c3 = Rc::new(Cell::new(0usize));
+/// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
+///     .link(CountingWriter::new(c2.clone()))
+///     .link(CountingWriter::new(c3.clone()))
+///     .build();
+///
+/// composite.write(&[1, 2]).unwrap();
+/// assert_eq!(c1.get(), 2);
+/// assert_eq!(c2.get(), 2);
+/// assert_eq!(c3.get(), 2);
+/// ```
+pub struct CompositeItemWriterBuilder<W> {
+    writer: W,
+}
+
+impl<W> CompositeItemWriterBuilder<W> {
+    /// Creates a new builder with the given writer as the first delegate.
+    ///
+    /// # Parameters
+    ///
+    /// - `first`: The first writer in the fan-out chain.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+    ///
+    /// struct CountingWriter { count: std::cell::Cell<usize> }
+    /// impl CountingWriter { fn new() -> Self { Self { count: std::cell::Cell::new(0) } } }
+    /// impl ItemWriter<i32> for CountingWriter {
+    ///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
+    ///         self.count.set(self.count.get() + items.len());
+    ///         Ok(())
+    ///     }
+    /// }
+    ///
+    /// let writer = CompositeItemWriterBuilder::new(CountingWriter::new()).build();
+    /// writer.write(&[1, 2, 3]).unwrap();
+    /// assert_eq!(writer.count.get(), 3, "writer should receive all items");
+    /// ```
+    pub fn new(first: W) -> Self {
+        Self { writer: first }
+    }
+
+    /// Appends a writer to the fan-out chain.
+    ///
+    /// Returns a new builder whose accumulated type is `CompositeItemWriter<W, W2>`.
+    /// Both writers must implement `ItemWriter<T>` for the same `T` — verified at
+    /// compile time.
+    ///
+    /// # Parameters
+    ///
+    /// - `next`: The writer to link into the chain.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+    /// use std::rc::Rc;
+    /// use std::cell::Cell;
+    ///
+    /// struct CountingWriter { count: Rc<Cell<usize>> }
+    /// impl CountingWriter {
+    ///     fn new(count: Rc<Cell<usize>>) -> Self { Self { count } }
+    /// }
+    /// impl ItemWriter<i32> for CountingWriter {
+    ///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
+    ///         self.count.set(self.count.get() + items.len());
+    ///         Ok(())
+    ///     }
+    /// }
+    ///
+    /// let c1 = Rc::new(Cell::new(0usize));
+    /// let c2 = Rc::new(Cell::new(0usize));
+    /// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
+    ///     .link(CountingWriter::new(c2.clone()))
+    ///     .build();
+    ///
+    /// composite.write(&[1, 2, 3]).unwrap();
+    /// assert_eq!(c1.get(), 3, "first writer should receive all items");
+    /// assert_eq!(c2.get(), 3, "second writer should receive all items");
+    /// ```
+    #[allow(clippy::should_implement_trait)]
+    pub fn link<W2>(self, next: W2) -> CompositeItemWriterBuilder<CompositeItemWriter<W, W2>> {
+        CompositeItemWriterBuilder {
+            writer: CompositeItemWriter {
+                first: self.writer,
+                second: next,
+            },
+        }
+    }
+
+    /// Builds and returns the composite writer.
+    ///
+    /// Returns the accumulated writer value `W`. When chained via `link`, `W` is a
+    /// nested `CompositeItemWriter` such as
+    /// `CompositeItemWriter<CompositeItemWriter<W1, W2>, W3>`.
+    ///
+    /// Pass `&composite` to the step builder's `.writer()` method.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriterBuilder};
+    /// use std::rc::Rc;
+    /// use std::cell::Cell;
+    ///
+    /// struct CountingWriter { count: Rc<Cell<usize>> }
+    /// impl CountingWriter {
+    ///     fn new(count: Rc<Cell<usize>>) -> Self { Self { count } }
+    /// }
+    /// impl ItemWriter<i32> for CountingWriter {
+    ///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
+    ///         self.count.set(self.count.get() + items.len());
+    ///         Ok(())
+    ///     }
+    /// }
+    ///
+    /// let c1 = Rc::new(Cell::new(0usize));
+    /// let c2 = Rc::new(Cell::new(0usize));
+    /// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
+    ///     .link(CountingWriter::new(c2.clone()))
+    ///     .build();
+    ///
+    /// composite.write(&[1, 2, 3]).unwrap();
+    /// assert_eq!(c1.get(), 3);
+    /// assert_eq!(c2.get(), 3);
+    /// ```
+    pub fn build(self) -> W {
+        self.writer
+    }
+}
+
 /// Allows any `Box<P>` where `P: ItemProcessor<I, O>` to be used wherever
 /// `&dyn ItemProcessor<I, O>` is expected — including boxed concrete types
 /// (`Box<MyProcessor>`) and boxed trait objects (`Box<dyn ItemProcessor<I, O>>`).
@@ -634,6 +942,27 @@ impl<P> CompositeItemProcessorBuilder<P> {
 impl<I, O, P: ItemProcessor<I, O> + ?Sized> ItemProcessor<I, O> for Box<P> {
     fn process(&self, item: &I) -> ItemProcessorResult<O> {
         (**self).process(item)
+    }
+}
+
+/// Allows any `Box<W>` where `W: ItemWriter<T>` to be used wherever
+/// `&dyn ItemWriter<T>` is expected — including boxed concrete types
+/// (`Box<MyWriter>`) and boxed trait objects (`Box<dyn ItemWriter<T>>`).
+///
+/// The `?Sized` bound makes this cover trait objects: `dyn Trait` is
+/// unsized, so without `?Sized` the impl would not apply to them.
+impl<T, W: ItemWriter<T> + ?Sized> ItemWriter<T> for Box<W> {
+    fn write(&self, items: &[T]) -> ItemWriterResult {
+        (**self).write(items)
+    }
+    fn flush(&self) -> ItemWriterResult {
+        (**self).flush()
+    }
+    fn open(&self) -> ItemWriterResult {
+        (**self).open()
+    }
+    fn close(&self) -> ItemWriterResult {
+        (**self).close()
     }
 }
 
@@ -963,6 +1292,344 @@ mod tests {
             result,
             Some(14),
             "boxed concrete processor should delegate to inner processor"
+        );
+        Ok(())
+    }
+
+    // --- CompositeItemWriter ---
+
+    use std::cell::Cell;
+
+    struct RecordingWriter {
+        write_calls: Cell<usize>,
+        items_written: Cell<usize>,
+        open_calls: Cell<usize>,
+        close_calls: Cell<usize>,
+        flush_calls: Cell<usize>,
+        fail_write: bool,
+        fail_open: bool,
+        fail_flush: bool,
+        fail_close: bool,
+    }
+
+    impl RecordingWriter {
+        fn new() -> Self {
+            Self {
+                write_calls: Cell::new(0),
+                items_written: Cell::new(0),
+                open_calls: Cell::new(0),
+                close_calls: Cell::new(0),
+                flush_calls: Cell::new(0),
+                fail_write: false,
+                fail_open: false,
+                fail_flush: false,
+                fail_close: false,
+            }
+        }
+        fn failing_write() -> Self {
+            Self {
+                fail_write: true,
+                ..Self::new()
+            }
+        }
+        fn failing_open() -> Self {
+            Self {
+                fail_open: true,
+                ..Self::new()
+            }
+        }
+    }
+
+    impl ItemWriter<i32> for RecordingWriter {
+        fn write(&self, items: &[i32]) -> ItemWriterResult {
+            if self.fail_write {
+                return Err(BatchError::ItemWriter("forced write failure".to_string()));
+            }
+            self.write_calls.set(self.write_calls.get() + 1);
+            self.items_written
+                .set(self.items_written.get() + items.len());
+            Ok(())
+        }
+        fn open(&self) -> ItemWriterResult {
+            if self.fail_open {
+                return Err(BatchError::ItemWriter("forced open failure".to_string()));
+            }
+            self.open_calls.set(self.open_calls.get() + 1);
+            Ok(())
+        }
+        fn close(&self) -> ItemWriterResult {
+            if self.fail_close {
+                return Err(BatchError::ItemWriter("forced close failure".to_string()));
+            }
+            self.close_calls.set(self.close_calls.get() + 1);
+            Ok(())
+        }
+        fn flush(&self) -> ItemWriterResult {
+            if self.fail_flush {
+                return Err(BatchError::ItemWriter("forced flush failure".to_string()));
+            }
+            self.flush_calls.set(self.flush_calls.get() + 1);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn should_write_to_both_writers() -> Result<(), BatchError> {
+        let w1 = RecordingWriter::new();
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
+        composite.write(&[1, 2, 3])?;
+        assert_eq!(
+            composite.first.write_calls.get(),
+            1,
+            "first writer should be called"
+        );
+        assert_eq!(
+            composite.first.items_written.get(),
+            3,
+            "first writer should receive 3 items"
+        );
+        assert_eq!(
+            composite.second.write_calls.get(),
+            1,
+            "second writer should be called"
+        );
+        assert_eq!(
+            composite.second.items_written.get(),
+            3,
+            "second writer should receive 3 items"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn should_open_both_writers_in_order() -> Result<(), BatchError> {
+        let w1 = RecordingWriter::new();
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
+        composite.open()?;
+        assert_eq!(
+            composite.first.open_calls.get(),
+            1,
+            "first writer should be opened"
+        );
+        assert_eq!(
+            composite.second.open_calls.get(),
+            1,
+            "second writer should be opened"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn should_close_both_writers_in_order() -> Result<(), BatchError> {
+        let w1 = RecordingWriter::new();
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
+        composite.close()?;
+        assert_eq!(
+            composite.first.close_calls.get(),
+            1,
+            "first writer should be closed"
+        );
+        assert_eq!(
+            composite.second.close_calls.get(),
+            1,
+            "second writer should be closed"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn should_flush_both_writers() -> Result<(), BatchError> {
+        let w1 = RecordingWriter::new();
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
+        composite.flush()?;
+        assert_eq!(
+            composite.first.flush_calls.get(),
+            1,
+            "first writer should be flushed"
+        );
+        assert_eq!(
+            composite.second.flush_calls.get(),
+            1,
+            "second writer should be flushed"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn should_short_circuit_on_write_error() {
+        let w1 = RecordingWriter::failing_write();
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
+        let result = composite.write(&[1, 2, 3]);
+        assert!(result.is_err(), "error should propagate");
+        assert_eq!(
+            composite.second.write_calls.get(),
+            0,
+            "second writer should not be called after first fails"
+        );
+    }
+
+    #[test]
+    fn should_short_circuit_on_open_error() {
+        let w1 = RecordingWriter::failing_open();
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
+        let result = composite.open();
+        assert!(result.is_err(), "error should propagate");
+        assert_eq!(
+            composite.second.open_calls.get(),
+            0,
+            "second writer should not be opened after first fails"
+        );
+    }
+
+    #[test]
+    fn should_flush_both_writers_even_when_first_fails() {
+        let w1 = RecordingWriter {
+            fail_flush: true,
+            ..RecordingWriter::new()
+        };
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
+        let result = composite.flush();
+        assert!(result.is_err(), "error should propagate");
+        assert_eq!(
+            composite.second.flush_calls.get(),
+            1,
+            "second writer should still be flushed even when first fails"
+        );
+    }
+
+    #[test]
+    fn should_close_both_writers_even_when_first_fails() {
+        let w1 = RecordingWriter {
+            fail_close: true,
+            ..RecordingWriter::new()
+        };
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter {
+            first: w1,
+            second: w2,
+        };
+        let result = composite.close();
+        assert!(result.is_err(), "error should propagate");
+        assert_eq!(
+            composite.second.close_calls.get(),
+            1,
+            "second writer should still be closed even when first fails"
+        );
+    }
+
+    #[test]
+    fn should_chain_two_writers_via_builder() -> Result<(), BatchError> {
+        let composite = CompositeItemWriterBuilder::new(RecordingWriter::new())
+            .link(RecordingWriter::new())
+            .build();
+        composite.write(&[10, 20])?;
+        assert_eq!(
+            composite.first.items_written.get(),
+            2,
+            "first writer should receive 2 items"
+        );
+        assert_eq!(
+            composite.second.items_written.get(),
+            2,
+            "second writer should receive 2 items"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn should_chain_three_writers() -> Result<(), BatchError> {
+        let composite = CompositeItemWriterBuilder::new(RecordingWriter::new())
+            .link(RecordingWriter::new())
+            .link(RecordingWriter::new())
+            .build();
+        composite.write(&[1, 2, 3, 4])?;
+        // composite type: CompositeItemWriter<CompositeItemWriter<W1, W2>, W3>
+        // composite.first is CompositeItemWriter<W1, W2>
+        // composite.second is W3
+        assert_eq!(
+            composite.first.first.items_written.get(),
+            4,
+            "writer 1 should receive 4 items"
+        );
+        assert_eq!(
+            composite.first.second.items_written.get(),
+            4,
+            "writer 2 should receive 4 items"
+        );
+        assert_eq!(
+            composite.second.items_written.get(),
+            4,
+            "writer 3 should receive 4 items"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn should_use_box_blanket_impl_as_item_writer() -> Result<(), BatchError> {
+        let composite = CompositeItemWriterBuilder::new(RecordingWriter::new())
+            .link(RecordingWriter::new())
+            .build();
+        let boxed: Box<dyn ItemWriter<i32>> = Box::new(composite);
+        boxed.write(&[5, 6, 7])?;
+        // The test verifies that Box<dyn ItemWriter<T>> can be used as an ItemWriter<T>.
+        // We can't inspect the inner writers through Box<dyn>, so asserting Ok is sufficient.
+        Ok(())
+    }
+
+    #[test]
+    fn should_use_box_concrete_writer_as_item_writer() -> Result<(), BatchError> {
+        let boxed: Box<RecordingWriter> = Box::new(RecordingWriter::new());
+        boxed.open()?;
+        boxed.write(&[1, 2])?;
+        boxed.flush()?;
+        boxed.close()?;
+        assert_eq!(
+            boxed.items_written.get(),
+            2,
+            "boxed concrete writer should delegate write"
+        );
+        assert_eq!(
+            boxed.open_calls.get(),
+            1,
+            "boxed concrete writer should delegate open"
+        );
+        assert_eq!(
+            boxed.flush_calls.get(),
+            1,
+            "boxed concrete writer should delegate flush"
+        );
+        assert_eq!(
+            boxed.close_calls.get(),
+            1,
+            "boxed concrete writer should delegate close"
         );
         Ok(())
     }

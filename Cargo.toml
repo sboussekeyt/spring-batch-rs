@@ -159,6 +159,10 @@ name = "chaining_processors"
 required-features = ["csv", "json"]
 
 [[example]]
+name = "chaining_writers"
+required-features = ["csv", "json", "logger"]
+
+[[example]]
 name = "filter_records_from_csv_with_processor"
 required-features = ["csv", "json"]
 
