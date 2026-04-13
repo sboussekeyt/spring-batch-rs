@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn should_return_error_when_columns_missing_and_items_given() {
-        use crate::{item::rdbc::DatabaseItemBinder, BatchError};
+        use crate::{BatchError, item::rdbc::DatabaseItemBinder};
         use sqlx::query_builder::Separated;
 
         struct DummyBinder;
@@ -230,7 +230,7 @@ mod tests {
 
     #[test]
     fn should_return_error_when_pool_not_configured_and_items_given() {
-        use crate::{item::rdbc::DatabaseItemBinder, BatchError};
+        use crate::{BatchError, item::rdbc::DatabaseItemBinder};
         use sqlx::query_builder::Separated;
 
         struct DummyBinder;

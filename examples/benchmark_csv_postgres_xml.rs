@@ -25,6 +25,7 @@
 
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
+    BatchError,
     core::{
         item::{ItemProcessor, PassThroughProcessor},
         job::{Job, JobBuilder},
@@ -35,9 +36,8 @@ use spring_batch_rs::{
         rdbc::{DatabaseItemBinder, RdbcItemReaderBuilder, RdbcItemWriterBuilder},
         xml::xml_writer::XmlItemWriterBuilder,
     },
-    BatchError,
 };
-use sqlx::{query_builder::Separated, FromRow, PgPool, Postgres};
+use sqlx::{FromRow, PgPool, Postgres, query_builder::Separated};
 use std::{
     env,
     fs::File,

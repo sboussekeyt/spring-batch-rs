@@ -27,6 +27,7 @@ use mongodb::{
 };
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
+    BatchError,
     core::{
         item::{ItemProcessor, PassThroughProcessor},
         job::{Job, JobBuilder},
@@ -39,7 +40,6 @@ use spring_batch_rs::{
         mongodb::mongodb_reader::{MongodbItemReaderBuilder, WithObjectId},
         mongodb::mongodb_writer::MongodbItemWriterBuilder,
     },
-    BatchError,
 };
 use std::env::temp_dir;
 

@@ -4,8 +4,8 @@ use csv::{Writer, WriterBuilder};
 use serde::Serialize;
 
 use crate::{
-    core::item::{ItemWriter, ItemWriterResult},
     BatchError,
+    core::item::{ItemWriter, ItemWriterResult},
 };
 
 /// A CSV writer that implements the `ItemWriter` trait.

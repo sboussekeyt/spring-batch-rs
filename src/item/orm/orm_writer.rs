@@ -2,8 +2,8 @@ use sea_orm::{ActiveModelTrait, DatabaseConnection, DbErr, EntityTrait, InsertRe
 use std::marker::PhantomData;
 
 use crate::{
-    core::item::{ItemWriter, ItemWriterResult},
     BatchError,
+    core::item::{ItemWriter, ItemWriterResult},
 };
 
 /// A writer for writing ORM active models directly to a database.
@@ -467,8 +467,8 @@ where
 mod tests {
     use super::*;
     use sea_orm::{
-        entity::prelude::*,
         ActiveValue::{NotSet, Set},
+        entity::prelude::*,
     };
 
     // Mock entity and active model for testing trait bounds

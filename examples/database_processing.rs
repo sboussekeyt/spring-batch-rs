@@ -17,6 +17,7 @@
 
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
+    BatchError,
     core::{
         item::{ItemProcessor, PassThroughProcessor},
         job::{Job, JobBuilder},
@@ -29,9 +30,8 @@ use spring_batch_rs::{
         logger::LoggerWriterBuilder,
         rdbc::{DatabaseItemBinder, RdbcItemReaderBuilder, RdbcItemWriterBuilder},
     },
-    BatchError,
 };
-use sqlx::{query_builder::Separated, FromRow, Sqlite, SqlitePool};
+use sqlx::{FromRow, Sqlite, SqlitePool, query_builder::Separated};
 use std::env::temp_dir;
 
 // =============================================================================

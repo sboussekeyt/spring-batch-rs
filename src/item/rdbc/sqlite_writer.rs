@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn should_return_error_when_columns_missing_and_items_given() {
-        use crate::{item::rdbc::DatabaseItemBinder, BatchError};
+        use crate::{BatchError, item::rdbc::DatabaseItemBinder};
         use sqlx::query_builder::Separated;
 
         struct DummyBinder;
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn should_return_error_when_pool_not_configured_and_items_given() {
-        use crate::{item::rdbc::DatabaseItemBinder, BatchError};
+        use crate::{BatchError, item::rdbc::DatabaseItemBinder};
         use sqlx::query_builder::Separated;
 
         struct DummyBinder;
@@ -266,7 +266,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn should_write_items_to_in_memory_sqlite() {
         use crate::item::rdbc::DatabaseItemBinder;
-        use sqlx::{query_builder::Separated, SqlitePool};
+        use sqlx::{SqlitePool, query_builder::Separated};
 
         struct StringBinder;
         impl DatabaseItemBinder<String, Sqlite> for StringBinder {
@@ -300,8 +300,8 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn should_return_error_when_sqlite_query_fails() {
-        use crate::{item::rdbc::DatabaseItemBinder, BatchError};
-        use sqlx::{query_builder::Separated, SqlitePool};
+        use crate::{BatchError, item::rdbc::DatabaseItemBinder};
+        use sqlx::{SqlitePool, query_builder::Separated};
 
         struct StringBinder;
         impl DatabaseItemBinder<String, Sqlite> for StringBinder {

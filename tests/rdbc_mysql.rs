@@ -5,7 +5,7 @@ use std::{io::Read, path::Path};
 use anyhow::Error;
 use helpers::{
     common::{DEFAULT_CHUNK_SIZE, EXPECTED_PERSON_COUNT, EXPECTED_PERSON_CSV, SAMPLE_CARS_CSV},
-    mysql_helpers::{Car, MySqlCarItemBinder, CREATE_CARS_TABLE_SQL, SELECT_ALL_CARS_SQL},
+    mysql_helpers::{CREATE_CARS_TABLE_SQL, Car, MySqlCarItemBinder, SELECT_ALL_CARS_SQL},
 };
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
@@ -19,7 +19,7 @@ use spring_batch_rs::{
         rdbc::{RdbcItemReaderBuilder, RdbcItemWriterBuilder},
     },
 };
-use sqlx::{migrate::Migrator, FromRow, MySqlPool};
+use sqlx::{FromRow, MySqlPool, migrate::Migrator};
 use tempfile::NamedTempFile;
 use testcontainers_modules::{mysql, testcontainers::runners::AsyncRunner};
 

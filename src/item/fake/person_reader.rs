@@ -1,10 +1,10 @@
 use std::cell::Cell;
 use std::fmt;
 
-use ::serde::{ser::Error, Deserialize, Serialize, Serializer};
+use ::serde::{Deserialize, Serialize, Serializer, ser::Error};
 use fake::faker::internet::raw::*;
 use fake::locales::*;
-use fake::{faker::name::raw::*, Fake};
+use fake::{Fake, faker::name::raw::*};
 use log::debug;
 use rand::RngExt;
 

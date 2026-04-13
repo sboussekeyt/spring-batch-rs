@@ -1,8 +1,8 @@
 use mongodb::{options::InsertManyOptions, sync::Collection};
 
 use crate::{
-    core::item::{ItemWriter, ItemWriterResult},
     BatchError,
+    core::item::{ItemWriter, ItemWriterResult},
 };
 
 /// Represents a MongoDB item writer.

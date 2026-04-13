@@ -67,8 +67,8 @@
 //! ```
 
 use crate::{
-    core::step::{RepeatStatus, StepExecution, Tasklet},
     BatchError,
+    core::step::{RepeatStatus, StepExecution, Tasklet},
 };
 use log::{debug, info, warn};
 use std::{
@@ -76,7 +76,7 @@ use std::{
     io::{self, Write},
     path::{Path, PathBuf},
 };
-use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
+use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
 /// A tasklet for creating ZIP archives from files and directories.
 ///

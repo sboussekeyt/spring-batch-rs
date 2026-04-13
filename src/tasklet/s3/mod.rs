@@ -70,8 +70,8 @@ pub mod get;
 pub mod put;
 
 use crate::BatchError;
-use aws_config::meta::region::RegionProviderChain;
 use aws_config::BehaviorVersion;
+use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::config::Builder as S3ConfigBuilder;
 use aws_sdk_s3::config::Credentials;
 

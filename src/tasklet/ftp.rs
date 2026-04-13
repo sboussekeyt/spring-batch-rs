@@ -110,8 +110,8 @@
 //! ```
 
 use crate::{
-    core::step::{RepeatStatus, StepExecution, Tasklet},
     BatchError,
+    core::step::{RepeatStatus, StepExecution, Tasklet},
 };
 use log::info;
 use std::{
@@ -1931,10 +1931,12 @@ mod tests {
             .password("pass")
             .build();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("FTP host is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("FTP host is required")
+        );
 
         // Test missing username
         let result = FtpGetTaskletBuilder::new()
@@ -1942,10 +1944,12 @@ mod tests {
             .password("pass")
             .build();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("FTP username is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("FTP username is required")
+        );
 
         // Test missing password
         let result = FtpPutTaskletBuilder::new()
@@ -1953,10 +1957,12 @@ mod tests {
             .username("user")
             .build();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("FTP password is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("FTP password is required")
+        );
 
         // Test missing local file for PUT
         let result = FtpPutTaskletBuilder::new()
@@ -1966,10 +1972,12 @@ mod tests {
             .remote_file("/remote/file.txt")
             .build();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Local file path is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Local file path is required")
+        );
 
         // Test missing remote file for GET
         let result = FtpGetTaskletBuilder::new()
@@ -1979,10 +1987,12 @@ mod tests {
             .local_file("/local/file.txt")
             .build();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Remote file path is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Remote file path is required")
+        );
     }
 
     #[test]
@@ -1996,10 +2006,12 @@ mod tests {
             "/remote/file.txt",
         );
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Local file does not exist"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Local file does not exist")
+        );
     }
 
     #[test]
@@ -2082,9 +2094,11 @@ mod tests {
         assert!(result.is_err());
         let error = result.unwrap_err();
         assert!(matches!(error, BatchError::Io(_)));
-        assert!(error
-            .to_string()
-            .contains("Failed to connect to FTP server"));
+        assert!(
+            error
+                .to_string()
+                .contains("Failed to connect to FTP server")
+        );
 
         fs::remove_file(&test_file).ok();
     }
@@ -2110,9 +2124,11 @@ mod tests {
         assert!(result.is_err());
         let error = result.unwrap_err();
         assert!(matches!(error, BatchError::Io(_)));
-        assert!(error
-            .to_string()
-            .contains("Failed to connect to FTP server"));
+        assert!(
+            error
+                .to_string()
+                .contains("Failed to connect to FTP server")
+        );
     }
 
     #[test]
@@ -2283,10 +2299,12 @@ mod tests {
             .password("pass")
             .build();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("FTP host is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("FTP host is required")
+        );
 
         // Test missing username for folder download
         let result = FtpGetFolderTaskletBuilder::new()
@@ -2294,10 +2312,12 @@ mod tests {
             .password("pass")
             .build();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("FTP username is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("FTP username is required")
+        );
 
         // Test missing local folder for PUT
         let result = FtpPutFolderTaskletBuilder::new()
@@ -2307,10 +2327,12 @@ mod tests {
             .remote_folder("/remote/folder")
             .build();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Local folder path is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Local folder path is required")
+        );
 
         // Test missing remote folder for GET
         let result = FtpGetFolderTaskletBuilder::new()
@@ -2320,10 +2342,12 @@ mod tests {
             .local_folder("/local/folder")
             .build();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Remote folder path is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Remote folder path is required")
+        );
     }
 
     #[test]
@@ -2337,10 +2361,12 @@ mod tests {
             "/remote/folder",
         );
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Local folder does not exist"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Local folder does not exist")
+        );
     }
 
     #[test]
@@ -2358,10 +2384,12 @@ mod tests {
             "/remote/folder",
         );
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Local path is not a directory"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Local path is not a directory")
+        );
 
         fs::remove_file(&test_file).ok();
     }
@@ -2460,9 +2488,11 @@ mod tests {
         assert!(result.is_err());
         let error = result.unwrap_err();
         assert!(matches!(error, BatchError::Io(_)));
-        assert!(error
-            .to_string()
-            .contains("Failed to connect to FTP server"));
+        assert!(
+            error
+                .to_string()
+                .contains("Failed to connect to FTP server")
+        );
 
         fs::remove_dir_all(&test_folder).ok();
     }
@@ -2488,9 +2518,11 @@ mod tests {
         assert!(result.is_err());
         let error = result.unwrap_err();
         assert!(matches!(error, BatchError::Io(_)));
-        assert!(error
-            .to_string()
-            .contains("Failed to connect to FTP server"));
+        assert!(
+            error
+                .to_string()
+                .contains("Failed to connect to FTP server")
+        );
     }
 
     #[test]

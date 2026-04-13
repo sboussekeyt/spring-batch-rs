@@ -42,35 +42,80 @@ fn create_test_directory_structure(base_dir: &Path) -> Result<(), std::io::Error
     // Create test files with various extensions and content
     let test_files = vec![
         // Root level files
-        (base_dir.join("readme.txt"), "This is a README file\nWith multiple lines\nAnd some content."),
-        (base_dir.join("license.md"), "# License\n\nMIT License\n\nCopyright (c) 2024"),
-
+        (
+            base_dir.join("readme.txt"),
+            "This is a README file\nWith multiple lines\nAnd some content.",
+        ),
+        (
+            base_dir.join("license.md"),
+            "# License\n\nMIT License\n\nCopyright (c) 2024",
+        ),
         // Data directory files
-        (data_dir.join("data.csv"), "name,age,city\nJohn,30,New York\nJane,25,Los Angeles\nBob,35,Chicago"),
-        (data_dir.join("info.txt"), "Important information about the data processing."),
-        (data_dir.join("backup.bak"), "Backup file content that should be preserved."),
-
+        (
+            data_dir.join("data.csv"),
+            "name,age,city\nJohn,30,New York\nJane,25,Los Angeles\nBob,35,Chicago",
+        ),
+        (
+            data_dir.join("info.txt"),
+            "Important information about the data processing.",
+        ),
+        (
+            data_dir.join("backup.bak"),
+            "Backup file content that should be preserved.",
+        ),
         // Documents directory files
-        (docs_dir.join("manual.txt"), "User Manual\n============\n\n1. Getting Started\n2. Configuration\n3. Advanced Usage"),
-        (docs_dir.join("guide.md"), "# User Guide\n\n## Introduction\nThis is a comprehensive guide."),
-        (docs_dir.join("notes.txt"), "Development notes and important reminders."),
-
+        (
+            docs_dir.join("manual.txt"),
+            "User Manual\n============\n\n1. Getting Started\n2. Configuration\n3. Advanced Usage",
+        ),
+        (
+            docs_dir.join("guide.md"),
+            "# User Guide\n\n## Introduction\nThis is a comprehensive guide.",
+        ),
+        (
+            docs_dir.join("notes.txt"),
+            "Development notes and important reminders.",
+        ),
         // Nested directory files
-        (nested_dir.join("deep.txt"), "This file is deeply nested in the directory structure."),
-        (nested_dir.join("config.json"), r#"{"setting": "value", "enabled": true}"#),
-
+        (
+            nested_dir.join("deep.txt"),
+            "This file is deeply nested in the directory structure.",
+        ),
+        (
+            nested_dir.join("config.json"),
+            r#"{"setting": "value", "enabled": true}"#,
+        ),
         // Config directory files
-        (config_dir.join("app.properties"), "app.name=TestApp\napp.version=1.0.0\ndebug=true"),
-        (config_dir.join("database.json"), r#"{"host": "localhost", "port": 5432, "database": "test"}"#),
-
+        (
+            config_dir.join("app.properties"),
+            "app.name=TestApp\napp.version=1.0.0\ndebug=true",
+        ),
+        (
+            config_dir.join("database.json"),
+            r#"{"host": "localhost", "port": 5432, "database": "test"}"#,
+        ),
         // Log files
-        (logs_dir.join("application.log"), "2024-01-01 10:00:00 INFO Application started\n2024-01-01 10:01:00 INFO Processing data\n2024-01-01 10:02:00 INFO Processing completed"),
-        (logs_dir.join("error.log"), "2024-01-01 10:01:30 ERROR Database connection failed\n2024-01-01 10:01:35 ERROR Retrying connection"),
-        (logs_dir.join("debug.log"), "2024-01-01 10:00:01 DEBUG Initializing components\n2024-01-01 10:00:02 DEBUG Loading configuration"),
-        (logs_dir.join("access.log"), "127.0.0.1 - - [01/Jan/2024:10:00:00 +0000] \"GET / HTTP/1.1\" 200 1234"),
-
+        (
+            logs_dir.join("application.log"),
+            "2024-01-01 10:00:00 INFO Application started\n2024-01-01 10:01:00 INFO Processing data\n2024-01-01 10:02:00 INFO Processing completed",
+        ),
+        (
+            logs_dir.join("error.log"),
+            "2024-01-01 10:01:30 ERROR Database connection failed\n2024-01-01 10:01:35 ERROR Retrying connection",
+        ),
+        (
+            logs_dir.join("debug.log"),
+            "2024-01-01 10:00:01 DEBUG Initializing components\n2024-01-01 10:00:02 DEBUG Loading configuration",
+        ),
+        (
+            logs_dir.join("access.log"),
+            "127.0.0.1 - - [01/Jan/2024:10:00:00 +0000] \"GET / HTTP/1.1\" 200 1234",
+        ),
         // Temporary files (should be excluded in some tests)
-        (temp_dir.join("cache.tmp"), "Temporary cache data that should be excluded in filtered tests"),
+        (
+            temp_dir.join("cache.tmp"),
+            "Temporary cache data that should be excluded in filtered tests",
+        ),
         (temp_dir.join("session.tmp"), "Temporary session data"),
         (temp_dir.join("processing.tmp"), "Temporary processing file"),
     ];

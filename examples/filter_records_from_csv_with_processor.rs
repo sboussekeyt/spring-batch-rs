@@ -20,13 +20,13 @@ use std::env::temp_dir;
 
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
+    BatchError,
     core::{
         item::{ItemProcessor, ItemProcessorResult},
         job::{Job, JobBuilder},
         step::StepBuilder,
     },
     item::{csv::csv_reader::CsvItemReaderBuilder, json::json_writer::JsonItemWriterBuilder},
-    BatchError,
 };
 
 /// A person record read from the CSV source.

@@ -24,12 +24,12 @@
 //! 4. Prints job execution status
 
 use spring_batch_rs::{
+    BatchError,
     core::{
         job::{Job, JobBuilder},
         step::StepBuilder,
     },
     tasklet::s3::{get::S3GetTaskletBuilder, put::S3PutTaskletBuilder},
-    BatchError,
 };
 use std::env::temp_dir;
 use std::fs;

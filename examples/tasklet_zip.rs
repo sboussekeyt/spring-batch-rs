@@ -16,12 +16,12 @@
 
 use log::info;
 use spring_batch_rs::{
+    BatchError,
     core::{
         job::{Job, JobBuilder},
         step::StepBuilder,
     },
     tasklet::zip::ZipTaskletBuilder,
-    BatchError,
 };
 use std::{
     env::temp_dir,

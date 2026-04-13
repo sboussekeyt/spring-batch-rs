@@ -26,6 +26,7 @@
 //! ```
 
 use spring_batch_rs::{
+    BatchError,
     core::{
         job::{Job, JobBuilder},
         step::StepBuilder,
@@ -34,7 +35,6 @@ use spring_batch_rs::{
         FtpGetFolderTaskletBuilder, FtpGetTaskletBuilder, FtpPutFolderTaskletBuilder,
         FtpPutTaskletBuilder,
     },
-    BatchError,
 };
 use std::{
     env::temp_dir,

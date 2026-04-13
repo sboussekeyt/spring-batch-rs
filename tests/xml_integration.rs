@@ -2,7 +2,7 @@ pub mod common;
 
 use std::{
     env::temp_dir,
-    fs::{self, read_to_string, File},
+    fs::{self, File, read_to_string},
     io::{Cursor, Read},
 };
 

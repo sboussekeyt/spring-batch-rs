@@ -2,11 +2,11 @@ pub mod common;
 
 use std::{
     env::temp_dir,
-    fs::{self, read_to_string, File},
+    fs::{self, File, read_to_string},
     path::Path,
 };
 
-use ::serde::{ser::Error, Deserialize, Serialize};
+use ::serde::{Deserialize, Serialize, ser::Error};
 use rand::distr::{Alphanumeric, SampleString};
 use serde::Serializer;
 
@@ -21,7 +21,7 @@ use spring_batch_rs::{
     item::json::json_reader::JsonItemReaderBuilder,
     item::json::json_writer::JsonItemWriterBuilder,
 };
-use time::{format_description, Date, Month};
+use time::{Date, Month, format_description};
 
 fn date_serializer<S>(date: &Date, serializer: S) -> Result<S::Ok, S::Error>
 where

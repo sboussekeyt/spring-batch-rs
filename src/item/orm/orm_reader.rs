@@ -3,8 +3,8 @@ use std::cell::{Cell, RefCell};
 use sea_orm::{DatabaseConnection, DbErr, EntityTrait, FromQueryResult, PaginatorTrait, Select};
 
 use crate::{
-    core::item::{ItemReader, ItemReaderResult},
     BatchError,
+    core::item::{ItemReader, ItemReaderResult},
 };
 
 /// A reader for reading entities from a database using SeaORM.
@@ -811,7 +811,7 @@ where
 mod tests {
     use super::*;
     use crate::core::item::ItemReader;
-    use sea_orm::{entity::prelude::*, DatabaseBackend, MockDatabase};
+    use sea_orm::{DatabaseBackend, MockDatabase, entity::prelude::*};
 
     // Minimal entity definition for testing
     #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]

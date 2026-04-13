@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 
 use mongodb::{
-    bson::{doc, oid::ObjectId, Document},
+    bson::{Document, doc, oid::ObjectId},
     options::FindOptions,
     sync::Collection,
 };

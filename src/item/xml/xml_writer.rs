@@ -1,8 +1,8 @@
 use crate::core::item::{ItemWriter, ItemWriterResult};
 use crate::error::BatchError;
 use quick_xml::{
-    events::{BytesEnd, BytesStart, Event},
     Writer,
+    events::{BytesEnd, BytesStart, Event},
 };
 use serde::Serialize;
 use std::cell::RefCell;

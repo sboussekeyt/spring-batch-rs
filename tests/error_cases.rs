@@ -22,7 +22,7 @@ use spring_batch_rs::{
     item::{csv::csv_reader::CsvItemReaderBuilder, json::json_writer::JsonItemWriterBuilder},
 };
 
-use time::{format_description, Date};
+use time::{Date, format_description};
 
 fn date_serializer<S>(date: &Date, serializer: S) -> Result<S::Ok, S::Error>
 where

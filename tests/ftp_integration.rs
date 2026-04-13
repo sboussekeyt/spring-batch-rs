@@ -23,9 +23,9 @@ mod ftp_tests {
     };
     #[allow(unused_imports)]
     use testcontainers::{
+        GenericImage, ImageExt,
         core::{ContainerPort, WaitFor},
         runners::AsyncRunner,
-        GenericImage, ImageExt,
     };
 
     #[allow(unused_imports)]

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::item::rdbc::DatabaseItemBinder;
-use sqlx::{query_builder::Separated, FromRow, MySql};
+use sqlx::{FromRow, MySql, query_builder::Separated};
 
 /// MySQL-specific item binder for Car items.
 ///
