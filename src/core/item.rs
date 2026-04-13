@@ -665,7 +665,7 @@ impl<P> CompositeItemProcessorBuilder<P> {
 /// let c1 = Rc::new(Cell::new(0usize));
 /// let c2 = Rc::new(Cell::new(0usize));
 /// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
-///     .add(CountingWriter::new(c2.clone()))
+///     .link(CountingWriter::new(c2.clone()))
 ///     .build();
 /// composite.write(&[1, 2, 3]).unwrap();
 /// assert_eq!(c1.get(), 3);
@@ -695,14 +695,19 @@ where
         self.second.write(items)
     }
 
-    /// Flushes `first`, then `second`. Short-circuits on the first error.
+    /// Flushes both writers regardless of errors. Returns the first error encountered.
+    ///
+    /// Both `first` and `second` are always flushed, even if `first` fails,
+    /// to avoid silently skipping buffered output in the second writer.
     ///
     /// # Errors
     ///
-    /// Returns [`BatchError::ItemWriter`] if either flush fails.
+    /// Returns [`BatchError::ItemWriter`] if either flush fails. If both fail,
+    /// the error from `first` is returned.
     fn flush(&self) -> ItemWriterResult {
-        self.first.flush()?;
-        self.second.flush()
+        let r1 = self.first.flush();
+        let r2 = self.second.flush();
+        r1.and(r2)
     }
 
     /// Opens `first`, then `second`. Short-circuits on the first error.
@@ -715,14 +720,19 @@ where
         self.second.open()
     }
 
-    /// Closes `first`, then `second`. Short-circuits on the first error.
+    /// Closes both writers regardless of errors. Returns the first error encountered.
+    ///
+    /// Both `first` and `second` are always closed, even if `first` fails,
+    /// to avoid resource leaks.
     ///
     /// # Errors
     ///
-    /// Returns [`BatchError::ItemWriter`] if either close fails.
+    /// Returns [`BatchError::ItemWriter`] if either close fails. If both fail,
+    /// the error from `first` is returned.
     fn close(&self) -> ItemWriterResult {
-        self.first.close()?;
-        self.second.close()
+        let r1 = self.first.close();
+        let r2 = self.second.close();
+        r1.and(r2)
     }
 }
 
@@ -762,7 +772,7 @@ where
 /// let c1 = Rc::new(Cell::new(0usize));
 /// let c2 = Rc::new(Cell::new(0usize));
 /// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
-///     .add(CountingWriter::new(c2.clone()))
+///     .link(CountingWriter::new(c2.clone()))
 ///     .build();
 ///
 /// composite.write(&[1, 2, 3]).unwrap();
@@ -792,8 +802,8 @@ where
 /// let c2 = Rc::new(Cell::new(0usize));
 /// let c3 = Rc::new(Cell::new(0usize));
 /// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
-///     .add(CountingWriter::new(c2.clone()))
-///     .add(CountingWriter::new(c3.clone()))
+///     .link(CountingWriter::new(c2.clone()))
+///     .link(CountingWriter::new(c3.clone()))
 ///     .build();
 ///
 /// composite.write(&[1, 2]).unwrap();
@@ -842,7 +852,7 @@ impl<W> CompositeItemWriterBuilder<W> {
     ///
     /// # Parameters
     ///
-    /// - `next`: The writer to add to the chain.
+    /// - `next`: The writer to link into the chain.
     ///
     /// # Examples
     ///
@@ -865,7 +875,7 @@ impl<W> CompositeItemWriterBuilder<W> {
     /// let c1 = Rc::new(Cell::new(0usize));
     /// let c2 = Rc::new(Cell::new(0usize));
     /// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
-    ///     .add(CountingWriter::new(c2.clone()))
+    ///     .link(CountingWriter::new(c2.clone()))
     ///     .build();
     ///
     /// composite.write(&[1, 2, 3]).unwrap();
@@ -873,7 +883,7 @@ impl<W> CompositeItemWriterBuilder<W> {
     /// assert_eq!(c2.get(), 3, "second writer should receive all items");
     /// ```
     #[allow(clippy::should_implement_trait)]
-    pub fn add<W2>(self, next: W2) -> CompositeItemWriterBuilder<CompositeItemWriter<W, W2>> {
+    pub fn link<W2>(self, next: W2) -> CompositeItemWriterBuilder<CompositeItemWriter<W, W2>> {
         CompositeItemWriterBuilder {
             writer: CompositeItemWriter {
                 first: self.writer,
@@ -884,7 +894,7 @@ impl<W> CompositeItemWriterBuilder<W> {
 
     /// Builds and returns the composite writer.
     ///
-    /// Returns the accumulated writer value `W`. When chained via `add`, `W` is a
+    /// Returns the accumulated writer value `W`. When chained via `link`, `W` is a
     /// nested `CompositeItemWriter` such as
     /// `CompositeItemWriter<CompositeItemWriter<W1, W2>, W3>`.
     ///
@@ -911,7 +921,7 @@ impl<W> CompositeItemWriterBuilder<W> {
     /// let c1 = Rc::new(Cell::new(0usize));
     /// let c2 = Rc::new(Cell::new(0usize));
     /// let composite = CompositeItemWriterBuilder::new(CountingWriter::new(c1.clone()))
-    ///     .add(CountingWriter::new(c2.clone()))
+    ///     .link(CountingWriter::new(c2.clone()))
     ///     .build();
     ///
     /// composite.write(&[1, 2, 3]).unwrap();
@@ -1496,7 +1506,7 @@ mod tests {
     }
 
     #[test]
-    fn should_short_circuit_on_flush_error() {
+    fn should_flush_both_writers_even_when_first_fails() {
         let w1 = RecordingWriter {
             fail_flush: true,
             ..RecordingWriter::new()
@@ -1510,13 +1520,13 @@ mod tests {
         assert!(result.is_err(), "error should propagate");
         assert_eq!(
             composite.second.flush_calls.get(),
-            0,
-            "second writer should not be flushed after first fails"
+            1,
+            "second writer should still be flushed even when first fails"
         );
     }
 
     #[test]
-    fn should_short_circuit_on_close_error() {
+    fn should_close_both_writers_even_when_first_fails() {
         let w1 = RecordingWriter {
             fail_close: true,
             ..RecordingWriter::new()
@@ -1530,15 +1540,15 @@ mod tests {
         assert!(result.is_err(), "error should propagate");
         assert_eq!(
             composite.second.close_calls.get(),
-            0,
-            "second writer should not be closed after first fails"
+            1,
+            "second writer should still be closed even when first fails"
         );
     }
 
     #[test]
     fn should_chain_two_writers_via_builder() -> Result<(), BatchError> {
         let composite = CompositeItemWriterBuilder::new(RecordingWriter::new())
-            .add(RecordingWriter::new())
+            .link(RecordingWriter::new())
             .build();
         composite.write(&[10, 20])?;
         assert_eq!(
@@ -1557,8 +1567,8 @@ mod tests {
     #[test]
     fn should_chain_three_writers() -> Result<(), BatchError> {
         let composite = CompositeItemWriterBuilder::new(RecordingWriter::new())
-            .add(RecordingWriter::new())
-            .add(RecordingWriter::new())
+            .link(RecordingWriter::new())
+            .link(RecordingWriter::new())
             .build();
         composite.write(&[1, 2, 3, 4])?;
         // composite type: CompositeItemWriter<CompositeItemWriter<W1, W2>, W3>
@@ -1585,7 +1595,7 @@ mod tests {
     #[test]
     fn should_use_box_blanket_impl_as_item_writer() -> Result<(), BatchError> {
         let composite = CompositeItemWriterBuilder::new(RecordingWriter::new())
-            .add(RecordingWriter::new())
+            .link(RecordingWriter::new())
             .build();
         let boxed: Box<dyn ItemWriter<i32>> = Box::new(composite);
         boxed.write(&[5, 6, 7])?;

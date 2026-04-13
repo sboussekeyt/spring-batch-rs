@@ -68,7 +68,7 @@ id,name,price
 
     // 3. Build composite fan-out writer: same items go to logger AND json file
     let composite = CompositeItemWriterBuilder::new(logger_writer)
-        .add(json_writer)
+        .link(json_writer)
         .build();
 
     // 4. Pass-through processor — items are not transformed
