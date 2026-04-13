@@ -625,6 +625,101 @@ impl<P> CompositeItemProcessorBuilder<P> {
     }
 }
 
+/// A composite writer that fans out the same chunk to two writers sequentially using static dispatch.
+///
+/// Both writers receive identical slices on every `write` call. All four lifecycle
+/// methods (`write`, `flush`, `open`, `close`) are forwarded to `first` then `second`,
+/// short-circuiting on the first `Err`. If `open()` on `first` fails, `second.open()`
+/// is never called — lifecycle management is the step's responsibility.
+///
+/// Both writers are stored by value — no heap allocation occurs inside the struct.
+/// The type encodes the full chain:
+/// `CompositeItemWriter<CompositeItemWriter<W1, W2>, W3>` for three writers.
+///
+/// # Type Parameters
+///
+/// - `W1`: The first writer type. Must implement `ItemWriter<T>`.
+/// - `W2`: The second writer type. Must implement `ItemWriter<T>`.
+///
+/// # Examples
+///
+/// ```
+/// use spring_batch_rs::core::item::{ItemWriter, CompositeItemWriter};
+///
+/// struct CountingWriter { count: std::cell::Cell<usize> }
+/// impl CountingWriter { fn new() -> Self { Self { count: std::cell::Cell::new(0) } } }
+/// impl ItemWriter<i32> for CountingWriter {
+///     fn write(&self, items: &[i32]) -> Result<(), spring_batch_rs::BatchError> {
+///         self.count.set(self.count.get() + items.len());
+///         Ok(())
+///     }
+/// }
+///
+/// let composite = CompositeItemWriter {
+///     first: CountingWriter::new(),
+///     second: CountingWriter::new(),
+/// };
+/// composite.write(&[1, 2, 3]).unwrap();
+/// assert_eq!(composite.first.count.get(), 3);
+/// assert_eq!(composite.second.count.get(), 3);
+/// ```
+///
+/// # Errors
+///
+/// Returns [`BatchError`] if any writer in the chain returns an error.
+pub struct CompositeItemWriter<W1, W2> {
+    /// The first writer in the fan-out chain.
+    pub first: W1,
+    /// The second writer in the fan-out chain.
+    pub second: W2,
+}
+
+impl<T, W1, W2> ItemWriter<T> for CompositeItemWriter<W1, W2>
+where
+    W1: ItemWriter<T>,
+    W2: ItemWriter<T>,
+{
+    /// Writes `items` to `first`, then to `second`. Short-circuits on the first error.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BatchError::ItemWriter`] if either writer fails.
+    fn write(&self, items: &[T]) -> ItemWriterResult {
+        self.first.write(items)?;
+        self.second.write(items)
+    }
+
+    /// Flushes `first`, then `second`. Short-circuits on the first error.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BatchError::ItemWriter`] if either flush fails.
+    fn flush(&self) -> ItemWriterResult {
+        self.first.flush()?;
+        self.second.flush()
+    }
+
+    /// Opens `first`, then `second`. Short-circuits on the first error.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BatchError::ItemWriter`] if either open fails.
+    fn open(&self) -> ItemWriterResult {
+        self.first.open()?;
+        self.second.open()
+    }
+
+    /// Closes `first`, then `second`. Short-circuits on the first error.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BatchError::ItemWriter`] if either close fails.
+    fn close(&self) -> ItemWriterResult {
+        self.first.close()?;
+        self.second.close()
+    }
+}
+
 /// Allows any `Box<P>` where `P: ItemProcessor<I, O>` to be used wherever
 /// `&dyn ItemProcessor<I, O>` is expected — including boxed concrete types
 /// (`Box<MyProcessor>`) and boxed trait objects (`Box<dyn ItemProcessor<I, O>>`).
@@ -965,5 +1060,131 @@ mod tests {
             "boxed concrete processor should delegate to inner processor"
         );
         Ok(())
+    }
+
+    // --- CompositeItemWriter ---
+
+    use std::cell::Cell;
+
+    struct RecordingWriter {
+        write_calls: Cell<usize>,
+        items_written: Cell<usize>,
+        open_calls: Cell<usize>,
+        close_calls: Cell<usize>,
+        flush_calls: Cell<usize>,
+        fail_write: bool,
+        fail_open: bool,
+    }
+
+    impl RecordingWriter {
+        fn new() -> Self {
+            Self {
+                write_calls: Cell::new(0),
+                items_written: Cell::new(0),
+                open_calls: Cell::new(0),
+                close_calls: Cell::new(0),
+                flush_calls: Cell::new(0),
+                fail_write: false,
+                fail_open: false,
+            }
+        }
+        fn failing_write() -> Self {
+            Self { fail_write: true, ..Self::new() }
+        }
+        fn failing_open() -> Self {
+            Self { fail_open: true, ..Self::new() }
+        }
+    }
+
+    impl ItemWriter<i32> for RecordingWriter {
+        fn write(&self, items: &[i32]) -> ItemWriterResult {
+            if self.fail_write {
+                return Err(BatchError::ItemWriter("forced write failure".to_string()));
+            }
+            self.write_calls.set(self.write_calls.get() + 1);
+            self.items_written.set(self.items_written.get() + items.len());
+            Ok(())
+        }
+        fn open(&self) -> ItemWriterResult {
+            if self.fail_open {
+                return Err(BatchError::ItemWriter("forced open failure".to_string()));
+            }
+            self.open_calls.set(self.open_calls.get() + 1);
+            Ok(())
+        }
+        fn close(&self) -> ItemWriterResult {
+            self.close_calls.set(self.close_calls.get() + 1);
+            Ok(())
+        }
+        fn flush(&self) -> ItemWriterResult {
+            self.flush_calls.set(self.flush_calls.get() + 1);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn should_write_to_both_writers() -> Result<(), BatchError> {
+        let w1 = RecordingWriter::new();
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter { first: w1, second: w2 };
+        composite.write(&[1, 2, 3])?;
+        assert_eq!(composite.first.write_calls.get(), 1, "first writer should be called");
+        assert_eq!(composite.first.items_written.get(), 3, "first writer should receive 3 items");
+        assert_eq!(composite.second.write_calls.get(), 1, "second writer should be called");
+        assert_eq!(composite.second.items_written.get(), 3, "second writer should receive 3 items");
+        Ok(())
+    }
+
+    #[test]
+    fn should_open_both_writers_in_order() -> Result<(), BatchError> {
+        let w1 = RecordingWriter::new();
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter { first: w1, second: w2 };
+        composite.open()?;
+        assert_eq!(composite.first.open_calls.get(), 1, "first writer should be opened");
+        assert_eq!(composite.second.open_calls.get(), 1, "second writer should be opened");
+        Ok(())
+    }
+
+    #[test]
+    fn should_close_both_writers_in_order() -> Result<(), BatchError> {
+        let w1 = RecordingWriter::new();
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter { first: w1, second: w2 };
+        composite.close()?;
+        assert_eq!(composite.first.close_calls.get(), 1, "first writer should be closed");
+        assert_eq!(composite.second.close_calls.get(), 1, "second writer should be closed");
+        Ok(())
+    }
+
+    #[test]
+    fn should_flush_both_writers() -> Result<(), BatchError> {
+        let w1 = RecordingWriter::new();
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter { first: w1, second: w2 };
+        composite.flush()?;
+        assert_eq!(composite.first.flush_calls.get(), 1, "first writer should be flushed");
+        assert_eq!(composite.second.flush_calls.get(), 1, "second writer should be flushed");
+        Ok(())
+    }
+
+    #[test]
+    fn should_short_circuit_on_write_error() {
+        let w1 = RecordingWriter::failing_write();
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter { first: w1, second: w2 };
+        let result = composite.write(&[1, 2, 3]);
+        assert!(result.is_err(), "error should propagate");
+        assert_eq!(composite.second.write_calls.get(), 0, "second writer should not be called after first fails");
+    }
+
+    #[test]
+    fn should_short_circuit_on_open_error() {
+        let w1 = RecordingWriter::failing_open();
+        let w2 = RecordingWriter::new();
+        let composite = CompositeItemWriter { first: w1, second: w2 };
+        let result = composite.open();
+        assert!(result.is_err(), "error should propagate");
+        assert_eq!(composite.second.open_calls.get(), 0, "second writer should not be opened after first fails");
     }
 }
