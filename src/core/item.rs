@@ -1455,8 +1455,14 @@ mod tests {
     #[test]
     fn should_use_box_concrete_writer_as_item_writer() -> Result<(), BatchError> {
         let boxed: Box<RecordingWriter> = Box::new(RecordingWriter::new());
+        boxed.open()?;
         boxed.write(&[1, 2])?;
+        boxed.flush()?;
+        boxed.close()?;
         assert_eq!(boxed.items_written.get(), 2, "boxed concrete writer should delegate write");
+        assert_eq!(boxed.open_calls.get(), 1, "boxed concrete writer should delegate open");
+        assert_eq!(boxed.flush_calls.get(), 1, "boxed concrete writer should delegate flush");
+        assert_eq!(boxed.close_calls.get(), 1, "boxed concrete writer should delegate close");
         Ok(())
     }
 }
