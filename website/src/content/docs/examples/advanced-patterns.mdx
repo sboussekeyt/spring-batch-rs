@@ -212,6 +212,74 @@ cargo run --example chaining_processors --features csv,json
 
 ---
 
+## Chaining Item Writers (Fan-out)
+
+<Aside type="tip">
+  View the complete source: [examples/chaining_writers.rs](https://github.com/sboussekeyt/spring-batch-rs/blob/main/examples/chaining_writers.rs)
+</Aside>
+
+`CompositeItemWriterBuilder` lets you send the same chunk of items to multiple writers
+simultaneously. Writers are called in order; if any writer fails the chain short-circuits
+and returns the error.
+
+### How It Works
+
+```
+chunk → w1 → w2 → ... → wN   (all receive the same slice)
+          ↓ Err?
+         stop — error propagated
+```
+
+### Fan-out to Logger and JSON File
+
+```rust
+use spring_batch_rs::core::item::CompositeItemWriterBuilder;
+use spring_batch_rs::item::{
+    json::json_writer::JsonItemWriterBuilder,
+    logger::LoggerWriterBuilder,
+};
+use serde::{Deserialize, Serialize};
+use std::env::temp_dir;
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct Product { id: u32, name: String, price: f64 }
+
+let json_writer = JsonItemWriterBuilder::<Product>::new()
+    .from_path(temp_dir().join("products.json"));
+let logger_writer = LoggerWriterBuilder::<Product>::new().build();
+
+// Both writers receive identical item slices on every chunk.
+let composite = CompositeItemWriterBuilder::new(logger_writer)
+    .add(json_writer)
+    .build();
+
+let step = StepBuilder::new("fan-out-products")
+    .chunk::<Product, Product>(10)
+    .reader(&reader)
+    .processor(&PassThroughProcessor::<Product>::new())
+    .writer(&composite)
+    .build();
+```
+
+```bash
+cargo run --example chaining_writers --features csv,json,logger
+```
+
+### Error Behaviour
+
+| Scenario | Result |
+|---|---|
+| All writers succeed | `Ok(())` |
+| Writer N returns `Err(e)` | Chain stops — error propagated, writers N+1…M not called |
+
+<Aside type="tip">
+  Chains of any length are supported. Each `.add()` call wraps the chain in a new
+  `CompositeItemWriter`, encoding the full structure in the type at zero runtime cost.
+  Use `Box&lt;dyn ItemWriter&lt;T&gt;&gt;` when you need dynamic dispatch instead.
+</Aside>
+
+---
+
 ## Multi-Step ETL Job
 
 This example demonstrates a complete Extract, Transform, Load (ETL) job with two distinct steps. This is a common pattern for processing data from one source, transforming it, and loading it into another destination.
