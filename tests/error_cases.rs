@@ -49,7 +49,7 @@ pub struct Person {
     birth_date: Date,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug)]
 struct Car {
     year: u16,
     make: String,

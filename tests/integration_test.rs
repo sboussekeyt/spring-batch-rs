@@ -113,7 +113,7 @@ LÉO,ZOLA,DR.,UGO_PRAESENTIUM@ORANGE.FR,2019-01-01
     );
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug)]
 struct Car {
     year: u16,
     make: String,

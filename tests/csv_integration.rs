@@ -41,7 +41,7 @@ impl ItemProcessor<Product, Product> for ProductProcessor {
         };
 
         let product = Product {
-            id: item.id.clone(),
+            id: item.id,
             name: item.name.to_uppercase(),
             price: item.price * 1.1, // 10% price increase
             description,
