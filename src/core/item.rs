@@ -1014,11 +1014,14 @@ mod tests {
             name: "Test Item".to_string(),
             values: vec![1.1, 2.2, 3.3],
         })?;
-        assert_eq!(result, Some(TestData {
-            id: 123,
-            name: "Test Item".to_string(),
-            values: vec![1.1, 2.2, 3.3],
-        }));
+        assert_eq!(
+            result,
+            Some(TestData {
+                id: 123,
+                name: "Test Item".to_string(),
+                values: vec![1.1, 2.2, 3.3],
+            })
+        );
         Ok(())
     }
 
@@ -1171,11 +1174,7 @@ mod tests {
             .build();
 
         // 3 is odd → filtered by first processor → second processor never called
-        assert_eq!(
-            composite.process(3)?,
-            None,
-            "odd number should be filtered"
-        );
+        assert_eq!(composite.process(3)?, None, "odd number should be filtered");
         // 4 is even → passes through → converted to string
         assert_eq!(
             composite.process(4)?,
