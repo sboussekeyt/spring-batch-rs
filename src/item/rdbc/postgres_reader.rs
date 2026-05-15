@@ -21,12 +21,12 @@ use crate::core::item::{ItemReader, ItemReaderResult};
 /// # Construction
 ///
 /// Use [`RdbcItemReaderBuilder`] — direct construction is not available.
-pub struct PostgresRdbcItemReader<'a, I>
+pub struct PostgresRdbcItemReader<I>
 where
     for<'r> I: FromRow<'r, PgRow> + Send + Unpin + Clone,
 {
     pub(crate) pool: Pool<Postgres>,
-    pub(crate) query: &'a str,
+    pub(crate) query: String,
     pub(crate) page_size: Option<i32>,
     pub(crate) offset: Cell<i32>,
     pub(crate) buffer: RefCell<Vec<I>>,
@@ -39,7 +39,7 @@ where
     pub(crate) last_cursor: RefCell<Option<String>>,
 }
 
-impl<'a, I> PostgresRdbcItemReader<'a, I>
+impl<I> PostgresRdbcItemReader<I>
 where
     for<'r> I: FromRow<'r, PgRow> + Send + Unpin + Clone,
 {
@@ -60,7 +60,7 @@ where
     #[allow(clippy::type_complexity)]
     pub fn new(
         pool: Pool<Postgres>,
-        query: &'a str,
+        query: String,
         page_size: Option<i32>,
         keyset_column: Option<String>,
         keyset_key: Option<Box<dyn Fn(&I) -> String>>,
@@ -86,7 +86,7 @@ where
     ///
     /// Returns [`BatchError::ItemReader`] if the query fails.
     fn read_page(&self) -> Result<(), BatchError> {
-        let mut query_builder = QueryBuilder::<Postgres>::new(self.query);
+        let mut query_builder = QueryBuilder::<Postgres>::new(&self.query);
 
         if let Some(page_size) = self.page_size {
             if let Some(ref col) = self.keyset_column {
@@ -142,7 +142,7 @@ mod tests {
         }
     }
 
-    fn reader_with_keyset(keyset: bool) -> PostgresRdbcItemReader<'static, Dummy> {
+    fn reader_with_keyset(keyset: bool) -> PostgresRdbcItemReader<Dummy> {
         let pool = PgPool::connect_lazy("postgres://postgres:postgres@localhost/test")
             .expect("lazy pool creation should not fail");
         let (col, key): (Option<String>, Option<Box<dyn Fn(&Dummy) -> String>>) = if keyset {
@@ -153,7 +153,7 @@ mod tests {
         } else {
             (None, None)
         };
-        PostgresRdbcItemReader::new(pool, "SELECT 1", Some(10), col, key)
+        PostgresRdbcItemReader::new(pool, "SELECT 1".to_string(), Some(10), col, key)
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -192,7 +192,7 @@ mod tests {
     }
 }
 
-impl<I> ItemReader<I> for PostgresRdbcItemReader<'_, I>
+impl<I> ItemReader<I> for PostgresRdbcItemReader<I>
 where
     for<'r> I: FromRow<'r, PgRow> + Send + Unpin + Clone,
 {

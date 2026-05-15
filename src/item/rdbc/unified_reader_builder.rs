@@ -235,10 +235,10 @@ where
     ///
     /// # Panics
     /// Panics if PostgreSQL pool or query are missing
-    pub fn build_postgres(self) -> PostgresRdbcItemReader<'a, I> {
+    pub fn build_postgres(self) -> PostgresRdbcItemReader<I> {
         PostgresRdbcItemReader::new(
             self.postgres_pool.expect("PostgreSQL pool is required"),
-            self.query.expect("Query is required"),
+            self.query.expect("Query is required").to_string(),
             self.page_size,
             self.keyset_column,
             self.keyset_key_fn,
@@ -257,10 +257,10 @@ where
     ///
     /// # Panics
     /// Panics if MySQL pool or query are missing
-    pub fn build_mysql(self) -> MySqlRdbcItemReader<'a, I> {
+    pub fn build_mysql(self) -> MySqlRdbcItemReader<I> {
         MySqlRdbcItemReader::new(
             self.mysql_pool.expect("MySQL pool is required"),
-            self.query.expect("Query is required"),
+            self.query.expect("Query is required").to_string(),
             self.page_size,
             self.keyset_column,
             self.keyset_key_fn,
@@ -279,10 +279,10 @@ where
     ///
     /// # Panics
     /// Panics if SQLite pool or query are missing
-    pub fn build_sqlite(self) -> SqliteRdbcItemReader<'a, I> {
+    pub fn build_sqlite(self) -> SqliteRdbcItemReader<I> {
         SqliteRdbcItemReader::new(
             self.sqlite_pool.expect("SQLite pool is required"),
-            self.query.expect("Query is required"),
+            self.query.expect("Query is required").to_string(),
             self.page_size,
             self.keyset_column,
             self.keyset_key_fn,

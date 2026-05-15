@@ -208,7 +208,7 @@ async fn mysql_reader_should_read_all_items_with_keyset_pagination()
 
     let reader: MySqlRdbcItemReader<TestUser> = MySqlRdbcItemReader::new(
         pool,
-        "SELECT id, name, email FROM test_users",
+        "SELECT id, name, email FROM test_users".to_string(),
         Some(3),
         Some("id".to_string()),
         Some(Box::new(|u: &TestUser| u.id.to_string())),
@@ -239,7 +239,7 @@ async fn mysql_reader_should_cross_page_boundary_with_keyset()
     // page_size=4 with 10 rows means 3 pages — exercises cursor update across boundaries
     let reader: MySqlRdbcItemReader<TestUser> = MySqlRdbcItemReader::new(
         pool,
-        "SELECT id, name, email FROM test_users",
+        "SELECT id, name, email FROM test_users".to_string(),
         Some(4),
         Some("id".to_string()),
         Some(Box::new(|u: &TestUser| u.id.to_string())),
@@ -263,7 +263,7 @@ async fn mysql_reader_should_return_none_for_empty_table_with_keyset()
 
     let reader: MySqlRdbcItemReader<TestUser> = MySqlRdbcItemReader::new(
         pool,
-        "SELECT id, name, email FROM test_users WHERE id > 9999",
+        "SELECT id, name, email FROM test_users WHERE id > 9999".to_string(),
         Some(5),
         Some("id".to_string()),
         Some(Box::new(|u: &TestUser| u.id.to_string())),

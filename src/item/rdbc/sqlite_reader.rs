@@ -14,12 +14,12 @@ use crate::core::item::{ItemReader, ItemReaderResult};
 /// # Construction
 ///
 /// Use [`RdbcItemReaderBuilder`] — direct construction is not available.
-pub struct SqliteRdbcItemReader<'a, I>
+pub struct SqliteRdbcItemReader<I>
 where
     for<'r> I: FromRow<'r, SqliteRow> + Send + Unpin + Clone,
 {
     pub(crate) pool: Pool<Sqlite>,
-    pub(crate) query: &'a str,
+    pub(crate) query: String,
     pub(crate) page_size: Option<i32>,
     pub(crate) offset: Cell<i32>,
     pub(crate) buffer: RefCell<Vec<I>>,
@@ -29,7 +29,7 @@ where
     pub(crate) last_cursor: RefCell<Option<String>>,
 }
 
-impl<'a, I> SqliteRdbcItemReader<'a, I>
+impl<I> SqliteRdbcItemReader<I>
 where
     for<'r> I: FromRow<'r, SqliteRow> + Send + Unpin + Clone,
 {
@@ -40,7 +40,7 @@ where
     #[allow(clippy::type_complexity)]
     pub(crate) fn new(
         pool: Pool<Sqlite>,
-        query: &'a str,
+        query: String,
         page_size: Option<i32>,
         keyset_column: Option<String>,
         keyset_key: Option<Box<dyn Fn(&I) -> String>>,
@@ -63,7 +63,7 @@ where
     ///
     /// Returns [`BatchError::ItemReader`] if the query fails.
     fn read_page(&self) -> Result<(), BatchError> {
-        let mut query_builder = QueryBuilder::<Sqlite>::new(self.query);
+        let mut query_builder = QueryBuilder::<Sqlite>::new(&self.query);
 
         if let Some(page_size) = self.page_size {
             if let Some(ref col) = self.keyset_column {
@@ -95,7 +95,7 @@ where
     }
 }
 
-impl<I> ItemReader<I> for SqliteRdbcItemReader<'_, I>
+impl<I> ItemReader<I> for SqliteRdbcItemReader<I>
 where
     for<'r> I: FromRow<'r, SqliteRow> + Send + Unpin + Clone,
 {
@@ -151,8 +151,8 @@ mod tests {
         pool: SqlitePool,
         query: &str,
         page_size: Option<i32>,
-    ) -> SqliteRdbcItemReader<'_, Row> {
-        SqliteRdbcItemReader::<Row>::new(pool, query, page_size, None, None)
+    ) -> SqliteRdbcItemReader<Row> {
+        SqliteRdbcItemReader::<Row>::new(pool, query.to_string(), page_size, None, None)
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -242,7 +242,7 @@ mod tests {
         let pool = pool_with_rows(&[(1, "a"), (2, "b"), (3, "c"), (4, "d"), (5, "e")]).await;
         let reader = SqliteRdbcItemReader::<Row>::new(
             pool,
-            "SELECT id, name FROM items",
+            "SELECT id, name FROM items".to_string(),
             Some(2),
             Some("id".to_string()),
             Some(Box::new(|r: &Row| r.id.to_string())),
@@ -264,7 +264,7 @@ mod tests {
         let pool = pool_with_rows(&[(10, "x"), (20, "y")]).await;
         let reader = SqliteRdbcItemReader::<Row>::new(
             pool,
-            "SELECT id, name FROM items",
+            "SELECT id, name FROM items".to_string(),
             Some(2),
             Some("id".to_string()),
             Some(Box::new(|r: &Row| r.id.to_string())),
@@ -293,7 +293,7 @@ mod tests {
         let pool = pool_with_rows(&[]).await;
         let reader = SqliteRdbcItemReader::<Row>::new(
             pool,
-            "SELECT id, name FROM items",
+            "SELECT id, name FROM items".to_string(),
             Some(2),
             Some("id".to_string()),
             Some(Box::new(|r: &Row| r.id.to_string())),

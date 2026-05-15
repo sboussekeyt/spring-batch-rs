@@ -267,7 +267,7 @@ async fn postgres_reader_should_read_all_items_without_pagination()
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT * FROM test_users ORDER BY id",
+        "SELECT * FROM test_users ORDER BY id".to_string(),
         None,
         None,
         None,
@@ -294,7 +294,7 @@ async fn postgres_reader_should_read_items_with_pagination()
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT * FROM test_users ORDER BY id",
+        "SELECT * FROM test_users ORDER BY id".to_string(),
         Some(3),
         None,
         None,
@@ -321,7 +321,7 @@ async fn postgres_reader_should_handle_empty_result_set() -> Result<(), Box<dyn 
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT * FROM test_users WHERE id > 1000",
+        "SELECT * FROM test_users WHERE id > 1000".to_string(),
         Some(5),
         None,
         None,
@@ -340,7 +340,7 @@ async fn postgres_reader_should_handle_single_page_result() -> Result<(), Box<dy
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT * FROM test_users WHERE id <= 2 ORDER BY id",
+        "SELECT * FROM test_users WHERE id <= 2 ORDER BY id".to_string(),
         Some(5),
         None,
         None,
@@ -365,7 +365,7 @@ async fn postgres_reader_should_handle_page_size_larger_than_result_set()
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT * FROM test_users WHERE id <= 3 ORDER BY id",
+        "SELECT * FROM test_users WHERE id <= 3 ORDER BY id".to_string(),
         Some(10),
         None,
         None,
@@ -388,7 +388,7 @@ async fn postgres_reader_should_handle_page_size_of_one() -> Result<(), Box<dyn 
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT * FROM test_users WHERE id <= 3 ORDER BY id",
+        "SELECT * FROM test_users WHERE id <= 3 ORDER BY id".to_string(),
         Some(1),
         None,
         None,
@@ -414,7 +414,7 @@ async fn postgres_reader_should_handle_complex_query_with_where_clause()
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT * FROM test_users WHERE id % 2 = 0 ORDER BY id",
+        "SELECT * FROM test_users WHERE id % 2 = 0 ORDER BY id".to_string(),
         Some(2),
         None,
         None,
@@ -440,7 +440,7 @@ async fn postgres_reader_should_maintain_correct_read_order()
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT * FROM test_users WHERE id <= 5 ORDER BY id",
+        "SELECT * FROM test_users WHERE id <= 5 ORDER BY id".to_string(),
         Some(2),
         None,
         None,
@@ -466,7 +466,7 @@ async fn postgres_reader_should_handle_sequential_reads_correctly()
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT * FROM test_users ORDER BY id",
+        "SELECT * FROM test_users ORDER BY id".to_string(),
         Some(3),
         None,
         None,
@@ -538,7 +538,7 @@ async fn postgres_reader_should_work_with_different_data_types()
 
     let reader: PostgresRdbcItemReader<TestData> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT * FROM test_data ORDER BY id",
+        "SELECT * FROM test_data ORDER BY id".to_string(),
         Some(1),
         None,
         None,
@@ -574,7 +574,7 @@ async fn postgres_reader_should_handle_large_result_sets_efficiently()
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT * FROM test_users ORDER BY id",
+        "SELECT * FROM test_users ORDER BY id".to_string(),
         Some(10),
         None,
         None,
@@ -597,7 +597,7 @@ async fn postgres_reader_should_read_all_items_with_keyset_pagination()
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT id, name, email FROM test_users",
+        "SELECT id, name, email FROM test_users".to_string(),
         Some(3),
         Some("id".to_string()),
         Some(Box::new(|u: &TestUser| u.id.to_string())),
@@ -628,7 +628,7 @@ async fn postgres_reader_should_cross_page_boundary_with_keyset()
     // page_size=4 with 10 rows means 3 pages — exercises cursor update across boundaries
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT id, name, email FROM test_users",
+        "SELECT id, name, email FROM test_users".to_string(),
         Some(4),
         Some("id".to_string()),
         Some(Box::new(|u: &TestUser| u.id.to_string())),
@@ -652,7 +652,7 @@ async fn postgres_reader_should_return_none_for_empty_table_with_keyset()
 
     let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
         pool,
-        "SELECT id, name, email FROM test_users WHERE id > 9999",
+        "SELECT id, name, email FROM test_users WHERE id > 9999".to_string(),
         Some(5),
         Some("id".to_string()),
         Some(Box::new(|u: &TestUser| u.id.to_string())),
