@@ -230,7 +230,7 @@ pub trait ItemWriter<O> {
 ///
 /// # Type Parameters
 ///
-/// - `T`: The item type that will be passed through unchanged. Must implement `Clone`.
+/// - `T`: The item type that will be passed through unchanged.
 ///
 /// # Use Cases
 ///
