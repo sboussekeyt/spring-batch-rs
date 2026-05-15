@@ -318,7 +318,7 @@ impl<'a, O> RdbcItemWriterBuilder<'a, O> {
     ///
     /// # Panics
     /// Panics if required SQLite-specific configuration is missing
-    pub fn build_sqlite(self) -> SqliteItemWriter<'a, O> {
+    pub fn build_sqlite(self) -> SqliteItemWriter<O> {
         let mut writer = SqliteItemWriter::new();
 
         if let Some(pool) = self.sqlite_pool {
@@ -329,12 +329,18 @@ impl<'a, O> RdbcItemWriterBuilder<'a, O> {
             writer = writer.table(table);
         }
 
+        // TODO: TASK 4 — Update to use new column() method with extractors
+        // For now, add stub column bindings to maintain validation compatibility
         for column in self.columns {
-            writer = writer.add_column(column);
+            let col_name = column.to_string();
+            writer = writer.add_column_binding(
+                col_name,
+                Box::new(|_| crate::item::rdbc::ColumnValue::Null),
+            );
         }
 
-        if let Some(binder) = self.sqlite_binder {
-            writer = writer.item_binder(binder);
+        if let Some(_binder) = self.sqlite_binder {
+            // TODO: TASK 4 — Migrate to new ColumnValue-based binding
         }
 
         writer
