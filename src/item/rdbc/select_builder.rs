@@ -502,12 +502,10 @@ impl<I> SelectBuilder<I> {
     ///
     /// struct Event { id: i64 }
     ///
-    /// let builder = SelectBuilder::<Event>::from("events")
-    ///     .order_by_keyset("id", |e: &Event| e.id.to_string());
+    /// let sql = SelectBuilder::<Event>::from("events")
+    ///     .order_by_keyset("id", |e: &Event| e.id.to_string())
+    ///     .build_sql();
     ///
-    /// assert_eq!(builder.keyset_column.as_deref(), Some("id"));
-    ///
-    /// let sql = builder.build_sql();
     /// assert_eq!(sql, "SELECT * FROM events ORDER BY id ASC");
     /// ```
     pub fn order_by_keyset(
@@ -850,5 +848,13 @@ mod tests {
             sql, "SELECT * FROM events ORDER BY id ASC",
             "keyset pagination should produce ORDER BY id ASC"
         );
+    }
+
+    #[test]
+    fn should_generate_where_gte_for_float() {
+        let sql = SelectBuilder::<Dummy>::from("orders")
+            .where_gte("score", 4.5_f64)
+            .build_sql();
+        assert_eq!(sql, "SELECT * FROM orders WHERE score >= 4.5", "unexpected: {sql}");
     }
 }

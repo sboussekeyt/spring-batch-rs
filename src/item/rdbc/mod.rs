@@ -1,7 +1,7 @@
 use sqlx::{Database, query_builder::Separated};
 
 /// Fluent SQL SELECT builder for RDBC item readers.
-pub mod select_builder;
+mod select_builder;
 
 /// Common utilities for database item writers.
 mod writer_common;
