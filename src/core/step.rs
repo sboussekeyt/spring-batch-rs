@@ -682,7 +682,7 @@ impl<I, O> ChunkOrientedStep<'_, I, O> {
     ///
     /// # Parameters
     /// - `step_execution`: Mutable reference to track execution state
-    /// - `read_items`: Slice of items to process and write
+    /// - `read_items`: Vector of items to process and write (consumed)
     ///
     /// # Returns
     /// - `Ok(())`: The chunk was processed and written successfully
