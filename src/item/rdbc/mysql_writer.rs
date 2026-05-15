@@ -123,9 +123,13 @@ impl<O: Serialize + Clone> ItemWriter<O> for MySqlItemWriter<'_, O> {
             return Ok(());
         }
 
+        // TODO: TASK 4 — update validate_config to new signature
         // Validate configuration
-        let (pool, table, item_binder) =
-            validate_config(self.pool, self.table, &self.columns, self.item_binder)?;
+        // let (pool, table, item_binder) =
+        //     validate_config(self.pool, self.table, &self.columns, self.item_binder)?;
+
+        let pool = self.pool.ok_or_else(|| crate::BatchError::ItemWriter("Database pool not configured".to_string()))?;
+        let table = self.table.ok_or_else(|| crate::BatchError::ItemWriter("Table name not configured".to_string()))?;
 
         // Build INSERT query
         let mut query_builder = QueryBuilder::new("INSERT INTO ");
@@ -139,22 +143,29 @@ impl<O: Serialize + Clone> ItemWriter<O> for MySqlItemWriter<'_, O> {
         let items_to_write = items.iter().take(max_items);
         let items_count = items_to_write.len();
 
-        query_builder.push_values(items_to_write, |b, item| {
-            item_binder.bind(item, b);
-        });
+        // TODO: TASK 4 — bind items using new API
+        // query_builder.push_values(items_to_write, |b, item| {
+        //     item_binder.bind(item, b);
+        // });
+
+        // Return early for now to let tests compile
+        return Err(crate::BatchError::ItemWriter("TODO: implement new binding API".to_string()));
 
         // Execute query inline (QueryBuilder lifetime requires this to be in same scope)
-        let query = query_builder.build();
-        let result = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async { query.execute(pool).await })
-        });
+        #[allow(unreachable_code)]
+        {
+            let query = query_builder.build();
+            let result = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async { query.execute(pool).await })
+            });
 
-        match result {
-            Ok(_) => {
-                log_write_success(items_count, table, "MySQL");
-                Ok(())
+            match result {
+                Ok(_) => {
+                    log_write_success(items_count, table, "MySQL");
+                    Ok(())
+                }
+                Err(e) => Err(create_write_error(table, "MySQL", e)),
             }
-            Err(e) => Err(create_write_error(table, "MySQL", e)),
         }
     }
 }
