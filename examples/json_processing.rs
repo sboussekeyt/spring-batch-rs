@@ -34,7 +34,7 @@ use std::io::Cursor;
 // =============================================================================
 
 /// An order record for JSON processing.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Order {
     id: u64,
     customer: String,
@@ -43,7 +43,7 @@ struct Order {
 }
 
 /// A simplified order for CSV export.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Serialize)]
 struct OrderSummary {
     order_id: u64,
     customer_name: String,

@@ -48,7 +48,7 @@ struct RawOrder {
 }
 
 /// Order with parsed, typed fields.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct ParsedOrder {
     id: u32,
     customer: String,

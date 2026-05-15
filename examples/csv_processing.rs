@@ -34,7 +34,7 @@ use std::env::temp_dir;
 // =============================================================================
 
 /// A product record for CSV processing.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Product {
     id: u32,
     name: String,

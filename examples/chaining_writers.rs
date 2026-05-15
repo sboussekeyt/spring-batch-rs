@@ -40,7 +40,7 @@ use spring_batch_rs::{
 use std::env::temp_dir;
 
 /// A product record read from CSV and written to both destinations.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Product {
     id: u32,
     name: String,

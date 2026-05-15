@@ -67,7 +67,7 @@ impl WithObjectId for Book {
 }
 
 /// A simplified book record for CSV export (without ObjectId).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Serialize)]
 struct BookCsv {
     title: String,
     author: String,
@@ -76,7 +76,7 @@ struct BookCsv {
 }
 
 /// Input record for importing books from CSV.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct BookInput {
     title: String,
     author: String,

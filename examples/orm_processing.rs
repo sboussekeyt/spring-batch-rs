@@ -76,7 +76,7 @@ struct ProductDto {
 }
 
 /// A CSV-friendly product record.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Serialize)]
 struct ProductCsv {
     id: i32,
     name: String,

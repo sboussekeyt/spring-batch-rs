@@ -30,7 +30,7 @@ use spring_batch_rs::{
 };
 
 /// A person record read from the CSV source.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Person {
     name: String,
     age: u32,
