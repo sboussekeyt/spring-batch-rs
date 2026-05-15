@@ -9,11 +9,11 @@ use crate::core::item::{ItemReader, ItemReaderResult};
 /// SQLite RDBC Item Reader for batch processing.
 ///
 /// Supports LIMIT/OFFSET pagination (default) and keyset pagination
-/// (enabled via [`RdbcItemReaderBuilder::with_keyset`]).
+/// (enabled via [`RdbcItemReaderBuilder::with_keyset`](crate::item::rdbc::RdbcItemReaderBuilder::with_keyset)).
 ///
 /// # Construction
 ///
-/// Use [`RdbcItemReaderBuilder`] — direct construction is not available.
+/// Prefer [`RdbcItemReaderBuilder`](crate::item::rdbc::RdbcItemReaderBuilder) for ergonomic construction.
 pub struct SqliteRdbcItemReader<I>
 where
     for<'r> I: FromRow<'r, SqliteRow> + Send + Unpin + Clone,

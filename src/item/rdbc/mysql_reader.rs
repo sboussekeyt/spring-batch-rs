@@ -6,20 +6,14 @@ use super::reader_common::{calculate_page_index, should_load_page};
 use crate::BatchError;
 use crate::core::item::{ItemReader, ItemReaderResult};
 
-/// MySQL RDBC Item Reader for batch processing
-///
-/// # Construction
-///
-/// This reader can only be created through `RdbcItemReaderBuilder`.
-/// Direct construction is not available to ensure proper configuration.
 /// MySQL RDBC Item Reader for batch processing.
 ///
 /// Supports LIMIT/OFFSET pagination (default) and keyset pagination
-/// (enabled via [`RdbcItemReaderBuilder::with_keyset`]).
+/// (enabled via [`RdbcItemReaderBuilder::with_keyset`](crate::item::rdbc::RdbcItemReaderBuilder::with_keyset)).
 ///
 /// # Construction
 ///
-/// Use [`RdbcItemReaderBuilder`] — direct construction is not available.
+/// Prefer [`RdbcItemReaderBuilder`](crate::item::rdbc::RdbcItemReaderBuilder) for ergonomic construction.
 pub struct MySqlRdbcItemReader<I>
 where
     for<'r> I: FromRow<'r, MySqlRow> + Send + Unpin + Clone,
@@ -39,10 +33,10 @@ impl<I> MySqlRdbcItemReader<I>
 where
     for<'r> I: FromRow<'r, MySqlRow> + Send + Unpin + Clone,
 {
-    /// Creates a new MySqlRdbcItemReader with the specified parameters
+    /// Creates a new `MySqlRdbcItemReader` with the specified parameters.
     ///
-    /// This constructor is only accessible within the crate to enforce the use
-    /// of `RdbcItemReaderBuilder` for creating reader instances.
+    /// Prefer [`RdbcItemReaderBuilder`](crate::item::rdbc::RdbcItemReaderBuilder) for a more
+    /// ergonomic construction API.
     #[allow(clippy::type_complexity)]
     pub fn new(
         pool: Pool<MySql>,
@@ -63,11 +57,6 @@ where
         }
     }
 
-    /// Reads a page of data from the database and stores it in the internal buffer.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`BatchError::ItemReader`] if the database query fails.
     /// Fetches the next page from the database into the internal buffer.
     ///
     /// # Errors
@@ -103,6 +92,29 @@ where
         self.buffer.borrow_mut().clear();
         self.buffer.borrow_mut().extend(items);
         Ok(())
+    }
+}
+
+impl<I> ItemReader<I> for MySqlRdbcItemReader<I>
+where
+    for<'r> I: FromRow<'r, MySqlRow> + Send + Unpin + Clone,
+{
+    fn read(&self) -> ItemReaderResult<I> {
+        let index = calculate_page_index(self.offset.get(), self.page_size);
+
+        if should_load_page(index) {
+            self.read_page()?;
+        }
+
+        let result = self.buffer.borrow().get(index as usize).cloned();
+
+        if let (Some(item), Some(key_fn)) = (&result, &self.keyset_key) {
+            *self.last_cursor.borrow_mut() = Some(key_fn(item));
+        }
+
+        self.offset.set(self.offset.get() + 1);
+
+        Ok(result)
     }
 }
 
@@ -167,28 +179,5 @@ mod tests {
             reader.last_cursor.borrow().is_none(),
             "cursor must start as None before first read"
         );
-    }
-}
-
-impl<I> ItemReader<I> for MySqlRdbcItemReader<I>
-where
-    for<'r> I: FromRow<'r, MySqlRow> + Send + Unpin + Clone,
-{
-    fn read(&self) -> ItemReaderResult<I> {
-        let index = calculate_page_index(self.offset.get(), self.page_size);
-
-        if should_load_page(index) {
-            self.read_page()?;
-        }
-
-        let result = self.buffer.borrow().get(index as usize).cloned();
-
-        if let (Some(item), Some(key_fn)) = (&result, &self.keyset_key) {
-            *self.last_cursor.borrow_mut() = Some(key_fn(item));
-        }
-
-        self.offset.set(self.offset.get() + 1);
-
-        Ok(result)
     }
 }

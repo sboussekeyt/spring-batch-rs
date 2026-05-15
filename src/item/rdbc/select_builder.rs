@@ -442,8 +442,7 @@ impl<I> SelectBuilder<I> {
     /// assert_eq!(sql, "SELECT * FROM users WHERE confirmed_at IS NOT NULL");
     /// ```
     pub fn where_is_not_null(mut self, col: &str) -> Self {
-        self.conditions
-            .push(WhereClause::IsNotNull(col.to_owned()));
+        self.conditions.push(WhereClause::IsNotNull(col.to_owned()));
         self
     }
 
@@ -508,11 +507,7 @@ impl<I> SelectBuilder<I> {
     ///
     /// assert_eq!(sql, "SELECT * FROM events ORDER BY id ASC");
     /// ```
-    pub fn order_by_keyset(
-        mut self,
-        col: &str,
-        key_fn: impl Fn(&I) -> String + 'static,
-    ) -> Self {
+    pub fn order_by_keyset(mut self, col: &str, key_fn: impl Fn(&I) -> String + 'static) -> Self {
         self.order_by.clear();
         self.order_by.push(OrderClause::Asc(col.to_owned()));
         self.keyset_column = Some(col.to_owned());
@@ -578,6 +573,30 @@ impl<I> SelectBuilder<I> {
 
         sql
     }
+
+    /// Generates the base SQL string without the `ORDER BY` clause.
+    ///
+    /// Used internally when keyset pagination is active, since the reader
+    /// constructs the `ORDER BY` clause itself. Calling this method on a builder
+    /// that has no `ORDER BY` configured produces the same result as
+    /// [`SelectBuilder::build_sql`].
+    pub(crate) fn build_sql_no_order(&self) -> String {
+        let cols = if self.columns.is_empty() {
+            "*".to_string()
+        } else {
+            self.columns.join(", ")
+        };
+
+        let mut sql = format!("SELECT {} FROM {}", cols, self.table);
+
+        if !self.conditions.is_empty() {
+            let clauses: Vec<String> = self.conditions.iter().map(WhereClause::to_sql).collect();
+            sql.push_str(" WHERE ");
+            sql.push_str(&clauses.join(" AND "));
+        }
+
+        sql
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -595,7 +614,10 @@ mod tests {
     #[test]
     fn should_generate_select_star_when_no_columns_given() {
         let sql = SelectBuilder::<Dummy>::from("users").build_sql();
-        assert_eq!(sql, "SELECT * FROM users", "expected SELECT * when no columns specified");
+        assert_eq!(
+            sql, "SELECT * FROM users",
+            "expected SELECT * when no columns specified"
+        );
     }
 
     #[test]
@@ -855,6 +877,51 @@ mod tests {
         let sql = SelectBuilder::<Dummy>::from("orders")
             .where_gte("score", 4.5_f64)
             .build_sql();
-        assert_eq!(sql, "SELECT * FROM orders WHERE score >= 4.5", "unexpected: {sql}");
+        assert_eq!(
+            sql, "SELECT * FROM orders WHERE score >= 4.5",
+            "unexpected: {sql}"
+        );
+    }
+
+    // ── build_sql_no_order ────────────────────────────────────────────────────
+
+    #[test]
+    fn should_omit_order_by_in_build_sql_no_order() {
+        let sql = SelectBuilder::<Dummy>::from("events")
+            .columns(&["id", "name"])
+            .order_by_keyset("id", |_: &Dummy| "1".to_owned())
+            .build_sql_no_order();
+        assert_eq!(
+            sql, "SELECT id, name FROM events",
+            "build_sql_no_order should not include ORDER BY clause"
+        );
+    }
+
+    #[test]
+    fn should_preserve_where_conditions_in_build_sql_no_order() {
+        let sql = SelectBuilder::<Dummy>::from("items")
+            .where_eq("active", true)
+            .order_by_keyset("id", |_: &Dummy| "1".to_owned())
+            .build_sql_no_order();
+        assert_eq!(
+            sql, "SELECT * FROM items WHERE active = true",
+            "build_sql_no_order should keep WHERE conditions but drop ORDER BY"
+        );
+    }
+
+    #[test]
+    fn should_match_build_sql_when_no_order_by_configured() {
+        let without_order = SelectBuilder::<Dummy>::from("users")
+            .columns(&["id"])
+            .where_eq("status", "ACTIVE")
+            .build_sql_no_order();
+        let with_build_sql = SelectBuilder::<Dummy>::from("users")
+            .columns(&["id"])
+            .where_eq("status", "ACTIVE")
+            .build_sql();
+        assert_eq!(
+            without_order, with_build_sql,
+            "build_sql_no_order should equal build_sql when no ORDER BY is set"
+        );
     }
 }

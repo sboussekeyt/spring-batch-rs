@@ -178,9 +178,9 @@ impl<'a, I> RdbcItemReaderBuilder<'a, I> {
 
     /// Configures the reader query using a [`SelectBuilder`].
     ///
-    /// This is an ergonomic alternative to [`.query()`] that lets you build the
+    /// This is an ergonomic alternative to [`Self::query`] that lets you build the
     /// SQL statement through a fluent API instead of writing raw SQL. If the
-    /// [`SelectBuilder`] was configured with [`.order_by_keyset()`], the keyset
+    /// [`SelectBuilder`] was configured with [`SelectBuilder::order_by_keyset`], the keyset
     /// column and key function are automatically propagated to the reader.
     ///
     /// Calling `.select()` after `.query()` (or vice-versa) is allowed; the
@@ -216,7 +216,11 @@ impl<'a, I> RdbcItemReaderBuilder<'a, I> {
     /// # }
     /// ```
     pub fn select(mut self, builder: SelectBuilder<I>) -> Self {
-        let sql = builder.build_sql();
+        let sql = if builder.keyset_column.is_some() {
+            builder.build_sql_no_order()
+        } else {
+            builder.build_sql()
+        };
         if let Some(col) = builder.keyset_column {
             self.keyset_column = Some(col);
         }
@@ -253,7 +257,7 @@ impl<'a, I> RdbcItemReaderBuilder<'a, I> {
     ///   framework appends them automatically.
     /// - The keyset column must be indexed and have unique, sortable values (e.g.
     ///   primary key, UUID, zero-padded string ID).
-    /// - [`with_page_size`] must also be set.
+    /// - [`Self::with_page_size`] must also be set.
     ///
     /// # Arguments
     ///
@@ -506,6 +510,11 @@ mod tests {
         assert!(
             reader.keyset_key.is_some(),
             "keyset key fn should propagate from SelectBuilder"
+        );
+        assert_eq!(
+            reader.query,
+            "SELECT * FROM items",
+            "keyset select builder must store SQL without ORDER BY to avoid double ORDER BY in read_page"
         );
     }
 
