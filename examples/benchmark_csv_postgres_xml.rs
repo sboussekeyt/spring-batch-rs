@@ -80,7 +80,7 @@ struct Transaction {
 struct TransactionProcessor;
 
 impl ItemProcessor<Transaction, Transaction> for TransactionProcessor {
-    fn process(&self, item: &Transaction) -> Result<Option<Transaction>, BatchError> {
+    fn process(&self, item: Transaction) -> Result<Option<Transaction>, BatchError> {
         let rate = match item.currency.as_str() {
             "USD" => 0.92,
             "GBP" => 1.17,
@@ -92,12 +92,12 @@ impl ItemProcessor<Transaction, Transaction> for TransactionProcessor {
             item.status.clone()
         };
         Ok(Some(Transaction {
-            transaction_id: item.transaction_id.clone(),
+            transaction_id: item.transaction_id,
             amount: item.amount,
-            currency: item.currency.clone(),
-            timestamp: item.timestamp.clone(),
-            account_from: item.account_from.clone(),
-            account_to: item.account_to.clone(),
+            currency: item.currency,
+            timestamp: item.timestamp,
+            account_from: item.account_from,
+            account_to: item.account_to,
             status,
             amount_eur: (item.amount * rate * 100.0).round() / 100.0,
         }))
@@ -226,7 +226,7 @@ mod tests {
     fn should_convert_usd_to_eur() {
         let processor = TransactionProcessor;
         let input = make_transaction("USD", 1000.0, "COMPLETED");
-        let result = processor.process(&input).unwrap(); // unwrap: process() always returns Ok
+        let result = processor.process(input).unwrap(); // unwrap: process() always returns Ok
         assert_eq!(result.amount_eur, 920.0, "USD 1000 * 0.92 = EUR 920");
         assert_eq!(result.currency, "USD", "currency field must not change");
     }
@@ -235,7 +235,7 @@ mod tests {
     fn should_convert_gbp_to_eur() {
         let processor = TransactionProcessor;
         let input = make_transaction("GBP", 100.0, "COMPLETED");
-        let result = processor.process(&input).unwrap(); // unwrap: process() always returns Ok
+        let result = processor.process(input).unwrap(); // unwrap: process() always returns Ok
         assert_eq!(result.amount_eur, 117.0, "GBP 100 * 1.17 = EUR 117");
     }
 
@@ -243,7 +243,7 @@ mod tests {
     fn should_keep_eur_unchanged() {
         let processor = TransactionProcessor;
         let input = make_transaction("EUR", 500.0, "PENDING");
-        let result = processor.process(&input).unwrap(); // unwrap: process() always returns Ok
+        let result = processor.process(input).unwrap(); // unwrap: process() always returns Ok
         assert_eq!(result.amount_eur, 500.0, "EUR passthrough: rate = 1.0");
     }
 
@@ -251,7 +251,7 @@ mod tests {
     fn should_normalise_cancelled_to_failed() {
         let processor = TransactionProcessor;
         let input = make_transaction("EUR", 100.0, "CANCELLED");
-        let result = processor.process(&input).unwrap(); // unwrap: process() always returns Ok
+        let result = processor.process(input).unwrap(); // unwrap: process() always returns Ok
         assert_eq!(
             result.status, "FAILED",
             "CANCELLED must be mapped to FAILED"
@@ -263,7 +263,7 @@ mod tests {
         let processor = TransactionProcessor;
         for status in &["PENDING", "COMPLETED", "FAILED"] {
             let input = make_transaction("EUR", 100.0, status);
-            let result = processor.process(&input).unwrap(); // unwrap: process() always returns Ok
+            let result = processor.process(input).unwrap(); // unwrap: process() always returns Ok
             assert_eq!(
                 &result.status, status,
                 "status '{}' must not be changed",
@@ -277,7 +277,7 @@ mod tests {
         let processor = TransactionProcessor;
         // 333.33 * 0.92 = 306.6636 → rounds to 306.66
         let input = make_transaction("USD", 333.33, "COMPLETED");
-        let result = processor.process(&input).unwrap(); // unwrap: process() always returns Ok
+        let result = processor.process(input).unwrap(); // unwrap: process() always returns Ok
         assert!(
             (result.amount_eur - 306.66_f64).abs() < 1e-9,
             "amount_eur must be rounded to 2 decimals, got {}",

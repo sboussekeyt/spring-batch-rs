@@ -54,10 +54,10 @@ struct OrderSummary {
 struct OrderSummaryProcessor;
 
 impl ItemProcessor<Order, OrderSummary> for OrderSummaryProcessor {
-    fn process(&self, item: &Order) -> Result<Option<OrderSummary>, BatchError> {
+    fn process(&self, item: Order) -> Result<Option<OrderSummary>, BatchError> {
         Ok(Some(OrderSummary {
             order_id: item.id,
-            customer_name: item.customer.clone(),
+            customer_name: item.customer,
             amount: item.total,
         }))
     }
@@ -75,7 +75,7 @@ impl CompletedOrderProcessor {
 }
 
 impl ItemProcessor<Order, Order> for CompletedOrderProcessor {
-    fn process(&self, item: &Order) -> Result<Option<Order>, BatchError> {
+    fn process(&self, item: Order) -> Result<Option<Order>, BatchError> {
         // Apply tax to completed orders
         let total = if item.status == "completed" {
             item.total * (1.0 + self.tax_rate)
@@ -85,9 +85,9 @@ impl ItemProcessor<Order, Order> for CompletedOrderProcessor {
 
         Ok(Some(Order {
             id: item.id,
-            customer: item.customer.clone(),
+            customer: item.customer,
             total,
-            status: item.status.clone(),
+            status: item.status,
         }))
     }
 }

@@ -83,7 +83,7 @@ struct TransactionSummary {
 struct ValidationProcessor;
 
 impl ItemProcessor<RawTransaction, ValidTransaction> for ValidationProcessor {
-    fn process(&self, item: &RawTransaction) -> Result<Option<ValidTransaction>, BatchError> {
+    fn process(&self, item: RawTransaction) -> Result<Option<ValidTransaction>, BatchError> {
         // Business filtering: non-completed transactions are intentionally skipped,
         // not errors. Ok(None) signals the framework to count this as a filtered item
         // and not pass it to the writer — no fault tolerance triggered.
@@ -102,9 +102,9 @@ impl ItemProcessor<RawTransaction, ValidTransaction> for ValidationProcessor {
 
         Ok(Some(ValidTransaction {
             id: item.id,
-            account: item.account.clone(),
+            account: item.account,
             amount: item.amount,
-            transaction_type: item.transaction_type.clone(),
+            transaction_type: item.transaction_type,
         }))
     }
 }
@@ -121,7 +121,7 @@ impl EnrichmentProcessor {
 }
 
 impl ItemProcessor<ValidTransaction, EnrichedTransaction> for EnrichmentProcessor {
-    fn process(&self, item: &ValidTransaction) -> Result<Option<EnrichedTransaction>, BatchError> {
+    fn process(&self, item: ValidTransaction) -> Result<Option<EnrichedTransaction>, BatchError> {
         let fee = if item.transaction_type == "credit" {
             0.0 // No fee for credits
         } else {
@@ -136,7 +136,7 @@ impl ItemProcessor<ValidTransaction, EnrichedTransaction> for EnrichmentProcesso
 
         Ok(Some(EnrichedTransaction {
             transaction_id: format!("TXN-{:06}", item.id),
-            account_number: item.account.clone(),
+            account_number: item.account,
             gross_amount: item.amount,
             fee,
             net_amount: item.amount - fee,

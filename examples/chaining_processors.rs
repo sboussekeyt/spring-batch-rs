@@ -75,7 +75,7 @@ struct EnrichedOrder {
 struct ParseProcessor;
 
 impl ItemProcessor<RawOrder, ParsedOrder> for ParseProcessor {
-    fn process(&self, item: &RawOrder) -> ItemProcessorResult<ParsedOrder> {
+    fn process(&self, item: RawOrder) -> ItemProcessorResult<ParsedOrder> {
         let id = match item.id.trim().parse::<u32>() {
             Ok(v) => v,
             Err(_) => return Ok(None), // unparseable id — filter silently
@@ -98,11 +98,11 @@ struct ValidateProcessor {
 }
 
 impl ItemProcessor<ParsedOrder, ParsedOrder> for ValidateProcessor {
-    fn process(&self, item: &ParsedOrder) -> ItemProcessorResult<ParsedOrder> {
+    fn process(&self, item: ParsedOrder) -> ItemProcessorResult<ParsedOrder> {
         if item.amount < self.min_amount {
             Ok(None) // below threshold — discard
         } else {
-            Ok(Some(item.clone()))
+            Ok(Some(item))
         }
     }
 }
@@ -111,12 +111,12 @@ impl ItemProcessor<ParsedOrder, ParsedOrder> for ValidateProcessor {
 struct EnrichProcessor;
 
 impl ItemProcessor<ParsedOrder, EnrichedOrder> for EnrichProcessor {
-    fn process(&self, item: &ParsedOrder) -> ItemProcessorResult<EnrichedOrder> {
+    fn process(&self, item: ParsedOrder) -> ItemProcessorResult<EnrichedOrder> {
         let tax = (item.amount * 0.20 * 100.0).round() / 100.0;
         let total = ((item.amount + tax) * 100.0).round() / 100.0;
         Ok(Some(EnrichedOrder {
             id: item.id,
-            customer: item.customer.clone(),
+            customer: item.customer,
             amount: item.amount,
             tax,
             total,

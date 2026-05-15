@@ -77,11 +77,11 @@ struct HouseCsv {
 struct HouseToCsvProcessor;
 
 impl ItemProcessor<House, HouseCsv> for HouseToCsvProcessor {
-    fn process(&self, item: &House) -> Result<Option<HouseCsv>, BatchError> {
+    fn process(&self, item: House) -> Result<Option<HouseCsv>, BatchError> {
         Ok(Some(HouseCsv {
             id: item.id,
-            address: item.address.clone(),
-            city: item.city.clone(),
+            address: item.address,
+            city: item.city,
             bedrooms: item.bedrooms,
             price: item.price,
         }))
