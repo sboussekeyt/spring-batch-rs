@@ -478,9 +478,25 @@ async fn main() -> Result<(), BatchError> {
         .await
         .map_err(|e| BatchError::Step(format!("DB connect failed: {}", e)))?;
 
-    // 2. Ensure table exists
+    // 2. Ensure tables exist
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS transactions (
+            transaction_id  VARCHAR(36)       PRIMARY KEY,
+            amount          DOUBLE PRECISION  NOT NULL,
+            currency        VARCHAR(3)        NOT NULL,
+            timestamp       VARCHAR(25)       NOT NULL,
+            account_from    VARCHAR(15)       NOT NULL,
+            account_to      VARCHAR(15)       NOT NULL,
+            status          VARCHAR(15)       NOT NULL,
+            amount_eur      DOUBLE PRECISION  NOT NULL DEFAULT 0.0
+        )",
+    )
+    .execute(&pool)
+    .await
+    .map_err(|e| BatchError::Step(format!("Schema creation failed: {}", e)))?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS transactions_import (
             transaction_id  VARCHAR(36)       PRIMARY KEY,
             amount          DOUBLE PRECISION  NOT NULL,
             currency        VARCHAR(3)        NOT NULL,
@@ -500,22 +516,6 @@ async fn main() -> Result<(), BatchError> {
         .execute(&pool)
         .await
         .map_err(|e| BatchError::Step(format!("Truncate failed: {}", e)))?;
-
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS transactions_import (
-            transaction_id  VARCHAR(36)       PRIMARY KEY,
-            amount          DOUBLE PRECISION  NOT NULL,
-            currency        VARCHAR(3)        NOT NULL,
-            timestamp       VARCHAR(25)       NOT NULL,
-            account_from    VARCHAR(15)       NOT NULL,
-            account_to      VARCHAR(15)       NOT NULL,
-            status          VARCHAR(15)       NOT NULL,
-            amount_eur      DOUBLE PRECISION  NOT NULL DEFAULT 0.0
-        )",
-    )
-    .execute(&pool)
-    .await
-    .map_err(|e| BatchError::Step(format!("Schema creation failed: {}", e)))?;
 
     sqlx::query("TRUNCATE TABLE transactions_import")
         .execute(&pool)
