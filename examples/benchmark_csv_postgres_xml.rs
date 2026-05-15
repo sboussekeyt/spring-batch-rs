@@ -390,10 +390,10 @@ fn run_step2(pool: &PgPool, xml_path: &str) -> Result<u64, BatchError> {
         .query(
             "SELECT transaction_id, amount, currency, timestamp, \
              account_from, account_to, status, amount_eur \
-             FROM transactions \
-             ORDER BY transaction_id",
+             FROM transactions",
         )
         .with_page_size(1_000)
+        .with_keyset("transaction_id", |t: &Transaction| t.transaction_id.clone())
         .build_postgres();
 
     let writer = XmlItemWriterBuilder::<Transaction>::new()
@@ -463,7 +463,7 @@ async fn main() -> Result<(), BatchError> {
     });
 
     eprintln!("╔══════════════════════════════════════════════════════════╗");
-    eprintln!("║  Spring Batch RS — 10M Transaction Benchmark            ║");
+    eprintln!("║  Spring Batch RS — 10M Transaction Benchmark             ║");
     eprintln!("╚══════════════════════════════════════════════════════════╝");
     eprintln!();
     eprintln!("DB  : {}", db_url);
@@ -501,6 +501,27 @@ async fn main() -> Result<(), BatchError> {
         .await
         .map_err(|e| BatchError::Step(format!("Truncate failed: {}", e)))?;
 
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS transactions_import (
+            transaction_id  VARCHAR(36)       PRIMARY KEY,
+            amount          DOUBLE PRECISION  NOT NULL,
+            currency        VARCHAR(3)        NOT NULL,
+            timestamp       VARCHAR(25)       NOT NULL,
+            account_from    VARCHAR(15)       NOT NULL,
+            account_to      VARCHAR(15)       NOT NULL,
+            status          VARCHAR(15)       NOT NULL,
+            amount_eur      DOUBLE PRECISION  NOT NULL DEFAULT 0.0
+        )",
+    )
+    .execute(&pool)
+    .await
+    .map_err(|e| BatchError::Step(format!("Schema creation failed: {}", e)))?;
+
+    sqlx::query("TRUNCATE TABLE transactions_import")
+        .execute(&pool)
+        .await
+        .map_err(|e| BatchError::Step(format!("Truncate failed: {}", e)))?;
+
     // 4. Generate CSV
     eprintln!(
         "[Generate] Writing {} rows to {} …",
@@ -525,7 +546,7 @@ async fn main() -> Result<(), BatchError> {
     // 8. Summary
     let total_secs = t_total.elapsed().as_secs_f64();
     eprintln!("╔══════════════════════════════════════════════════════════╗");
-    eprintln!("║  BENCHMARK SUMMARY                                      ║");
+    eprintln!("║  BENCHMARK SUMMARY                                       ║");
     eprintln!("╠══════════════════════════════════════════════════════════╣");
     eprintln!("║  Total pipeline duration : {:.1}s", total_secs);
     eprintln!("║  Records processed       : {}", TOTAL_RECORDS);
