@@ -40,7 +40,7 @@
 //! # }
 //! # struct MyProcessor;
 //! # impl ItemProcessor<String, String> for MyProcessor {
-//! #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.clone())) }
+//! #     fn process(&self, item: String) -> Result<Option<String>, BatchError> { Ok(Some(item)) }
 //! # }
 //! # struct MyWriter;
 //! # impl ItemWriter<String> for MyWriter {
@@ -563,7 +563,7 @@ pub enum RepeatStatus {
 /// # }
 /// # struct MyProcessor;
 /// # impl ItemProcessor<String, String> for MyProcessor {
-/// #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.clone())) }
+/// #     fn process(&self, item: String) -> Result<Option<String>, BatchError> { Ok(Some(item)) }
 /// # }
 /// # struct MyWriter;
 /// # impl ItemWriter<String> for MyWriter {
@@ -633,7 +633,7 @@ impl<I, O> Step for ChunkOrientedStep<'_, I, O> {
 
             // Process and write the chunk
             if self
-                .process_and_write_chunk(step_execution, &read_items)
+                .process_and_write_chunk(step_execution, read_items)
                 .is_err()
             {
                 break; // Status already set in the method
@@ -690,7 +690,7 @@ impl<I, O> ChunkOrientedStep<'_, I, O> {
     fn process_and_write_chunk(
         &self,
         step_execution: &mut StepExecution,
-        read_items: &[I],
+        read_items: Vec<I>,
     ) -> Result<(), BatchError> {
         // Process the chunk
         let processed_items = match self.process_chunk(step_execution, read_items) {
@@ -785,7 +785,7 @@ impl<I, O> ChunkOrientedStep<'_, I, O> {
     fn process_chunk(
         &self,
         step_execution: &mut StepExecution,
-        read_items: &[I],
+        read_items: Vec<I>,
     ) -> Result<Vec<O>, BatchError> {
         debug!("Processing chunk of {} items", read_items.len());
         let mut result = Vec::with_capacity(read_items.len());
@@ -901,7 +901,7 @@ impl<I, O> ChunkOrientedStep<'_, I, O> {
 /// # }
 /// # struct MyProcessor;
 /// # impl ItemProcessor<i32, String> for MyProcessor {
-/// #     fn process(&self, item: &i32) -> Result<Option<String>, BatchError> { Ok(Some(item.to_string())) }
+/// #     fn process(&self, item: i32) -> Result<Option<String>, BatchError> { Ok(Some(item.to_string())) }
 /// # }
 /// # struct MyWriter;
 /// # impl ItemWriter<String> for MyWriter {
@@ -1012,7 +1012,7 @@ impl<'a, I, O> ChunkOrientedStepBuilder<'a, I, O> {
     /// # }
     /// # struct UppercaseProcessor;
     /// # impl ItemProcessor<String, String> for UppercaseProcessor {
-    /// #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.to_uppercase())) }
+    /// #     fn process(&self, item: String) -> Result<Option<String>, BatchError> { Ok(Some(item.to_uppercase())) }
     /// # }
     /// let reader = FileReader;
     /// let processor = UppercaseProcessor;
@@ -1045,7 +1045,7 @@ impl<'a, I, O> ChunkOrientedStepBuilder<'a, I, O> {
     /// # }
     /// # struct UppercaseProcessor;
     /// # impl ItemProcessor<String, String> for UppercaseProcessor {
-    /// #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.to_uppercase())) }
+    /// #     fn process(&self, item: String) -> Result<Option<String>, BatchError> { Ok(Some(item.to_uppercase())) }
     /// # }
     /// # struct FileWriter;
     /// # impl ItemWriter<String> for FileWriter {
@@ -1127,7 +1127,7 @@ impl<'a, I, O> ChunkOrientedStepBuilder<'a, I, O> {
     /// # }
     /// # struct MyProcessor;
     /// # impl ItemProcessor<String, String> for MyProcessor {
-    /// #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.clone())) }
+    /// #     fn process(&self, item: String) -> Result<Option<String>, BatchError> { Ok(Some(item)) }
     /// # }
     /// # struct MyWriter;
     /// # impl ItemWriter<String> for MyWriter {
@@ -1187,7 +1187,7 @@ impl<'a, I, O> ChunkOrientedStepBuilder<'a, I, O> {
 /// # }
 /// # struct MyProcessor;
 /// # impl ItemProcessor<String, String> for MyProcessor {
-/// #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.clone())) }
+/// #     fn process(&self, item: String) -> Result<Option<String>, BatchError> { Ok(Some(item)) }
 /// # }
 /// # struct MyWriter;
 /// # impl ItemWriter<String> for MyWriter {
@@ -1297,7 +1297,7 @@ impl StepBuilder {
     /// # }
     /// # struct MyProcessor;
     /// # impl ItemProcessor<String, String> for MyProcessor {
-    /// #     fn process(&self, item: &String) -> Result<Option<String>, BatchError> { Ok(Some(item.clone())) }
+    /// #     fn process(&self, item: String) -> Result<Option<String>, BatchError> { Ok(Some(item)) }
     /// # }
     /// # struct MyWriter;
     /// # impl ItemWriter<String> for MyWriter {
@@ -1461,7 +1461,7 @@ mod tests {
     mock! {
         pub TestProcessor {}
         impl ItemProcessor<Car, Car> for TestProcessor {
-            fn process(&self, item: &Car) -> ItemProcessorResult<Car>;
+            fn process(&self, item: Car) -> ItemProcessorResult<Car>;
         }
     }
 
