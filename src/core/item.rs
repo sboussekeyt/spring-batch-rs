@@ -103,13 +103,12 @@ pub trait ItemReader<I> {
 ///
 /// struct AdultFilter;
 ///
-/// #[derive(Clone)]
 /// struct Person { name: String, age: u32 }
 ///
 /// impl ItemProcessor<Person, Person> for AdultFilter {
-///     fn process(&self, item: &Person) -> ItemProcessorResult<Person> {
+///     fn process(&self, item: Person) -> ItemProcessorResult<Person> {
 ///         if item.age >= 18 {
-///             Ok(Some(item.clone())) // keep adults
+///             Ok(Some(item)) // keep adults
 ///         } else {
 ///             Ok(None) // filter out minors
 ///         }
@@ -120,13 +119,13 @@ pub trait ItemProcessor<I, O> {
     /// Processes an item and returns the processed result.
     ///
     /// # Parameters
-    /// - `item`: The item to process
+    /// - `item`: The item to process (consumed by value)
     ///
     /// # Returns
     /// - `Ok(Some(processed_item))` when the item is successfully processed
     /// - `Ok(None)` when the item is intentionally filtered out
     /// - `Err(BatchError)` when an error occurs during processing
-    fn process(&self, item: &I) -> ItemProcessorResult<O>;
+    fn process(&self, item: I) -> ItemProcessorResult<O>;
 }
 
 /// A trait for writing items.
@@ -242,9 +241,8 @@ pub trait ItemWriter<O> {
 ///
 /// # Performance
 ///
-/// This processor performs a clone operation on each item. For large or complex
-/// data structures, consider whether pass-through processing is necessary or if
-/// the pipeline can be restructured to avoid unnecessary cloning.
+/// This processor takes ownership of the item and returns it directly,
+/// with no allocation or clone.
 ///
 /// # Examples
 ///
@@ -252,9 +250,8 @@ pub trait ItemWriter<O> {
 /// use spring_batch_rs::core::item::{ItemProcessor, PassThroughProcessor};
 ///
 /// let processor = PassThroughProcessor::<String>::new();
-/// let input = "Hello, World!".to_string();
-/// let result = processor.process(&input).unwrap();
-/// assert_eq!(result, Some(input));
+/// let result = processor.process("Hello, World!".to_string()).unwrap();
+/// assert_eq!(result, Some("Hello, World!".to_string()));
 /// ```
 ///
 /// Using with different data types:
@@ -262,40 +259,33 @@ pub trait ItemWriter<O> {
 /// ```
 /// use spring_batch_rs::core::item::{ItemProcessor, PassThroughProcessor};
 ///
-/// // With integers
 /// let int_processor = PassThroughProcessor::<i32>::new();
-/// let number = 42;
-/// let result = int_processor.process(&number).unwrap();
-/// assert_eq!(result, Some(number));
+/// let result = int_processor.process(42).unwrap();
+/// assert_eq!(result, Some(42));
 ///
-/// // With custom structs
-/// #[derive(Clone, PartialEq, Debug)]
+/// #[derive(PartialEq, Debug)]
 /// struct Person {
 ///     name: String,
 ///     age: u32,
 /// }
 ///
 /// let person_processor = PassThroughProcessor::<Person>::new();
-/// let person = Person {
-///     name: "Alice".to_string(),
-///     age: 30,
-/// };
-/// let result = person_processor.process(&person).unwrap();
-/// assert_eq!(result, Some(person));
+/// let result = person_processor.process(Person { name: "Alice".to_string(), age: 30 }).unwrap();
+/// assert_eq!(result, Some(Person { name: "Alice".to_string(), age: 30 }));
 /// ```
 #[derive(Default)]
 pub struct PassThroughProcessor<T> {
     _phantom: std::marker::PhantomData<T>,
 }
 
-impl<T: Clone> ItemProcessor<T, T> for PassThroughProcessor<T> {
+impl<T> ItemProcessor<T, T> for PassThroughProcessor<T> {
     /// Processes an item by returning it unchanged.
     ///
     /// # Parameters
-    /// - `item`: The item to process (will be cloned and returned unchanged)
+    /// - `item`: The item to process (consumed by value and returned unchanged)
     ///
     /// # Returns
-    /// - `Ok(Some(cloned_item))` - Always succeeds and returns a clone of the input item
+    /// - `Ok(Some(item))` - Always succeeds and returns the input item
     ///
     /// # Examples
     ///
@@ -303,16 +293,15 @@ impl<T: Clone> ItemProcessor<T, T> for PassThroughProcessor<T> {
     /// use spring_batch_rs::core::item::{ItemProcessor, PassThroughProcessor};
     ///
     /// let processor = PassThroughProcessor::<Vec<i32>>::new();
-    /// let input = vec![1, 2, 3];
-    /// let result = processor.process(&input).unwrap();
-    /// assert_eq!(result, Some(input));
+    /// let result = processor.process(vec![1, 2, 3]).unwrap();
+    /// assert_eq!(result, Some(vec![1, 2, 3]));
     /// ```
-    fn process(&self, item: &T) -> ItemProcessorResult<T> {
-        Ok(Some(item.clone()))
+    fn process(&self, item: T) -> ItemProcessorResult<T> {
+        Ok(Some(item))
     }
 }
 
-impl<T: Clone> PassThroughProcessor<T> {
+impl<T> PassThroughProcessor<T> {
     /// Creates a new `PassThroughProcessor`.
     ///
     /// # Returns
@@ -363,14 +352,14 @@ impl<T: Clone> PassThroughProcessor<T> {
 ///
 /// struct DoubleProcessor;
 /// impl ItemProcessor<i32, i32> for DoubleProcessor {
-///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+///     fn process(&self, item: i32) -> Result<Option<i32>, BatchError> {
 ///         Ok(Some(item * 2))
 ///     }
 /// }
 ///
 /// struct ToStringProcessor;
 /// impl ItemProcessor<i32, String> for ToStringProcessor {
-///     fn process(&self, item: &i32) -> Result<Option<String>, BatchError> {
+///     fn process(&self, item: i32) -> Result<Option<String>, BatchError> {
 ///         Ok(Some(item.to_string()))
 ///     }
 /// }
@@ -380,7 +369,7 @@ impl<T: Clone> PassThroughProcessor<T> {
 ///     .build();
 ///
 /// // 21 * 2 = 42, then converted to "42"
-/// assert_eq!(composite.process(&21).unwrap(), Some("42".to_string()));
+/// assert_eq!(composite.process(21).unwrap(), Some("42".to_string()));
 /// ```
 ///
 /// # Errors
@@ -407,9 +396,9 @@ where
     /// # Errors
     ///
     /// Returns [`BatchError`] if either processor fails.
-    fn process(&self, item: &I) -> ItemProcessorResult<O> {
+    fn process(&self, item: I) -> ItemProcessorResult<O> {
         match self.first.process(item)? {
-            Some(intermediate) => self.second.process(&intermediate),
+            Some(intermediate) => self.second.process(intermediate),
             None => Ok(None),
         }
     }
@@ -443,14 +432,14 @@ where
 ///
 /// struct DoubleProcessor;
 /// impl ItemProcessor<i32, i32> for DoubleProcessor {
-///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+///     fn process(&self, item: i32) -> Result<Option<i32>, BatchError> {
 ///         Ok(Some(item * 2))
 ///     }
 /// }
 ///
 /// struct ToStringProcessor;
 /// impl ItemProcessor<i32, String> for ToStringProcessor {
-///     fn process(&self, item: &i32) -> Result<Option<String>, BatchError> {
+///     fn process(&self, item: i32) -> Result<Option<String>, BatchError> {
 ///         Ok(Some(item.to_string()))
 ///     }
 /// }
@@ -459,7 +448,7 @@ where
 ///     .link(ToStringProcessor)
 ///     .build();
 ///
-/// assert_eq!(composite.process(&21).unwrap(), Some("42".to_string()));
+/// assert_eq!(composite.process(21).unwrap(), Some("42".to_string()));
 /// ```
 ///
 /// Three processors (`i32 → i32 → i32 → String`):
@@ -470,21 +459,21 @@ where
 ///
 /// struct AddOneProcessor;
 /// impl ItemProcessor<i32, i32> for AddOneProcessor {
-///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+///     fn process(&self, item: i32) -> Result<Option<i32>, BatchError> {
 ///         Ok(Some(item + 1))
 ///     }
 /// }
 ///
 /// struct DoubleProcessor;
 /// impl ItemProcessor<i32, i32> for DoubleProcessor {
-///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+///     fn process(&self, item: i32) -> Result<Option<i32>, BatchError> {
 ///         Ok(Some(item * 2))
 ///     }
 /// }
 ///
 /// struct ToStringProcessor;
 /// impl ItemProcessor<i32, String> for ToStringProcessor {
-///     fn process(&self, item: &i32) -> Result<Option<String>, BatchError> {
+///     fn process(&self, item: i32) -> Result<Option<String>, BatchError> {
 ///         Ok(Some(item.to_string()))
 ///     }
 /// }
@@ -495,7 +484,7 @@ where
 ///     .build();
 ///
 /// // (4 + 1) * 2 = 10 → "10"
-/// assert_eq!(composite.process(&4).unwrap(), Some("10".to_string()));
+/// assert_eq!(composite.process(4).unwrap(), Some("10".to_string()));
 /// ```
 pub struct CompositeItemProcessorBuilder<P> {
     processor: P,
@@ -516,14 +505,14 @@ impl<P> CompositeItemProcessorBuilder<P> {
     ///
     /// struct UppercaseProcessor;
     /// impl ItemProcessor<String, String> for UppercaseProcessor {
-    ///     fn process(&self, item: &String) -> Result<Option<String>, BatchError> {
+    ///     fn process(&self, item: String) -> Result<Option<String>, BatchError> {
     ///         Ok(Some(item.to_uppercase()))
     ///     }
     /// }
     ///
     /// let builder = CompositeItemProcessorBuilder::new(UppercaseProcessor);
     /// let composite = builder.build();
-    /// assert_eq!(composite.process(&"hello".to_string()).unwrap(), Some("HELLO".to_string()));
+    /// assert_eq!(composite.process("hello".to_string()).unwrap(), Some("HELLO".to_string()));
     /// ```
     pub fn new(first: P) -> Self {
         Self { processor: first }
@@ -553,14 +542,14 @@ impl<P> CompositeItemProcessorBuilder<P> {
     ///
     /// struct AddOneProcessor;
     /// impl ItemProcessor<i32, i32> for AddOneProcessor {
-    ///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+    ///     fn process(&self, item: i32) -> Result<Option<i32>, BatchError> {
     ///         Ok(Some(item + 1))
     ///     }
     /// }
     ///
     /// struct ToStringProcessor;
     /// impl ItemProcessor<i32, String> for ToStringProcessor {
-    ///     fn process(&self, item: &i32) -> Result<Option<String>, BatchError> {
+    ///     fn process(&self, item: i32) -> Result<Option<String>, BatchError> {
     ///         Ok(Some(item.to_string()))
     ///     }
     /// }
@@ -569,7 +558,7 @@ impl<P> CompositeItemProcessorBuilder<P> {
     ///     .link(ToStringProcessor)
     ///     .build();
     ///
-    /// assert_eq!(composite.process(&41).unwrap(), Some("42".to_string()));
+    /// assert_eq!(composite.process(41).unwrap(), Some("42".to_string()));
     /// ```
     pub fn link<P2, M>(
         self,
@@ -601,14 +590,14 @@ impl<P> CompositeItemProcessorBuilder<P> {
     ///
     /// struct DoubleProcessor;
     /// impl ItemProcessor<i32, i32> for DoubleProcessor {
-    ///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+    ///     fn process(&self, item: i32) -> Result<Option<i32>, BatchError> {
     ///         Ok(Some(item * 2))
     ///     }
     /// }
     ///
     /// struct AddTenProcessor;
     /// impl ItemProcessor<i32, i32> for AddTenProcessor {
-    ///     fn process(&self, item: &i32) -> Result<Option<i32>, BatchError> {
+    ///     fn process(&self, item: i32) -> Result<Option<i32>, BatchError> {
     ///         Ok(Some(item + 10))
     ///     }
     /// }
@@ -618,7 +607,7 @@ impl<P> CompositeItemProcessorBuilder<P> {
     ///     .build();
     ///
     /// // 5 * 2 = 10, then 10 + 10 = 20
-    /// assert_eq!(composite.process(&5).unwrap(), Some(20));
+    /// assert_eq!(composite.process(5).unwrap(), Some(20));
     /// ```
     pub fn build(self) -> P {
         self.processor
@@ -940,7 +929,7 @@ impl<W> CompositeItemWriterBuilder<W> {
 /// The `?Sized` bound is what makes this cover trait objects: `dyn Trait` is
 /// unsized, so without `?Sized` the impl would not apply to them.
 impl<I, O, P: ItemProcessor<I, O> + ?Sized> ItemProcessor<I, O> for Box<P> {
-    fn process(&self, item: &I) -> ItemProcessorResult<O> {
+    fn process(&self, item: I) -> ItemProcessorResult<O> {
         (**self).process(item)
     }
 }
@@ -989,41 +978,30 @@ mod tests {
     #[test]
     fn should_pass_through_string_unchanged() -> Result<(), BatchError> {
         let processor = PassThroughProcessor::new();
-        let input = "Hello, World!".to_string();
-        let expected = input.clone();
-
-        let result = processor.process(&input)?;
-
-        assert_eq!(result, Some(expected));
+        let result = processor.process("Hello, World!".to_string())?;
+        assert_eq!(result, Some("Hello, World!".to_string()));
         Ok(())
     }
 
     #[test]
     fn should_pass_through_integer_unchanged() -> Result<(), BatchError> {
         let processor = PassThroughProcessor::new();
-        let input = 42i32;
-
-        let result = processor.process(&input)?;
-
-        assert_eq!(result, Some(input));
+        let result = processor.process(42i32)?;
+        assert_eq!(result, Some(42));
         Ok(())
     }
 
     #[test]
     fn should_pass_through_vector_unchanged() -> Result<(), BatchError> {
         let processor = PassThroughProcessor::new();
-        let input = vec![1, 2, 3, 4, 5];
-        let expected = input.clone();
-
-        let result = processor.process(&input)?;
-
-        assert_eq!(result, Some(expected));
+        let result = processor.process(vec![1, 2, 3, 4, 5])?;
+        assert_eq!(result, Some(vec![1, 2, 3, 4, 5]));
         Ok(())
     }
 
     #[test]
     fn should_pass_through_custom_struct_unchanged() -> Result<(), BatchError> {
-        #[derive(Clone, PartialEq, Debug)]
+        #[derive(PartialEq, Debug)]
         struct TestData {
             id: u32,
             name: String,
@@ -1031,86 +1009,62 @@ mod tests {
         }
 
         let processor = PassThroughProcessor::new();
-        let input = TestData {
+        let result = processor.process(TestData {
             id: 123,
             name: "Test Item".to_string(),
             values: vec![1.1, 2.2, 3.3],
-        };
-        let expected = input.clone();
-
-        let result = processor.process(&input)?;
-
-        assert_eq!(result, Some(expected));
+        })?;
+        assert_eq!(result, Some(TestData {
+            id: 123,
+            name: "Test Item".to_string(),
+            values: vec![1.1, 2.2, 3.3],
+        }));
         Ok(())
     }
 
     #[test]
     fn should_pass_through_option_unchanged() -> Result<(), BatchError> {
         let processor = PassThroughProcessor::new();
-
-        // Test with Some value
-        let input_some = Some("test".to_string());
-        let result_some = processor.process(&input_some)?;
-        assert_eq!(result_some, Some(input_some));
-
-        // Test with None value
-        let input_none: Option<String> = None;
-        let result_none = processor.process(&input_none)?;
-        assert_eq!(result_none, Some(input_none));
-
+        let result_some = processor.process(Some("test".to_string()))?;
+        assert_eq!(result_some, Some(Some("test".to_string())));
+        let result_none = processor.process(None::<String>)?;
+        assert_eq!(result_none, Some(None::<String>));
         Ok(())
     }
 
     #[test]
     fn should_handle_empty_collections() -> Result<(), BatchError> {
-        let vec_processor = PassThroughProcessor::new();
-        let empty_vec: Vec<i32> = vec![];
-        let result_vec = vec_processor.process(&empty_vec)?;
-        assert_eq!(result_vec, Some(empty_vec));
-
-        let string_processor = PassThroughProcessor::new();
-        let empty_string = String::new();
-        let result_string = string_processor.process(&empty_string)?;
-        assert_eq!(result_string, Some(empty_string));
-
+        let result_vec = PassThroughProcessor::new().process(Vec::<i32>::new())?;
+        assert_eq!(result_vec, Some(vec![]));
+        let result_string = PassThroughProcessor::new().process(String::new())?;
+        assert_eq!(result_string, Some(String::new()));
         Ok(())
     }
 
     #[test]
-    fn should_clone_input_not_move() {
+    fn should_take_ownership_of_input() {
         let processor = PassThroughProcessor::new();
         let input = "original".to_string();
-        let input_copy = input.clone();
-
-        let _result = processor.process(&input).unwrap();
-
-        assert_eq!(input, input_copy);
-        assert_eq!(input, "original");
+        let result = processor.process(input).unwrap();
+        assert_eq!(result, Some("original".to_string()));
     }
 
     #[test]
     fn should_work_with_multiple_processors() -> Result<(), BatchError> {
         let processor1 = PassThroughProcessor::<String>::new();
         let processor2 = PassThroughProcessor::<String>::new();
-
-        let input = "test data".to_string();
-        let result1 = processor1.process(&input)?;
-        let inner = result1.unwrap();
-        let result2 = processor2.process(&inner)?;
-
-        assert_eq!(result2, Some(input));
+        let inner = processor1.process("test data".to_string())?.unwrap();
+        let result = processor2.process(inner)?;
+        assert_eq!(result, Some("test data".to_string()));
         Ok(())
     }
 
     #[test]
     fn should_handle_large_data_structures() -> Result<(), BatchError> {
         let processor = PassThroughProcessor::new();
-
         let large_input: Vec<i32> = (0..10000).collect();
         let expected_len = large_input.len();
-
-        let result = processor.process(&large_input)?;
-
+        let result = processor.process(large_input)?;
         // PassThroughProcessor always returns Some — unwrap is safe
         assert_eq!(result.unwrap().len(), expected_len);
         Ok(())
@@ -1135,30 +1089,30 @@ mod tests {
 
     struct DoubleProcessor;
     impl ItemProcessor<i32, i32> for DoubleProcessor {
-        fn process(&self, item: &i32) -> ItemProcessorResult<i32> {
+        fn process(&self, item: i32) -> ItemProcessorResult<i32> {
             Ok(Some(item * 2))
         }
     }
 
     struct AddTenProcessor;
     impl ItemProcessor<i32, i32> for AddTenProcessor {
-        fn process(&self, item: &i32) -> ItemProcessorResult<i32> {
+        fn process(&self, item: i32) -> ItemProcessorResult<i32> {
             Ok(Some(item + 10))
         }
     }
 
     struct ToStringProcessor;
     impl ItemProcessor<i32, String> for ToStringProcessor {
-        fn process(&self, item: &i32) -> ItemProcessorResult<String> {
+        fn process(&self, item: i32) -> ItemProcessorResult<String> {
             Ok(Some(item.to_string()))
         }
     }
 
     struct FilterEvenProcessor;
     impl ItemProcessor<i32, i32> for FilterEvenProcessor {
-        fn process(&self, item: &i32) -> ItemProcessorResult<i32> {
+        fn process(&self, item: i32) -> ItemProcessorResult<i32> {
             if item % 2 == 0 {
-                Ok(Some(*item))
+                Ok(Some(item))
             } else {
                 Ok(None) // filter odd numbers
             }
@@ -1167,7 +1121,7 @@ mod tests {
 
     struct FailingProcessor;
     impl ItemProcessor<i32, i32> for FailingProcessor {
-        fn process(&self, _item: &i32) -> ItemProcessorResult<i32> {
+        fn process(&self, _item: i32) -> ItemProcessorResult<i32> {
             Err(BatchError::ItemProcessor("forced failure".to_string()))
         }
     }
@@ -1180,7 +1134,7 @@ mod tests {
 
         // 5 * 2 = 10, then 10 + 10 = 20
         assert_eq!(
-            composite.process(&5)?,
+            composite.process(5)?,
             Some(20),
             "5 * 2 + 10 should equal 20"
         );
@@ -1194,7 +1148,7 @@ mod tests {
             .build();
 
         // 21 * 2 = 42, then "42"
-        assert_eq!(composite.process(&21)?, Some("42".to_string()));
+        assert_eq!(composite.process(21)?, Some("42".to_string()));
         Ok(())
     }
 
@@ -1206,7 +1160,7 @@ mod tests {
             .build();
 
         // 5 * 2 = 10, then 10 + 10 = 20, then "20"
-        assert_eq!(composite.process(&5)?, Some("20".to_string()));
+        assert_eq!(composite.process(5)?, Some("20".to_string()));
         Ok(())
     }
 
@@ -1218,13 +1172,13 @@ mod tests {
 
         // 3 is odd → filtered by first processor → second processor never called
         assert_eq!(
-            composite.process(&3)?,
+            composite.process(3)?,
             None,
             "odd number should be filtered"
         );
         // 4 is even → passes through → converted to string
         assert_eq!(
-            composite.process(&4)?,
+            composite.process(4)?,
             Some("4".to_string()),
             "even number should pass"
         );
@@ -1237,7 +1191,7 @@ mod tests {
             .link(ToStringProcessor)
             .build();
 
-        let result = composite.process(&1);
+        let result = composite.process(1);
         assert!(
             result.is_err(),
             "error from first processor should propagate"
@@ -1248,7 +1202,7 @@ mod tests {
     fn should_propagate_error_from_second_processor() {
         struct AlwaysFailI32;
         impl ItemProcessor<i32, i32> for AlwaysFailI32 {
-            fn process(&self, _: &i32) -> ItemProcessorResult<i32> {
+            fn process(&self, _: i32) -> ItemProcessorResult<i32> {
                 Err(BatchError::ItemProcessor("second failed".to_string()))
             }
         }
@@ -1257,7 +1211,7 @@ mod tests {
             .link(AlwaysFailI32)
             .build();
 
-        let result = composite.process(&5);
+        let result = composite.process(5);
         assert!(
             result.is_err(),
             "error from second processor should propagate"
@@ -1273,7 +1227,7 @@ mod tests {
             .build();
         let boxed: Box<dyn ItemProcessor<i32, String>> = Box::new(composite);
 
-        let result = boxed.process(&3)?;
+        let result = boxed.process(3)?;
         assert_eq!(
             result,
             Some("6".to_string()),
@@ -1287,7 +1241,7 @@ mod tests {
         // Box<ConcreteProcessor> also implements ItemProcessor<I, O> via the ?Sized blanket impl
         let boxed: Box<DoubleProcessor> = Box::new(DoubleProcessor);
 
-        let result = boxed.process(&7)?;
+        let result = boxed.process(7)?;
         assert_eq!(
             result,
             Some(14),
