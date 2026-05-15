@@ -1,5 +1,8 @@
 use sqlx::{Database, query_builder::Separated};
 
+/// Fluent SQL SELECT builder for RDBC item readers.
+pub mod select_builder;
+
 /// Common utilities for database item writers.
 mod writer_common;
 
@@ -135,5 +138,6 @@ pub use sqlite_writer::SqliteItemWriter;
 
 // Re-export unified builder types (recommended API)
 pub use database_type::DatabaseType;
+pub use select_builder::SelectBuilder;
 pub use unified_reader_builder::RdbcItemReaderBuilder;
 pub use unified_writer_builder::RdbcItemWriterBuilder;
