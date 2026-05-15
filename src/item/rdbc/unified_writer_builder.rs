@@ -465,7 +465,8 @@ mod tests {
     async fn should_transfer_sqlite_pool_to_writer() {
         use crate::BatchError;
         let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
-        // Pool set but no binder → error is "binder not configured"
+        // Pool and columns set → attempt to write (will fail because table doesn't exist)
+        // This tests that the pool is correctly transferred to the writer
         let writer = RdbcItemWriterBuilder::<String>::new()
             .sqlite(&pool)
             .table("t")
@@ -474,8 +475,8 @@ mod tests {
         let result = writer.write(&["x".to_string()]);
         match result.err().unwrap() {
             BatchError::ItemWriter(msg) => assert!(
-                msg.contains("binder"),
-                "pool was set so error should be about binder, got: {msg}"
+                msg.contains("SQLite"),
+                "pool was set and columns transferred, so write should execute and fail with SQLite error, got: {msg}"
             ),
             e => panic!("expected ItemWriter, got {e:?}"),
         }
