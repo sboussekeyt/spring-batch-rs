@@ -35,10 +35,7 @@ use spring_batch_rs::{
     item::{
         csv::csv_reader::CsvItemReaderBuilder,
         rdbc::{DatabaseItemBinder, RdbcItemReaderBuilder, RdbcItemWriterBuilder},
-        xml::{
-            xml_reader::XmlItemReaderBuilder,
-            xml_writer::XmlItemWriterBuilder,
-        },
+        xml::{xml_reader::XmlItemReaderBuilder, xml_writer::XmlItemWriterBuilder},
     },
 };
 use sqlx::{FromRow, PgPool, Postgres, query_builder::Separated};
@@ -634,7 +631,10 @@ async fn main() -> Result<(), BatchError> {
     eprintln!("╔══════════════════════════════════════════════════════════╗");
     eprintln!("║  BENCHMARK SUMMARY                                       ║");
     eprintln!("╠══════════════════════════════════════════════════════════╣");
-    eprintln!("║  Total wall-clock time   : {:.1}s  (incl. CSV generation)", total_secs);
+    eprintln!(
+        "║  Total wall-clock time   : {:.1}s  (incl. CSV generation)",
+        total_secs
+    );
     eprintln!("║  Records processed       : {}", TOTAL_RECORDS);
     eprintln!(
         "║  Average throughput      : {:.0} rec/s",

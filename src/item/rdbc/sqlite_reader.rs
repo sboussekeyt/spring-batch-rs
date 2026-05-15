@@ -145,7 +145,11 @@ mod tests {
         pool
     }
 
-    fn make_reader(pool: SqlitePool, query: &str, page_size: Option<i32>) -> SqliteRdbcItemReader<'_, Row> {
+    fn make_reader(
+        pool: SqlitePool,
+        query: &str,
+        page_size: Option<i32>,
+    ) -> SqliteRdbcItemReader<'_, Row> {
         SqliteRdbcItemReader::<Row>::new(pool, query, page_size, None, None)
     }
 
@@ -246,7 +250,11 @@ mod tests {
         while let Some(item) = reader.read().unwrap() {
             names.push(item.name.clone());
         }
-        assert_eq!(names, vec!["a", "b", "c", "d", "e"], "keyset should return all items in order");
+        assert_eq!(
+            names,
+            vec!["a", "b", "c", "d", "e"],
+            "keyset should return all items in order"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -260,7 +268,10 @@ mod tests {
             Some(Box::new(|r: &Row| r.id.to_string())),
         );
 
-        assert!(reader.last_cursor.borrow().is_none(), "cursor should be None before first read");
+        assert!(
+            reader.last_cursor.borrow().is_none(),
+            "cursor should be None before first read"
+        );
         reader.read().unwrap();
         assert_eq!(
             reader.last_cursor.borrow().as_deref(),
@@ -285,6 +296,9 @@ mod tests {
             Some("id".to_string()),
             Some(Box::new(|r: &Row| r.id.to_string())),
         );
-        assert!(reader.read().unwrap().is_none(), "empty table should yield None with keyset");
+        assert!(
+            reader.read().unwrap().is_none(),
+            "empty table should yield None with keyset"
+        );
     }
 }

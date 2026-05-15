@@ -265,8 +265,13 @@ async fn postgres_reader_should_read_all_items_without_pagination()
 -> Result<(), Box<dyn std::error::Error>> {
     let (pool, _container) = setup_reader_test_db().await?;
 
-    let reader: PostgresRdbcItemReader<TestUser> =
-        PostgresRdbcItemReader::new(pool, "SELECT * FROM test_users ORDER BY id", None, None, None);
+    let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
+        pool,
+        "SELECT * FROM test_users ORDER BY id",
+        None,
+        None,
+        None,
+    );
 
     let mut items = Vec::new();
     while let Some(item) = reader.read()? {
@@ -287,8 +292,13 @@ async fn postgres_reader_should_read_items_with_pagination()
 -> Result<(), Box<dyn std::error::Error>> {
     let (pool, _container) = setup_reader_test_db().await?;
 
-    let reader: PostgresRdbcItemReader<TestUser> =
-        PostgresRdbcItemReader::new(pool, "SELECT * FROM test_users ORDER BY id", Some(3), None, None);
+    let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
+        pool,
+        "SELECT * FROM test_users ORDER BY id",
+        Some(3),
+        None,
+        None,
+    );
 
     let mut items = Vec::new();
     while let Some(item) = reader.read()? {
@@ -309,8 +319,13 @@ async fn postgres_reader_should_handle_empty_result_set() -> Result<(), Box<dyn 
 {
     let (pool, _container) = setup_reader_test_db().await?;
 
-    let reader: PostgresRdbcItemReader<TestUser> =
-        PostgresRdbcItemReader::new(pool, "SELECT * FROM test_users WHERE id > 1000", Some(5), None, None);
+    let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
+        pool,
+        "SELECT * FROM test_users WHERE id > 1000",
+        Some(5),
+        None,
+        None,
+    );
 
     let result = reader.read()?;
     assert!(result.is_none());
@@ -449,8 +464,13 @@ async fn postgres_reader_should_handle_sequential_reads_correctly()
 -> Result<(), Box<dyn std::error::Error>> {
     let (pool, _container) = setup_reader_test_db().await?;
 
-    let reader: PostgresRdbcItemReader<TestUser> =
-        PostgresRdbcItemReader::new(pool, "SELECT * FROM test_users ORDER BY id", Some(3), None, None);
+    let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
+        pool,
+        "SELECT * FROM test_users ORDER BY id",
+        Some(3),
+        None,
+        None,
+    );
 
     let mut all_items = Vec::new();
     for _ in 0..10 {
@@ -516,8 +536,13 @@ async fn postgres_reader_should_work_with_different_data_types()
         }
     }
 
-    let reader: PostgresRdbcItemReader<TestData> =
-        PostgresRdbcItemReader::new(pool, "SELECT * FROM test_data ORDER BY id", Some(1), None, None);
+    let reader: PostgresRdbcItemReader<TestData> = PostgresRdbcItemReader::new(
+        pool,
+        "SELECT * FROM test_data ORDER BY id",
+        Some(1),
+        None,
+        None,
+    );
 
     let mut items = Vec::new();
     while let Some(item) = reader.read()? {
@@ -547,8 +572,13 @@ async fn postgres_reader_should_handle_large_result_sets_efficiently()
             .await?;
     }
 
-    let reader: PostgresRdbcItemReader<TestUser> =
-        PostgresRdbcItemReader::new(pool, "SELECT * FROM test_users ORDER BY id", Some(10), None, None);
+    let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
+        pool,
+        "SELECT * FROM test_users ORDER BY id",
+        Some(10),
+        None,
+        None,
+    );
 
     let mut count = 0;
     while let Some(_item) = reader.read()? {
