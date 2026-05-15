@@ -12,4 +12,3 @@ coverage:
 ignore:
   - "examples/**"
   - "tests/**"
-  - "website/**"

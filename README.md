@@ -4,9 +4,9 @@
 
 [![crate](https://img.shields.io/crates/v/spring-batch-rs.svg)](https://crates.io/crates/spring-batch-rs)
 [![docs](https://docs.rs/spring-batch-rs/badge.svg)](https://docs.rs/spring-batch-rs)
-[![build status](https://github.com/sboussekeyt/spring-batch-rs/actions/workflows/test.yml/badge.svg)](https://github.com/sboussekeyt/spring-batch-rs/actions/workflows/test.yml)
+[![build status](https://github.com/spring-batch-rs/sbrs-lib/actions/workflows/test.yml/badge.svg)](https://github.com/spring-batch-rs/sbrs-lib/actions/workflows/test.yml)
 [![Discord chat](https://img.shields.io/discord/1097536141617528966.svg?logo=discord&style=flat-square)](https://discord.gg/9FNhawNsG6)
-[![CodeCov](https://codecov.io/gh/sboussekeyt/spring-batch-rs/branch/main/graph/badge.svg)](https://codecov.io/gh/sboussekeyt/spring-batch-rs)
+[![CodeCov](https://codecov.io/gh/spring-batch-rs/sbrs-lib/branch/main/graph/badge.svg)](https://codecov.io/gh/spring-batch-rs/sbrs-lib)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
 Processing a large CSV into a database? You end up writing readers, chunk logic, error
