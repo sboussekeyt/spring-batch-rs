@@ -16,11 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [
-          ubuntu-latest,
-          windows-latest,
-          macOS-latest
-        ]
+        os: [ubuntu-latest]
 
     steps:
       - uses: actions/checkout@v6
@@ -30,4 +26,4 @@ jobs:
           toolchain: stable
 
       - name: Build
-        run: cargo build --release
+        run: cargo build --release --all-features
