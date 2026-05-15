@@ -34,7 +34,7 @@ struct Product {
 struct ProductProcessor;
 
 impl ItemProcessor<Product, Product> for ProductProcessor {
-    fn process(&self, item: &Product) -> ItemProcessorResult<Product> {
+    fn process(&self, item: Product) -> ItemProcessorResult<Product> {
         let description = match &item.description {
             Some(desc) => Some(desc.to_uppercase()),
             None => Some("NO DESCRIPTION AVAILABLE".to_string()),

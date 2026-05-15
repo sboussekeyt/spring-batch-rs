@@ -37,7 +37,7 @@ struct Product {
 struct ProductProcessor;
 
 impl ItemProcessor<Product, Product> for ProductProcessor {
-    fn process(&self, item: &Product) -> ItemProcessorResult<Product> {
+    fn process(&self, item: Product) -> ItemProcessorResult<Product> {
         let description = match &item.description {
             Some(desc) => Some(desc.to_uppercase()),
             None => Some("NO DESCRIPTION AVAILABLE".to_string()),
@@ -187,7 +187,7 @@ P003,SKU789,Headphones,129.99,Japan,AudioInc,1978,Electronics,false,Audio,true,f
     struct CsvToEnhancedProductProcessor;
 
     impl ItemProcessor<Vec<String>, EnhancedProduct> for CsvToEnhancedProductProcessor {
-        fn process(&self, item: &Vec<String>) -> ItemProcessorResult<EnhancedProduct> {
+        fn process(&self, item: Vec<String>) -> ItemProcessorResult<EnhancedProduct> {
             if item.len() < 12 {
                 return Err(BatchError::ItemProcessor(
                     "CSV row has too few columns".to_string(),

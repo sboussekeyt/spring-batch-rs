@@ -61,8 +61,8 @@ struct Car {
 struct CarProcessor;
 
 impl ItemProcessor<Car, Car> for CarProcessor {
-    fn process(&self, item: &Car) -> ItemProcessorResult<Car> {
-        Ok(Some(item.clone()))
+    fn process(&self, item: Car) -> ItemProcessorResult<Car> {
+        Ok(Some(item))
     }
 }
 
