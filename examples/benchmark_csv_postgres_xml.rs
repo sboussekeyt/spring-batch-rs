@@ -34,7 +34,10 @@ use spring_batch_rs::{
     item::{
         csv::csv_reader::CsvItemReaderBuilder,
         rdbc::{DatabaseItemBinder, RdbcItemReaderBuilder, RdbcItemWriterBuilder},
-        xml::xml_writer::XmlItemWriterBuilder,
+        xml::{
+            xml_reader::XmlItemReaderBuilder,
+            xml_writer::XmlItemWriterBuilder,
+        },
     },
 };
 use sqlx::{FromRow, PgPool, Postgres, query_builder::Separated};
@@ -112,6 +115,22 @@ impl ItemProcessor<Transaction, Transaction> for TransactionProcessor {
 struct TransactionBinder;
 
 impl DatabaseItemBinder<Transaction, Postgres> for TransactionBinder {
+    fn bind(&self, item: &Transaction, mut q: Separated<Postgres, &str>) {
+        q.push_bind(item.transaction_id.clone());
+        q.push_bind(item.amount);
+        q.push_bind(item.currency.clone());
+        q.push_bind(item.timestamp.clone());
+        q.push_bind(item.account_from.clone());
+        q.push_bind(item.account_to.clone());
+        q.push_bind(item.status.clone());
+        q.push_bind(item.amount_eur);
+    }
+}
+
+/// Binds `Transaction` fields to a PostgreSQL bulk-insert for `transactions_import`.
+struct TransactionImportBinder;
+
+impl DatabaseItemBinder<Transaction, Postgres> for TransactionImportBinder {
     fn bind(&self, item: &Transaction, mut q: Separated<Postgres, &str>) {
         q.push_bind(item.transaction_id.clone());
         q.push_bind(item.amount);
@@ -438,6 +457,67 @@ fn run_step2(pool: &PgPool, xml_path: &str) -> Result<u64, BatchError> {
 }
 
 // =============================================================================
+// Step 3 — XML → PostgreSQL (transactions_import)
+// =============================================================================
+
+fn run_step3(pool: &PgPool, xml_path: &str) -> Result<u64, BatchError> {
+    log::info!("[Step 3] XML → PostgreSQL (transactions_import) …");
+    let t0 = Instant::now();
+
+    let reader = XmlItemReaderBuilder::<Transaction>::new()
+        .from_path(xml_path)
+        .map_err(|e| BatchError::ItemReader(e.to_string()))?;
+
+    let binder = TransactionImportBinder;
+    let writer = RdbcItemWriterBuilder::<Transaction>::new()
+        .postgres(pool)
+        .table("transactions_import")
+        .add_column("transaction_id")
+        .add_column("amount")
+        .add_column("currency")
+        .add_column("timestamp")
+        .add_column("account_from")
+        .add_column("account_to")
+        .add_column("status")
+        .add_column("amount_eur")
+        .postgres_binder(&binder)
+        .build_postgres();
+
+    let processor = PassThroughProcessor::<Transaction>::new();
+
+    let step = StepBuilder::new("xml-to-postgres-import")
+        .chunk::<Transaction, Transaction>(1_000)
+        .reader(&reader)
+        .processor(&processor)
+        .writer(&writer)
+        .build();
+
+    let job = JobBuilder::new().start(&step).build();
+    job.run()?;
+
+    let exec = job
+        .get_step_execution("xml-to-postgres-import")
+        .expect("step 'xml-to-postgres-import' must exist after job.run()");
+    let duration = t0.elapsed();
+    let throughput = exec.write_count as f64 / duration.as_secs_f64();
+
+    eprintln!(
+        "[Step 3] Done — {} records written in {:.1}s ({:.0} rec/s)",
+        exec.write_count,
+        duration.as_secs_f64(),
+        throughput
+    );
+    if exec.read_error_count > 0 || exec.write_error_count > 0 {
+        eprintln!(
+            "[Step 3] WARNING: {} read errors, {} write errors skipped",
+            exec.read_error_count, exec.write_error_count
+        );
+    }
+
+    Ok(exec.write_count as u64)
+}
+
+// =============================================================================
 // Main
 // =============================================================================
 
@@ -522,7 +602,10 @@ async fn main() -> Result<(), BatchError> {
         .await
         .map_err(|e| BatchError::Step(format!("Truncate failed: {}", e)))?;
 
-    // 4. Generate CSV
+    // 4. Total wall time includes CSV generation
+    let t_total = Instant::now();
+
+    // 5. Generate CSV
     eprintln!(
         "[Generate] Writing {} rows to {} …",
         TOTAL_RECORDS, csv_path
@@ -532,9 +615,6 @@ async fn main() -> Result<(), BatchError> {
     eprintln!("[Generate] Done in {:.1}s", t_gen.elapsed().as_secs_f64());
     eprintln!();
 
-    // 5. Total wall time starts here
-    let t_total = Instant::now();
-
     // 6. Run Step 1
     run_step1(&pool, &csv_path)?;
     eprintln!();
@@ -543,12 +623,16 @@ async fn main() -> Result<(), BatchError> {
     run_step2(&pool, &xml_path)?;
     eprintln!();
 
-    // 8. Summary
+    // 8. Run Step 3
+    run_step3(&pool, &xml_path)?;
+    eprintln!();
+
+    // 9. Summary
     let total_secs = t_total.elapsed().as_secs_f64();
     eprintln!("╔══════════════════════════════════════════════════════════╗");
     eprintln!("║  BENCHMARK SUMMARY                                       ║");
     eprintln!("╠══════════════════════════════════════════════════════════╣");
-    eprintln!("║  Total pipeline duration : {:.1}s", total_secs);
+    eprintln!("║  Total wall-clock time   : {:.1}s  (incl. CSV generation)", total_secs);
     eprintln!("║  Records processed       : {}", TOTAL_RECORDS);
     eprintln!(
         "║  Average throughput      : {:.0} rec/s",
