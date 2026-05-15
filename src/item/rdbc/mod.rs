@@ -1,5 +1,8 @@
 use sqlx::{Database, query_builder::Separated};
 
+/// Type-erased column value for item writers.
+mod column_value;
+
 /// Fluent SQL SELECT builder for RDBC item readers.
 mod select_builder;
 
@@ -137,6 +140,7 @@ pub use sqlite_reader::SqliteRdbcItemReader;
 pub use sqlite_writer::SqliteItemWriter;
 
 // Re-export unified builder types (recommended API)
+pub use column_value::ColumnValue;
 pub use database_type::DatabaseType;
 pub use select_builder::SelectBuilder;
 pub use unified_reader_builder::RdbcItemReaderBuilder;
