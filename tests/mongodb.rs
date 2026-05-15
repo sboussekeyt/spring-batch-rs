@@ -47,7 +47,7 @@ struct FormattedBook {
 struct FormatBookProcessor {}
 
 impl ItemProcessor<Book, FormattedBook> for FormatBookProcessor {
-    fn process(&self, item: &Book) -> ItemProcessorResult<FormattedBook> {
+    fn process(&self, item: Book) -> ItemProcessorResult<FormattedBook> {
         let book = FormattedBook {
             title: item.title.replace(" ", "_").to_uppercase(),
             author: item.author.replace(" ", "_").to_uppercase(),

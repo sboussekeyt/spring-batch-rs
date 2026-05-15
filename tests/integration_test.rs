@@ -52,7 +52,7 @@ pub struct Person {
 struct UpperCaseProcessor;
 
 impl ItemProcessor<Person, Person> for UpperCaseProcessor {
-    fn process(&self, item: &Person) -> ItemProcessorResult<Person> {
+    fn process(&self, item: Person) -> ItemProcessorResult<Person> {
         let person = Person {
             first_name: item.first_name.to_uppercase(),
             last_name: item.last_name.to_uppercase(),
@@ -69,8 +69,8 @@ impl ItemProcessor<Person, Person> for UpperCaseProcessor {
 struct CarProcessor;
 
 impl ItemProcessor<Car, Car> for CarProcessor {
-    fn process(&self, item: &Car) -> ItemProcessorResult<Car> {
-        Ok(Some(item.clone()))
+    fn process(&self, item: Car) -> ItemProcessorResult<Car> {
+        Ok(Some(item))
     }
 }
 
@@ -113,7 +113,7 @@ LÉO,ZOLA,DR.,UGO_PRAESENTIUM@ORANGE.FR,2019-01-01
     );
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug)]
 struct Car {
     year: u16,
     make: String,

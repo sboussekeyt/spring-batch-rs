@@ -49,7 +49,7 @@ pub struct Person {
     birth_date: Date,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug)]
 struct Car {
     year: u16,
     make: String,
@@ -61,8 +61,8 @@ struct Car {
 struct CarProcessor;
 
 impl ItemProcessor<Car, Car> for CarProcessor {
-    fn process(&self, item: &Car) -> ItemProcessorResult<Car> {
-        Ok(Some(item.clone()))
+    fn process(&self, item: Car) -> ItemProcessorResult<Car> {
+        Ok(Some(item))
     }
 }
 

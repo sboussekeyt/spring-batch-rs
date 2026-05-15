@@ -57,11 +57,11 @@ pub struct ProductDto {
 struct ProductTransformProcessor;
 
 impl ItemProcessor<Model, ProductDto> for ProductTransformProcessor {
-    fn process(&self, item: &Model) -> ItemProcessorResult<ProductDto> {
+    fn process(&self, item: Model) -> ItemProcessorResult<ProductDto> {
         let dto = ProductDto {
             id: item.id,
             display_name: format!("Product: {}", item.name),
-            category: item.category.clone(),
+            category: item.category,
             formatted_price: format!("${:.2}", item.price),
             availability: if item.in_stock {
                 "Available".to_string()
@@ -772,11 +772,11 @@ mod orm_writer_tests {
     struct ProductDtoToActiveModelProcessor;
 
     impl ItemProcessor<ProductInsertDto, ActiveModel> for ProductDtoToActiveModelProcessor {
-        fn process(&self, item: &ProductInsertDto) -> ItemProcessorResult<ActiveModel> {
+        fn process(&self, item: ProductInsertDto) -> ItemProcessorResult<ActiveModel> {
             let active_model = ActiveModel {
                 id: sea_orm::ActiveValue::NotSet, // Auto-generated
-                name: Set(item.name.clone()),
-                category: Set(item.category.clone()),
+                name: Set(item.name),
+                category: Set(item.category),
                 price: Set(item.price),
                 in_stock: Set(item.in_stock),
                 created_at: Set(DateTimeUtc::default()),

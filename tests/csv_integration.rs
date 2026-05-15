@@ -34,14 +34,14 @@ struct Product {
 struct ProductProcessor;
 
 impl ItemProcessor<Product, Product> for ProductProcessor {
-    fn process(&self, item: &Product) -> ItemProcessorResult<Product> {
+    fn process(&self, item: Product) -> ItemProcessorResult<Product> {
         let description = match &item.description {
             Some(desc) => Some(desc.to_uppercase()),
             None => Some("NO DESCRIPTION AVAILABLE".to_string()),
         };
 
         let product = Product {
-            id: item.id.clone(),
+            id: item.id,
             name: item.name.to_uppercase(),
             price: item.price * 1.1, // 10% price increase
             description,

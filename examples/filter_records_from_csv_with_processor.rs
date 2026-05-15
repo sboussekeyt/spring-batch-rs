@@ -30,7 +30,7 @@ use spring_batch_rs::{
 };
 
 /// A person record read from the CSV source.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Person {
     name: String,
     age: u32,
@@ -44,9 +44,9 @@ struct Person {
 struct AdultFilter;
 
 impl ItemProcessor<Person, Person> for AdultFilter {
-    fn process(&self, item: &Person) -> ItemProcessorResult<Person> {
+    fn process(&self, item: Person) -> ItemProcessorResult<Person> {
         if item.age >= 18 {
-            Ok(Some(item.clone())) // keep adults
+            Ok(Some(item)) // keep adults
         } else {
             Ok(None) // filter out minors
         }

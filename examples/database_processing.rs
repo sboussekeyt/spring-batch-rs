@@ -84,11 +84,11 @@ impl DatabaseItemBinder<Product, Sqlite> for ProductBinder {
 struct ActivateUserProcessor;
 
 impl ItemProcessor<User, User> for ActivateUserProcessor {
-    fn process(&self, item: &User) -> Result<Option<User>, BatchError> {
+    fn process(&self, item: User) -> Result<Option<User>, BatchError> {
         Ok(Some(User {
             id: item.id,
-            name: item.name.clone(),
-            email: item.email.clone(),
+            name: item.name,
+            email: item.email,
             active: true,
         }))
     }

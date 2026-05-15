@@ -67,7 +67,7 @@ impl WithObjectId for Book {
 }
 
 /// A simplified book record for CSV export (without ObjectId).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Serialize)]
 struct BookCsv {
     title: String,
     author: String,
@@ -76,7 +76,7 @@ struct BookCsv {
 }
 
 /// Input record for importing books from CSV.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct BookInput {
     title: String,
     author: String,
@@ -88,12 +88,12 @@ struct BookInput {
 struct BookToCsvProcessor;
 
 impl ItemProcessor<Book, BookCsv> for BookToCsvProcessor {
-    fn process(&self, item: &Book) -> Result<Option<BookCsv>, BatchError> {
+    fn process(&self, item: Book) -> Result<Option<BookCsv>, BatchError> {
         Ok(Some(BookCsv {
-            title: item.title.clone(),
-            author: item.author.clone(),
+            title: item.title,
+            author: item.author,
             year: item.year,
-            genre: item.genre.clone(),
+            genre: item.genre,
         }))
     }
 }
@@ -102,15 +102,15 @@ impl ItemProcessor<Book, BookCsv> for BookToCsvProcessor {
 struct BookFromCsvProcessor;
 
 impl ItemProcessor<BookInput, Book> for BookFromCsvProcessor {
-    fn process(&self, item: &BookInput) -> Result<Option<Book>, BatchError> {
+    fn process(&self, item: BookInput) -> Result<Option<Book>, BatchError> {
         let oid = ObjectId::new();
         Ok(Some(Book {
             id: Some(oid),
             object_id: oid,
-            title: item.title.clone(),
-            author: item.author.clone(),
+            title: item.title,
+            author: item.author,
             year: item.year,
-            genre: item.genre.clone(),
+            genre: item.genre,
         }))
     }
 }

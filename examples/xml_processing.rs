@@ -35,7 +35,7 @@ use std::io::Cursor;
 
 /// A book record from XML.
 /// XML attributes are handled with `@` prefix in serde rename.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Book {
     #[serde(rename = "@id")]
     id: u32,
@@ -45,7 +45,7 @@ struct Book {
 }
 
 /// A person record for XML processing.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Person {
     name: String,
     email: String,
@@ -53,7 +53,7 @@ struct Person {
 }
 
 /// A house record with nested structure.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct House {
     #[serde(rename = "@id")]
     id: u32,
@@ -64,7 +64,7 @@ struct House {
 }
 
 /// CSV-friendly house record without XML attributes.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Serialize)]
 struct HouseCsv {
     id: u32,
     address: String,
@@ -77,11 +77,11 @@ struct HouseCsv {
 struct HouseToCsvProcessor;
 
 impl ItemProcessor<House, HouseCsv> for HouseToCsvProcessor {
-    fn process(&self, item: &House) -> Result<Option<HouseCsv>, BatchError> {
+    fn process(&self, item: House) -> Result<Option<HouseCsv>, BatchError> {
         Ok(Some(HouseCsv {
             id: item.id,
-            address: item.address.clone(),
-            city: item.city.clone(),
+            address: item.address,
+            city: item.city,
             bedrooms: item.bedrooms,
             price: item.price,
         }))

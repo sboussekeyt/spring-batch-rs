@@ -34,7 +34,7 @@ use std::env::temp_dir;
 // =============================================================================
 
 /// A product record for CSV processing.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Product {
     id: u32,
     name: String,
@@ -54,12 +54,12 @@ impl DiscountProcessor {
 }
 
 impl ItemProcessor<Product, Product> for DiscountProcessor {
-    fn process(&self, item: &Product) -> Result<Option<Product>, BatchError> {
+    fn process(&self, item: Product) -> Result<Option<Product>, BatchError> {
         Ok(Some(Product {
             id: item.id,
-            name: item.name.clone(),
+            name: item.name,
             price: item.price * (1.0 - self.discount_percent / 100.0),
-            category: item.category.clone(),
+            category: item.category,
         }))
     }
 }
