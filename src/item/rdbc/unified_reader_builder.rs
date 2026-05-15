@@ -88,6 +88,7 @@ pub struct RdbcItemReaderBuilder<'a, I> {
     page_size: Option<i32>,
     db_type: Option<DatabaseType>,
     keyset_column: Option<String>,
+    #[allow(clippy::type_complexity)]
     keyset_key_fn: Option<Box<dyn Fn(&I) -> String>>,
     _phantom: PhantomData<I>,
 }
@@ -356,5 +357,29 @@ mod tests {
         let _ = RdbcItemReaderBuilder::<Dummy>::new()
             .query("SELECT id FROM t")
             .build_mysql();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_propagate_keyset_to_sqlite_reader() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let reader = RdbcItemReaderBuilder::<Dummy>::new()
+            .sqlite(pool)
+            .query("SELECT 1 AS id")
+            .with_page_size(5)
+            .with_keyset("id", |d: &Dummy| d.id.to_string())
+            .build_sqlite();
+        assert_eq!(
+            reader.keyset_column.as_deref(),
+            Some("id"),
+            "keyset column should be propagated to reader"
+        );
+        assert!(
+            reader.keyset_key.is_some(),
+            "keyset key fn should be propagated to reader"
+        );
+        assert!(
+            reader.last_cursor.borrow().is_none(),
+            "cursor starts as None"
+        );
     }
 }

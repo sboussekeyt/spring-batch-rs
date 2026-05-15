@@ -589,3 +589,77 @@ async fn postgres_reader_should_handle_large_result_sets_efficiently()
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn postgres_reader_should_read_all_items_with_keyset_pagination()
+-> Result<(), Box<dyn std::error::Error>> {
+    let (pool, _container) = setup_reader_test_db().await?;
+
+    let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
+        pool,
+        "SELECT id, name, email FROM test_users",
+        Some(3),
+        Some("id".to_string()),
+        Some(Box::new(|u: &TestUser| u.id.to_string())),
+    );
+
+    let mut items = Vec::new();
+    while let Some(item) = reader.read()? {
+        items.push(item);
+    }
+
+    assert_eq!(
+        items.len(),
+        10,
+        "keyset pagination should return all 10 rows"
+    );
+    for (i, item) in items.iter().enumerate() {
+        assert_eq!(item.id, (i + 1) as i32);
+    }
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn postgres_reader_should_cross_page_boundary_with_keyset()
+-> Result<(), Box<dyn std::error::Error>> {
+    let (pool, _container) = setup_reader_test_db().await?;
+
+    // page_size=4 with 10 rows means 3 pages — exercises cursor update across boundaries
+    let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
+        pool,
+        "SELECT id, name, email FROM test_users",
+        Some(4),
+        Some("id".to_string()),
+        Some(Box::new(|u: &TestUser| u.id.to_string())),
+    );
+
+    let mut ids = Vec::new();
+    while let Some(item) = reader.read()? {
+        ids.push(item.id);
+    }
+
+    assert_eq!(ids.len(), 10, "all 10 rows should be returned");
+    assert_eq!(ids, (1..=10).collect::<Vec<_>>(), "IDs should be in order");
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn postgres_reader_should_return_none_for_empty_table_with_keyset()
+-> Result<(), Box<dyn std::error::Error>> {
+    let (pool, _container) = setup_reader_test_db().await?;
+
+    let reader: PostgresRdbcItemReader<TestUser> = PostgresRdbcItemReader::new(
+        pool,
+        "SELECT id, name, email FROM test_users WHERE id > 9999",
+        Some(5),
+        Some("id".to_string()),
+        Some(Box::new(|u: &TestUser| u.id.to_string())),
+    );
+
+    let result = reader.read()?;
+    assert!(result.is_none(), "empty keyset result should yield None");
+
+    Ok(())
+}

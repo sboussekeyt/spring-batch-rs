@@ -30,6 +30,7 @@ where
     pub(crate) offset: Cell<i32>,
     pub(crate) buffer: RefCell<Vec<I>>,
     pub(crate) keyset_column: Option<String>,
+    #[allow(clippy::type_complexity)]
     pub(crate) keyset_key: Option<Box<dyn Fn(&I) -> String>>,
     pub(crate) last_cursor: RefCell<Option<String>>,
 }
@@ -42,7 +43,8 @@ where
     ///
     /// This constructor is only accessible within the crate to enforce the use
     /// of `RdbcItemReaderBuilder` for creating reader instances.
-    pub(crate) fn new(
+    #[allow(clippy::type_complexity)]
+    pub fn new(
         pool: Pool<MySql>,
         query: &'a str,
         page_size: Option<i32>,
@@ -101,6 +103,70 @@ where
         self.buffer.borrow_mut().clear();
         self.buffer.borrow_mut().extend(items);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::MySqlPool;
+
+    #[derive(Clone)]
+    struct Dummy;
+
+    impl<'r> sqlx::FromRow<'r, sqlx::mysql::MySqlRow> for Dummy {
+        fn from_row(_row: &'r sqlx::mysql::MySqlRow) -> Result<Self, sqlx::Error> {
+            Ok(Dummy)
+        }
+    }
+
+    fn reader_with_keyset(keyset: bool) -> MySqlRdbcItemReader<'static, Dummy> {
+        let pool = MySqlPool::connect_lazy("mysql://root:root@localhost/test")
+            .expect("lazy pool creation should not fail");
+        let (col, key): (Option<String>, Option<Box<dyn Fn(&Dummy) -> String>>) = if keyset {
+            (
+                Some("id".to_string()),
+                Some(Box::new(|_: &Dummy| "0".to_string())),
+            )
+        } else {
+            (None, None)
+        };
+        MySqlRdbcItemReader::new(pool, "SELECT 1", Some(10), col, key)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_initialize_without_keyset() {
+        let reader = reader_with_keyset(false);
+        assert!(reader.keyset_column.is_none(), "no keyset column expected");
+        assert!(reader.keyset_key.is_none(), "no keyset key fn expected");
+        assert!(
+            reader.last_cursor.borrow().is_none(),
+            "cursor must start as None"
+        );
+        assert_eq!(reader.offset.get(), 0, "initial offset should be 0");
+        assert!(
+            reader.buffer.borrow().is_empty(),
+            "buffer should start empty"
+        );
+        assert_eq!(reader.page_size, Some(10));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_initialize_with_keyset_column_and_none_cursor() {
+        let reader = reader_with_keyset(true);
+        assert_eq!(
+            reader.keyset_column.as_deref(),
+            Some("id"),
+            "keyset column should be stored"
+        );
+        assert!(
+            reader.keyset_key.is_some(),
+            "keyset key fn should be stored"
+        );
+        assert!(
+            reader.last_cursor.borrow().is_none(),
+            "cursor must start as None before first read"
+        );
     }
 }
 

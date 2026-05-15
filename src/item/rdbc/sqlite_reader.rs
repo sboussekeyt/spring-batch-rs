@@ -24,6 +24,7 @@ where
     pub(crate) offset: Cell<i32>,
     pub(crate) buffer: RefCell<Vec<I>>,
     pub(crate) keyset_column: Option<String>,
+    #[allow(clippy::type_complexity)]
     pub(crate) keyset_key: Option<Box<dyn Fn(&I) -> String>>,
     pub(crate) last_cursor: RefCell<Option<String>>,
 }
@@ -36,6 +37,7 @@ where
     ///
     /// This constructor is only accessible within the crate to enforce the use
     /// of `RdbcItemReaderBuilder` for creating reader instances.
+    #[allow(clippy::type_complexity)]
     pub(crate) fn new(
         pool: Pool<Sqlite>,
         query: &'a str,

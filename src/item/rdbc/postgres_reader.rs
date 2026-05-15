@@ -33,6 +33,7 @@ where
     /// Column name used as the keyset cursor (e.g. `"id"`).
     pub(crate) keyset_column: Option<String>,
     /// Extracts the cursor value from an item for use in the next page's WHERE clause.
+    #[allow(clippy::type_complexity)]
     pub(crate) keyset_key: Option<Box<dyn Fn(&I) -> String>>,
     /// Last cursor value seen; drives the WHERE clause on subsequent pages.
     pub(crate) last_cursor: RefCell<Option<String>>,
@@ -56,6 +57,7 @@ where
     /// # Returns
     ///
     /// A new `PostgresRdbcItemReader` instance ready for use.
+    #[allow(clippy::type_complexity)]
     pub fn new(
         pool: Pool<Postgres>,
         query: &'a str,
@@ -126,6 +128,70 @@ where
 ///
 /// The implementation handles both paginated and non-paginated reading modes
 /// transparently, making it suitable for various batch processing scenarios.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::PgPool;
+
+    #[derive(Clone)]
+    struct Dummy;
+
+    impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for Dummy {
+        fn from_row(_row: &'r sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
+            Ok(Dummy)
+        }
+    }
+
+    fn reader_with_keyset(keyset: bool) -> PostgresRdbcItemReader<'static, Dummy> {
+        let pool = PgPool::connect_lazy("postgres://postgres:postgres@localhost/test")
+            .expect("lazy pool creation should not fail");
+        let (col, key): (Option<String>, Option<Box<dyn Fn(&Dummy) -> String>>) = if keyset {
+            (
+                Some("id".to_string()),
+                Some(Box::new(|_: &Dummy| "0".to_string())),
+            )
+        } else {
+            (None, None)
+        };
+        PostgresRdbcItemReader::new(pool, "SELECT 1", Some(10), col, key)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_initialize_without_keyset() {
+        let reader = reader_with_keyset(false);
+        assert!(reader.keyset_column.is_none(), "no keyset column expected");
+        assert!(reader.keyset_key.is_none(), "no keyset key fn expected");
+        assert!(
+            reader.last_cursor.borrow().is_none(),
+            "cursor must start as None"
+        );
+        assert_eq!(reader.offset.get(), 0, "initial offset should be 0");
+        assert!(
+            reader.buffer.borrow().is_empty(),
+            "buffer should start empty"
+        );
+        assert_eq!(reader.page_size, Some(10));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_initialize_with_keyset_column_and_none_cursor() {
+        let reader = reader_with_keyset(true);
+        assert_eq!(
+            reader.keyset_column.as_deref(),
+            Some("id"),
+            "keyset column should be stored"
+        );
+        assert!(
+            reader.keyset_key.is_some(),
+            "keyset key fn should be stored"
+        );
+        assert!(
+            reader.last_cursor.borrow().is_none(),
+            "cursor must start as None before first read"
+        );
+    }
+}
+
 impl<I> ItemReader<I> for PostgresRdbcItemReader<'_, I>
 where
     for<'r> I: FromRow<'r, PgRow> + Send + Unpin + Clone,
