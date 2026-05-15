@@ -9,7 +9,8 @@
 //! 2. Step 1 — reads CSV, converts currencies to EUR, normalises status,
 //!    bulk-inserts into PostgreSQL (chunk = 1 000)
 //! 3. Step 2 — reads PostgreSQL, exports to XML (chunk = 1 000)
-//! 4. Prints wall-clock time, rows/s, and peak RSS
+//! 4. Step 3 — reads XML, imports into PostgreSQL `transactions_import` (chunk = 1 000)
+//! 5. Prints total wall-clock time (incl. CSV generation), rows/s per step
 //!
 //! ## Run
 //!
@@ -465,6 +466,7 @@ fn run_step3(pool: &PgPool, xml_path: &str) -> Result<u64, BatchError> {
     let t0 = Instant::now();
 
     let reader = XmlItemReaderBuilder::<Transaction>::new()
+        .tag("transaction")
         .from_path(xml_path)
         .map_err(|e| BatchError::ItemReader(e.to_string()))?;
 
