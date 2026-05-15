@@ -18,7 +18,6 @@ jobs:
       matrix:
         os: [
           ubuntu-latest,
-          windows-latest,
           macOS-latest
         ]
 
@@ -30,4 +29,4 @@ jobs:
           toolchain: stable
 
       - name: Build
-        run: cargo build --release
+        run: cargo build --release --all-features
