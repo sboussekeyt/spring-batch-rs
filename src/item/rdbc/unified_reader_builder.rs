@@ -387,8 +387,8 @@ impl<'a, I> Default for RdbcItemReaderBuilder<'a, I> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::select_builder::SelectBuilder;
+    use super::*;
     use sqlx::{FromRow, SqlitePool};
 
     #[derive(Clone, FromRow)]
@@ -486,8 +486,7 @@ mod tests {
             )
             .build_sqlite();
         assert_eq!(
-            reader.query,
-            "SELECT id FROM items WHERE active = true ORDER BY id ASC",
+            reader.query, "SELECT id FROM items WHERE active = true ORDER BY id ASC",
             "select builder SQL should be stored in reader"
         );
     }
@@ -497,9 +496,9 @@ mod tests {
         let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
         let reader = RdbcItemReaderBuilder::<Dummy>::new()
             .sqlite(pool)
-            .select(SelectBuilder::from("items").order_by_keyset("id", |d: &Dummy| {
-                d.id.to_string()
-            }))
+            .select(
+                SelectBuilder::from("items").order_by_keyset("id", |d: &Dummy| d.id.to_string()),
+            )
             .with_page_size(10)
             .build_sqlite();
         assert_eq!(
@@ -512,8 +511,7 @@ mod tests {
             "keyset key fn should propagate from SelectBuilder"
         );
         assert_eq!(
-            reader.query,
-            "SELECT * FROM items",
+            reader.query, "SELECT * FROM items",
             "keyset select builder must store SQL without ORDER BY to avoid double ORDER BY in read_page"
         );
     }
