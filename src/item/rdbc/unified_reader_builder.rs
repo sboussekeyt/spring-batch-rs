@@ -6,7 +6,20 @@ use std::marker::PhantomData;
 use super::database_type::DatabaseType;
 use super::mysql_reader::MySqlRdbcItemReader;
 use super::postgres_reader::PostgresRdbcItemReader;
+use super::select_builder::SelectBuilder;
 use super::sqlite_reader::SqliteRdbcItemReader;
+
+/// Source of the SQL query for an RDBC item reader.
+///
+/// This is an internal type used by [`RdbcItemReaderBuilder`] to track whether
+/// the query was provided as a raw string via [`.query()`] or constructed via
+/// a [`SelectBuilder`] with [`.select()`].
+enum QuerySource<'a> {
+    /// A raw SQL string provided directly by the caller.
+    Raw(&'a str),
+    /// A SQL string built by [`SelectBuilder`].
+    Built(String),
+}
 
 /// Unified builder for creating RDBC item readers for any supported database type.
 ///
@@ -84,7 +97,7 @@ pub struct RdbcItemReaderBuilder<'a, I> {
     postgres_pool: Option<Pool<Postgres>>,
     mysql_pool: Option<Pool<MySql>>,
     sqlite_pool: Option<Pool<Sqlite>>,
-    query: Option<&'a str>,
+    query_source: Option<QuerySource<'a>>,
     page_size: Option<i32>,
     db_type: Option<DatabaseType>,
     keyset_column: Option<String>,
@@ -100,7 +113,7 @@ impl<'a, I> RdbcItemReaderBuilder<'a, I> {
             postgres_pool: None,
             mysql_pool: None,
             sqlite_pool: None,
-            query: None,
+            query_source: None,
             page_size: None,
             db_type: None,
             keyset_column: None,
@@ -159,7 +172,58 @@ impl<'a, I> RdbcItemReaderBuilder<'a, I> {
     /// # Returns
     /// The updated builder instance
     pub fn query(mut self, query: &'a str) -> Self {
-        self.query = Some(query);
+        self.query_source = Some(QuerySource::Raw(query));
+        self
+    }
+
+    /// Configures the reader query using a [`SelectBuilder`].
+    ///
+    /// This is an ergonomic alternative to [`.query()`] that lets you build the
+    /// SQL statement through a fluent API instead of writing raw SQL. If the
+    /// [`SelectBuilder`] was configured with [`.order_by_keyset()`], the keyset
+    /// column and key function are automatically propagated to the reader.
+    ///
+    /// Calling `.select()` after `.query()` (or vice-versa) is allowed; the
+    /// **last** call wins.
+    ///
+    /// # Arguments
+    ///
+    /// * `builder` - A [`SelectBuilder`] instance ready to be compiled.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use spring_batch_rs::item::rdbc::{RdbcItemReaderBuilder, SelectBuilder};
+    /// use sqlx::SqlitePool;
+    /// # use serde::Deserialize;
+    /// # #[derive(sqlx::FromRow, Clone, Deserialize)]
+    /// # struct Task { id: i32, title: String }
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let pool = SqlitePool::connect("sqlite::memory:").await?;
+    ///
+    /// let reader = RdbcItemReaderBuilder::<Task>::new()
+    ///     .sqlite(pool)
+    ///     .select(
+    ///         SelectBuilder::from("tasks")
+    ///             .columns(&["id", "title"])
+    ///             .where_eq("done", false)
+    ///             .order_by_asc("id"),
+    ///     )
+    ///     .with_page_size(50)
+    ///     .build_sqlite();
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn select(mut self, builder: SelectBuilder<I>) -> Self {
+        let sql = builder.build_sql();
+        if let Some(col) = builder.keyset_column {
+            self.keyset_column = Some(col);
+        }
+        if let Some(key_fn) = builder.keyset_key_fn {
+            self.keyset_key_fn = Some(key_fn);
+        }
+        self.query_source = Some(QuerySource::Built(sql));
         self
     }
 
@@ -236,9 +300,16 @@ where
     /// # Panics
     /// Panics if PostgreSQL pool or query are missing
     pub fn build_postgres(self) -> PostgresRdbcItemReader<I> {
+        let query = match self
+            .query_source
+            .expect("Query is required — call .query() or .select()")
+        {
+            QuerySource::Raw(s) => s.to_string(),
+            QuerySource::Built(s) => s,
+        };
         PostgresRdbcItemReader::new(
             self.postgres_pool.expect("PostgreSQL pool is required"),
-            self.query.expect("Query is required").to_string(),
+            query,
             self.page_size,
             self.keyset_column,
             self.keyset_key_fn,
@@ -258,9 +329,16 @@ where
     /// # Panics
     /// Panics if MySQL pool or query are missing
     pub fn build_mysql(self) -> MySqlRdbcItemReader<I> {
+        let query = match self
+            .query_source
+            .expect("Query is required — call .query() or .select()")
+        {
+            QuerySource::Raw(s) => s.to_string(),
+            QuerySource::Built(s) => s,
+        };
         MySqlRdbcItemReader::new(
             self.mysql_pool.expect("MySQL pool is required"),
-            self.query.expect("Query is required").to_string(),
+            query,
             self.page_size,
             self.keyset_column,
             self.keyset_key_fn,
@@ -280,9 +358,16 @@ where
     /// # Panics
     /// Panics if SQLite pool or query are missing
     pub fn build_sqlite(self) -> SqliteRdbcItemReader<I> {
+        let query = match self
+            .query_source
+            .expect("Query is required — call .query() or .select()")
+        {
+            QuerySource::Raw(s) => s.to_string(),
+            QuerySource::Built(s) => s,
+        };
         SqliteRdbcItemReader::new(
             self.sqlite_pool.expect("SQLite pool is required"),
-            self.query.expect("Query is required").to_string(),
+            query,
             self.page_size,
             self.keyset_column,
             self.keyset_key_fn,
@@ -299,6 +384,7 @@ impl<'a, I> Default for RdbcItemReaderBuilder<'a, I> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::select_builder::SelectBuilder;
     use sqlx::{FromRow, SqlitePool};
 
     #[derive(Clone, FromRow)]
@@ -380,6 +466,74 @@ mod tests {
         assert!(
             reader.last_cursor.borrow().is_none(),
             "cursor starts as None"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_build_sqlite_reader_from_select_builder() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let reader = RdbcItemReaderBuilder::<Dummy>::new()
+            .sqlite(pool)
+            .select(
+                SelectBuilder::from("items")
+                    .columns(&["id"])
+                    .where_eq("active", true)
+                    .order_by_asc("id"),
+            )
+            .build_sqlite();
+        assert_eq!(
+            reader.query,
+            "SELECT id FROM items WHERE active = true ORDER BY id ASC",
+            "select builder SQL should be stored in reader"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_propagate_keyset_from_select_builder_to_sqlite_reader() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let reader = RdbcItemReaderBuilder::<Dummy>::new()
+            .sqlite(pool)
+            .select(SelectBuilder::from("items").order_by_keyset("id", |d: &Dummy| {
+                d.id.to_string()
+            }))
+            .with_page_size(10)
+            .build_sqlite();
+        assert_eq!(
+            reader.keyset_column.as_deref(),
+            Some("id"),
+            "keyset column should propagate from SelectBuilder"
+        );
+        assert!(
+            reader.keyset_key.is_some(),
+            "keyset key fn should propagate from SelectBuilder"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_prefer_select_over_query_when_called_last() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let reader = RdbcItemReaderBuilder::<Dummy>::new()
+            .sqlite(pool)
+            .query("SELECT id FROM old_table")
+            .select(SelectBuilder::from("new_table").columns(&["id"]))
+            .build_sqlite();
+        assert_eq!(
+            reader.query, "SELECT id FROM new_table",
+            "select() called last should win"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_prefer_query_over_select_when_called_last() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let reader = RdbcItemReaderBuilder::<Dummy>::new()
+            .sqlite(pool)
+            .select(SelectBuilder::from("old_table").columns(&["id"]))
+            .query("SELECT id FROM new_table")
+            .build_sqlite();
+        assert_eq!(
+            reader.query, "SELECT id FROM new_table",
+            "query() called last should win"
         );
     }
 }
