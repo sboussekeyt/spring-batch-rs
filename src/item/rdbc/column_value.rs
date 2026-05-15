@@ -145,10 +145,7 @@ mod tests {
 
     #[test]
     fn should_convert_some_i32_to_int() {
-        assert!(matches!(
-            ColumnValue::from(Some(7i32)),
-            ColumnValue::Int(7)
-        ));
+        assert!(matches!(ColumnValue::from(Some(7i32)), ColumnValue::Int(7)));
     }
 
     #[test]
