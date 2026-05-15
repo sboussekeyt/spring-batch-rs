@@ -89,7 +89,7 @@ impl ItemProcessor<Transaction, Transaction> for TransactionProcessor {
         let status = if item.status == "CANCELLED" {
             "FAILED".to_string()
         } else {
-            item.status.clone()
+            item.status
         };
         Ok(Some(Transaction {
             transaction_id: item.transaction_id,
