@@ -87,6 +87,9 @@ pub struct RdbcItemReaderBuilder<'a, I> {
     query: Option<&'a str>,
     page_size: Option<i32>,
     db_type: Option<DatabaseType>,
+    keyset_column: Option<String>,
+    #[allow(clippy::type_complexity)]
+    keyset_key_fn: Option<Box<dyn Fn(&I) -> String>>,
     _phantom: PhantomData<I>,
 }
 
@@ -100,6 +103,8 @@ impl<'a, I> RdbcItemReaderBuilder<'a, I> {
             query: None,
             page_size: None,
             db_type: None,
+            keyset_column: None,
+            keyset_key_fn: None,
             _phantom: PhantomData,
         }
     }
@@ -172,6 +177,51 @@ impl<'a, I> RdbcItemReaderBuilder<'a, I> {
         self.page_size = Some(page_size);
         self
     }
+
+    /// Enables keyset (cursor) pagination instead of LIMIT/OFFSET.
+    ///
+    /// Keyset pagination is O(log n) per page regardless of dataset size, making it
+    /// significantly faster than LIMIT/OFFSET for large tables.
+    ///
+    /// # Requirements
+    ///
+    /// - The query must **not** include `WHERE`, `ORDER BY`, or `LIMIT` clauses — the
+    ///   framework appends them automatically.
+    /// - The keyset column must be indexed and have unique, sortable values (e.g.
+    ///   primary key, UUID, zero-padded string ID).
+    /// - [`with_page_size`] must also be set.
+    ///
+    /// # Arguments
+    ///
+    /// * `column` - Column name used as the cursor (appended to `WHERE` and `ORDER BY`).
+    /// * `key_fn` - Closure that extracts the cursor value from an item as a `String`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use spring_batch_rs::item::rdbc::RdbcItemReaderBuilder;
+    /// use sqlx::PgPool;
+    /// # use serde::Deserialize;
+    /// # #[derive(sqlx::FromRow, Clone, Deserialize)]
+    /// # struct Order { order_id: String, amount: f64 }
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let pool = PgPool::connect("postgresql://user:pass@localhost/db").await?;
+    ///
+    /// let reader = RdbcItemReaderBuilder::<Order>::new()
+    ///     .postgres(pool)
+    ///     .query("SELECT order_id, amount FROM orders")
+    ///     .with_page_size(1_000)
+    ///     .with_keyset("order_id", |o: &Order| o.order_id.clone())
+    ///     .build_postgres();
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_keyset(mut self, column: &str, key_fn: impl Fn(&I) -> String + 'static) -> Self {
+        self.keyset_column = Some(column.to_string());
+        self.keyset_key_fn = Some(Box::new(key_fn));
+        self
+    }
 }
 
 impl<'a, I> RdbcItemReaderBuilder<'a, I>
@@ -190,6 +240,8 @@ where
             self.postgres_pool.expect("PostgreSQL pool is required"),
             self.query.expect("Query is required"),
             self.page_size,
+            self.keyset_column,
+            self.keyset_key_fn,
         )
     }
 }
@@ -210,6 +262,8 @@ where
             self.mysql_pool.expect("MySQL pool is required"),
             self.query.expect("Query is required"),
             self.page_size,
+            self.keyset_column,
+            self.keyset_key_fn,
         )
     }
 }
@@ -230,6 +284,8 @@ where
             self.sqlite_pool.expect("SQLite pool is required"),
             self.query.expect("Query is required"),
             self.page_size,
+            self.keyset_column,
+            self.keyset_key_fn,
         )
     }
 }
@@ -301,5 +357,29 @@ mod tests {
         let _ = RdbcItemReaderBuilder::<Dummy>::new()
             .query("SELECT id FROM t")
             .build_mysql();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_propagate_keyset_to_sqlite_reader() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let reader = RdbcItemReaderBuilder::<Dummy>::new()
+            .sqlite(pool)
+            .query("SELECT 1 AS id")
+            .with_page_size(5)
+            .with_keyset("id", |d: &Dummy| d.id.to_string())
+            .build_sqlite();
+        assert_eq!(
+            reader.keyset_column.as_deref(),
+            Some("id"),
+            "keyset column should be propagated to reader"
+        );
+        assert!(
+            reader.keyset_key.is_some(),
+            "keyset key fn should be propagated to reader"
+        );
+        assert!(
+            reader.last_cursor.borrow().is_none(),
+            "cursor starts as None"
+        );
     }
 }
