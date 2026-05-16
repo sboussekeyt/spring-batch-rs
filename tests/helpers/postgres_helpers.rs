@@ -1,23 +1,5 @@
 use serde::{Deserialize, Serialize};
-use spring_batch_rs::item::rdbc::DatabaseItemBinder;
-use sqlx::{FromRow, Postgres, query_builder::Separated};
-
-/// PostgreSQL-specific item binder for Car items.
-///
-/// This binder handles the conversion of Car domain objects to PostgreSQL-compatible
-/// query parameters. It binds values in the order matching the table schema:
-/// year (SMALLINT), make (TEXT), model (TEXT), description (TEXT).
-#[allow(dead_code)]
-pub struct PostgresCarItemBinder;
-
-impl DatabaseItemBinder<Car, Postgres> for PostgresCarItemBinder {
-    fn bind(&self, item: &Car, mut query_builder: Separated<Postgres, &str>) {
-        query_builder.push_bind(item.year);
-        query_builder.push_bind(item.make.clone());
-        query_builder.push_bind(item.model.clone());
-        query_builder.push_bind(item.description.clone());
-    }
-}
+use sqlx::FromRow;
 
 /// Car domain model for database operations.
 #[derive(Deserialize, Serialize, Debug, Clone, FromRow, PartialEq)]

@@ -1,23 +1,5 @@
 use serde::{Deserialize, Serialize};
-use spring_batch_rs::item::rdbc::DatabaseItemBinder;
-use sqlx::{FromRow, Sqlite, query_builder::Separated};
-
-/// SQLite-specific item binder for Car items.
-///
-/// This binder handles the conversion of Car domain objects to SQLite-compatible
-/// query parameters. It binds values in the order matching the table schema:
-/// year (INTEGER), make (VARCHAR), model (VARCHAR), description (VARCHAR).
-#[allow(dead_code)]
-pub struct SqliteCarItemBinder;
-
-impl DatabaseItemBinder<Car, Sqlite> for SqliteCarItemBinder {
-    fn bind(&self, item: &Car, mut query_builder: Separated<Sqlite, &str>) {
-        query_builder.push_bind(item.year);
-        query_builder.push_bind(item.make.clone());
-        query_builder.push_bind(item.model.clone());
-        query_builder.push_bind(item.description.clone());
-    }
-}
+use sqlx::FromRow;
 
 /// Car domain model for database operations.
 #[derive(Deserialize, Serialize, Debug, Clone, FromRow, PartialEq)]
