@@ -5,7 +5,7 @@ use std::{io::Read, path::Path};
 use anyhow::Error;
 use helpers::{
     common::{DEFAULT_CHUNK_SIZE, EXPECTED_PERSON_COUNT, EXPECTED_PERSON_CSV, SAMPLE_CARS_CSV},
-    postgres_helpers::{CREATE_CARS_TABLE_SQL, Car, PostgresCarItemBinder, SELECT_ALL_CARS_SQL},
+    postgres_helpers::{CREATE_CARS_TABLE_SQL, Car, SELECT_ALL_CARS_SQL},
 };
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
@@ -109,16 +109,13 @@ async fn write_items_to_database() -> Result<(), Error> {
     // Create table
     sqlx::query(CREATE_CARS_TABLE_SQL).execute(&pool).await?;
 
-    let item_binder = PostgresCarItemBinder;
-
     let writer = RdbcItemWriterBuilder::<Car>::new()
         .postgres(&pool)
         .table("cars")
-        .add_column("year")
-        .add_column("make")
-        .add_column("model")
-        .add_column("description")
-        .postgres_binder(&item_binder)
+        .column("year", |c: &Car| c.year.into())
+        .column("make", |c: &Car| c.make.as_str().into())
+        .column("model", |c: &Car| c.model.as_str().into())
+        .column("description", |c: &Car| c.description.as_str().into())
         .build_postgres();
 
     let processor = PassThroughProcessor::<Car>::new();

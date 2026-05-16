@@ -50,7 +50,7 @@ pub struct MySqlItemWriter<O> {
 
 impl<O> MySqlItemWriter<O> {
     /// Creates a new `MySqlItemWriter` with default configuration.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             pool: None,
             table: None,
@@ -59,19 +59,19 @@ impl<O> MySqlItemWriter<O> {
     }
 
     /// Sets the database connection pool for the writer.
-    pub fn pool(mut self, pool: &Pool<MySql>) -> Self {
+    pub(crate) fn pool(mut self, pool: &Pool<MySql>) -> Self {
         self.pool = Some(pool.clone());
         self
     }
 
     /// Sets the table name for the writer.
-    pub fn table(mut self, table: &str) -> Self {
+    pub(crate) fn table(mut self, table: &str) -> Self {
         self.table = Some(table.to_string());
         self
     }
 
     /// Adds a column binding to the writer.
-    pub fn add_column_binding(
+    pub(crate) fn add_column_binding(
         mut self,
         name: String,
         extractor: Box<dyn Fn(&O) -> ColumnValue>,

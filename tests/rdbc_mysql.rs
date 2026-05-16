@@ -16,7 +16,7 @@ use spring_batch_rs::{
     },
     item::{
         csv::{csv_reader::CsvItemReaderBuilder, csv_writer::CsvItemWriterBuilder},
-        rdbc::{MySqlRdbcItemReader, RdbcItemReaderBuilder},
+        rdbc::{MySqlRdbcItemReader, RdbcItemReaderBuilder, RdbcItemWriterBuilder},
     },
 };
 use sqlx::{FromRow, MySqlPool, migrate::Migrator};
@@ -151,24 +151,14 @@ async fn write_items_to_database() -> Result<(), Error> {
     // Create table
     sqlx::query(CREATE_CARS_TABLE_SQL).execute(&pool).await?;
 
-    use spring_batch_rs::item::rdbc::mysql_writer::MySqlItemWriter;
-
-    let writer = MySqlItemWriter::<Car>::new()
-        .pool(&pool)
+    let writer = RdbcItemWriterBuilder::<Car>::new()
+        .mysql(&pool)
         .table("cars")
-        .add_column_binding("year".to_string(), Box::new(|c: &Car| c.year.into()))
-        .add_column_binding(
-            "make".to_string(),
-            Box::new(|c: &Car| c.make.as_str().into()),
-        )
-        .add_column_binding(
-            "model".to_string(),
-            Box::new(|c: &Car| c.model.as_str().into()),
-        )
-        .add_column_binding(
-            "description".to_string(),
-            Box::new(|c: &Car| c.description.as_str().into()),
-        );
+        .column("year", |c: &Car| c.year.into())
+        .column("make", |c: &Car| c.make.as_str().into())
+        .column("model", |c: &Car| c.model.as_str().into())
+        .column("description", |c: &Car| c.description.as_str().into())
+        .build_mysql();
 
     let processor = PassThroughProcessor::<Car>::new();
 
