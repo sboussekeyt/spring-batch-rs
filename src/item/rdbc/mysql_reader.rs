@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 
 use sqlx::{FromRow, MySql, Pool, QueryBuilder, mysql::MySqlRow};
 
-use super::reader_common::{calculate_page_index, should_load_page};
+use super::reader_common::read_item;
 use crate::BatchError;
 use crate::core::item::{ItemReader, ItemReaderResult};
 
@@ -99,21 +99,14 @@ where
     for<'r> I: FromRow<'r, MySqlRow> + Send + Unpin + Clone,
 {
     fn read(&self) -> ItemReaderResult<I> {
-        let index = calculate_page_index(self.offset.get(), self.page_size);
-
-        if should_load_page(index) {
-            self.read_page()?;
-        }
-
-        let result = self.buffer.borrow().get(index as usize).cloned();
-
-        if let (Some(item), Some(key_fn)) = (&result, &self.keyset_key) {
-            *self.last_cursor.borrow_mut() = Some(key_fn(item));
-        }
-
-        self.offset.set(self.offset.get() + 1);
-
-        Ok(result)
+        read_item(
+            &self.offset,
+            self.page_size,
+            &self.buffer,
+            &self.keyset_key,
+            &self.last_cursor,
+            || self.read_page(),
+        )
     }
 }
 

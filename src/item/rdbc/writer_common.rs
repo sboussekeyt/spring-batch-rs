@@ -89,6 +89,36 @@ pub fn max_items_per_batch(column_count: usize) -> usize {
     BIND_LIMIT / column_count
 }
 
+/// Binds a [`ColumnValue`] to a `QueryBuilder::Separated` push slot.
+///
+/// Defined as a macro to work across `Sqlite`, `Postgres`, and `MySql`
+/// `QueryBuilder` types without requiring database-generic trait bounds.
+macro_rules! bind_column_value {
+    ($b:expr, $val:expr) => {
+        match $val {
+            $crate::item::rdbc::ColumnValue::Int(v) => {
+                $b.push_bind(v);
+            }
+            $crate::item::rdbc::ColumnValue::Float(v) => {
+                $b.push_bind(v);
+            }
+            $crate::item::rdbc::ColumnValue::Text(v) => {
+                $b.push_bind(v);
+            }
+            $crate::item::rdbc::ColumnValue::Bool(v) => {
+                $b.push_bind(v);
+            }
+            $crate::item::rdbc::ColumnValue::Bytes(v) => {
+                $b.push_bind(v);
+            }
+            $crate::item::rdbc::ColumnValue::Null => {
+                $b.push_bind(Option::<String>::None);
+            }
+        }
+    };
+}
+pub(crate) use bind_column_value;
+
 #[cfg(test)]
 mod tests {
     use super::*;
