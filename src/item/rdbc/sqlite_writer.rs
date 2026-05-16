@@ -2,7 +2,7 @@ use serde::Serialize;
 use sqlx::{Pool, QueryBuilder, Sqlite};
 
 use crate::core::item::{ItemWriter, ItemWriterResult};
-use crate::item::rdbc::DatabaseItemBinder;
+use crate::item::rdbc::ColumnValue;
 
 use super::writer_common::{
     create_write_error, log_write_success, max_items_per_batch, validate_config,
@@ -10,143 +10,135 @@ use super::writer_common::{
 
 /// A writer for inserting items into a SQLite database using SQLx.
 ///
-/// This writer provides an implementation of the `ItemWriter` trait for SQLite operations.
-/// It supports batch inserting items into a specified table with the provided columns.
+/// Supports batch INSERT via a list of column bindings supplied through
+/// [`RdbcItemWriterBuilder::column`](crate::item::rdbc::RdbcItemWriterBuilder::column).
 ///
-/// # SQLite-Specific Features
+/// # Construction
 ///
-/// - Supports SQLite's flexible type system
-/// - Handles SQLite's AUTOINCREMENT for auto-incrementing columns
-/// - Supports SQLite's INSERT OR REPLACE operations
-/// - Leverages SQLite's efficient bulk insert capabilities
-/// - Compatible with SQLite's connection pooling and prepared statements
+/// Use [`RdbcItemWriterBuilder`](crate::item::rdbc::RdbcItemWriterBuilder) — direct
+/// construction is not public.
 ///
 /// # Examples
 ///
 /// ```no_run
-/// use spring_batch_rs::item::rdbc::{RdbcItemWriterBuilder, DatabaseItemBinder};
-/// use spring_batch_rs::core::item::ItemWriter;
-/// use sqlx::{SqlitePool, query_builder::Separated, Sqlite};
+/// use spring_batch_rs::item::rdbc::{RdbcItemWriterBuilder, ColumnValue};
+/// use sqlx::SqlitePool;
 /// use serde::Serialize;
 ///
 /// #[derive(Clone, Serialize)]
-/// struct Task {
-///     id: i32,
-///     title: String,
-///     completed: bool,
-/// }
-///
-/// struct TaskBinder;
-/// impl DatabaseItemBinder<Task, Sqlite> for TaskBinder {
-///     fn bind(&self, item: &Task, mut query_builder: Separated<Sqlite, &str>) {
-///         let _ = (item, query_builder); // Placeholder to avoid unused warnings
-///         // In real usage: query_builder.push_bind(item.id);
-///         // In real usage: query_builder.push_bind(&item.title);
-///         // In real usage: query_builder.push_bind(item.completed);
-///     }
-/// }
+/// struct Task { id: i32, title: String }
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let pool = SqlitePool::connect("sqlite::memory:").await?;
-/// let binder = TaskBinder;
 ///
 /// let writer = RdbcItemWriterBuilder::<Task>::new()
 ///     .sqlite(&pool)
 ///     .table("tasks")
-///     .add_column("id")
-///     .add_column("title")
-///     .add_column("completed")
-///     .sqlite_binder(&binder)
+///     .column("id", |t: &Task| t.id.into())
+///     .column("title", |t: &Task| t.title.as_str().into())
 ///     .build_sqlite();
-///
-/// let tasks = vec![
-///     Task { id: 1, title: "Task 1".to_string(), completed: false },
-///     Task { id: 2, title: "Task 2".to_string(), completed: true },
-/// ];
-///
-/// writer.write(&tasks)?;
 /// # Ok(())
 /// # }
 /// ```
-pub struct SqliteItemWriter<'a, O> {
-    pool: Option<&'a Pool<Sqlite>>,
-    table: Option<&'a str>,
-    columns: Vec<&'a str>,
-    item_binder: Option<&'a dyn DatabaseItemBinder<O, Sqlite>>,
+pub struct SqliteItemWriter<O> {
+    pub(crate) pool: Option<sqlx::Pool<Sqlite>>,
+    pub(crate) table: Option<String>,
+    #[allow(clippy::type_complexity)]
+    pub(crate) column_bindings: Vec<(String, Box<dyn Fn(&O) -> ColumnValue>)>,
 }
 
-impl<'a, O> SqliteItemWriter<'a, O> {
+impl<O> SqliteItemWriter<O> {
     /// Creates a new `SqliteItemWriter` with default configuration.
     pub(crate) fn new() -> Self {
         Self {
             pool: None,
             table: None,
-            columns: Vec::new(),
-            item_binder: None,
+            column_bindings: Vec::new(),
         }
     }
 
     /// Sets the database connection pool for the writer.
-    pub(crate) fn pool(mut self, pool: &'a Pool<Sqlite>) -> Self {
-        self.pool = Some(pool);
+    pub(crate) fn pool(mut self, pool: &Pool<Sqlite>) -> Self {
+        self.pool = Some(pool.clone());
         self
     }
 
     /// Sets the table name for the writer.
-    pub(crate) fn table(mut self, table: &'a str) -> Self {
-        self.table = Some(table);
+    pub(crate) fn table(mut self, table: &str) -> Self {
+        self.table = Some(table.to_string());
         self
     }
 
-    /// Adds a column to the writer.
-    pub(crate) fn add_column(mut self, column: &'a str) -> Self {
-        self.columns.push(column);
-        self
-    }
-
-    /// Sets the item binder for the writer.
-    pub(crate) fn item_binder(
+    /// Adds a column binding to the writer.
+    pub(crate) fn add_column_binding(
         mut self,
-        item_binder: &'a dyn DatabaseItemBinder<O, Sqlite>,
+        name: String,
+        extractor: Box<dyn Fn(&O) -> ColumnValue>,
     ) -> Self {
-        self.item_binder = Some(item_binder);
+        self.column_bindings.push((name, extractor));
         self
     }
 }
 
-impl<'a, O> Default for SqliteItemWriter<'a, O> {
+impl<O> Default for SqliteItemWriter<O> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<O: Serialize + Clone> ItemWriter<O> for SqliteItemWriter<'_, O> {
+impl<O: Serialize + Clone> ItemWriter<O> for SqliteItemWriter<O> {
     fn write(&self, items: &[O]) -> ItemWriterResult {
         if items.is_empty() {
             return Ok(());
         }
 
-        // Validate configuration
-        let (pool, table, item_binder) =
-            validate_config(self.pool, self.table, &self.columns, self.item_binder)?;
+        let (pool, table) = validate_config(
+            self.pool.as_ref(),
+            self.table.as_deref(),
+            self.column_bindings.len(),
+        )?;
 
-        // Build INSERT query
+        let col_names: Vec<&str> = self
+            .column_bindings
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
+
         let mut query_builder = QueryBuilder::new("INSERT INTO ");
         query_builder.push(table);
         query_builder.push(" (");
-        query_builder.push(self.columns.join(","));
+        query_builder.push(col_names.join(","));
         query_builder.push(") ");
 
-        // Calculate max items per batch and add values
-        let max_items = max_items_per_batch(self.columns.len());
-        let items_to_write = items.iter().take(max_items);
+        let max_items = max_items_per_batch(self.column_bindings.len());
+        let items_to_write: Vec<_> = items.iter().take(max_items).collect();
         let items_count = items_to_write.len();
 
-        query_builder.push_values(items_to_write, |b, item| {
-            item_binder.bind(item, b);
+        query_builder.push_values(items_to_write, |mut b, item| {
+            for (_, extractor) in &self.column_bindings {
+                match extractor(item) {
+                    ColumnValue::Int(v) => {
+                        b.push_bind(v);
+                    }
+                    ColumnValue::Float(v) => {
+                        b.push_bind(v);
+                    }
+                    ColumnValue::Text(v) => {
+                        b.push_bind(v);
+                    }
+                    ColumnValue::Bool(v) => {
+                        b.push_bind(v);
+                    }
+                    ColumnValue::Bytes(v) => {
+                        b.push_bind(v);
+                    }
+                    ColumnValue::Null => {
+                        b.push_bind(Option::<String>::None);
+                    }
+                }
+            }
         });
 
-        // Execute query inline (QueryBuilder lifetime requires this to be in same scope)
         let query = query_builder.build();
         let result = tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async { query.execute(pool).await })
@@ -166,74 +158,45 @@ impl<O: Serialize + Clone> ItemWriter<O> for SqliteItemWriter<'_, O> {
 mod tests {
     use super::*;
     use crate::core::item::ItemWriter;
+    use crate::item::rdbc::ColumnValue;
 
     #[test]
-    fn test_new_creates_default_writer() {
+    fn should_start_with_empty_state() {
         let writer = SqliteItemWriter::<String>::new();
-
         assert!(writer.pool.is_none());
         assert!(writer.table.is_none());
-        assert!(writer.columns.is_empty());
-        assert!(writer.item_binder.is_none());
+        assert!(writer.column_bindings.is_empty());
     }
 
     #[test]
-    fn test_builder_pattern_configuration() {
-        let writer = SqliteItemWriter::<String>::new()
-            .table("tasks")
-            .add_column("id")
-            .add_column("title")
-            .add_column("completed");
-
-        assert_eq!(writer.table, Some("tasks"));
-        assert_eq!(writer.columns, vec!["id", "title", "completed"]);
-    }
-
-    #[test]
-    fn test_write_empty_items() {
-        use crate::item::rdbc::DatabaseItemBinder;
-        use sqlx::query_builder::Separated;
-
-        struct DummyBinder;
-        impl DatabaseItemBinder<String, Sqlite> for DummyBinder {
-            fn bind(&self, _item: &String, _query_builder: Separated<Sqlite, &str>) {}
-        }
-
-        let binder = DummyBinder;
-        let writer = SqliteItemWriter::<String>::new()
-            .table("test")
-            .add_column("value")
-            .item_binder(&binder);
-
-        let result = writer.write(&[]);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn should_create_via_default() {
-        let writer = SqliteItemWriter::<String>::default();
-        assert!(writer.pool.is_none());
-        assert!(writer.table.is_none());
-        assert!(writer.columns.is_empty());
-        assert!(writer.item_binder.is_none());
-    }
-
-    #[test]
-    fn should_return_error_when_columns_missing_and_items_given() {
-        use crate::{BatchError, item::rdbc::DatabaseItemBinder};
-        use sqlx::query_builder::Separated;
-
-        struct DummyBinder;
-        impl DatabaseItemBinder<String, Sqlite> for DummyBinder {
-            fn bind(&self, _: &String, _: Separated<Sqlite, &str>) {}
-        }
-        let binder = DummyBinder;
+    fn should_store_column_bindings_in_order() {
         let writer = SqliteItemWriter::<String>::new()
             .table("t")
-            .item_binder(&binder); // no columns
+            .add_column_binding("a".to_string(), Box::new(|_| ColumnValue::Null))
+            .add_column_binding("b".to_string(), Box::new(|_| ColumnValue::Null));
+        let names: Vec<&str> = writer
+            .column_bindings
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
+        assert_eq!(
+            names,
+            vec!["a", "b"],
+            "bindings should preserve insertion order"
+        );
+    }
 
+    #[test]
+    fn should_return_ok_for_empty_items() {
+        let writer = SqliteItemWriter::<String>::new();
+        assert!(writer.write(&[]).is_ok());
+    }
+
+    #[test]
+    fn should_return_error_when_no_columns_and_items_given() {
+        use crate::BatchError;
+        let writer = SqliteItemWriter::<String>::new().table("t");
         let result = writer.write(&["x".to_string()]);
-        assert!(result.is_err(), "expected error for missing columns");
         match result.err().unwrap() {
             BatchError::ItemWriter(msg) => assert!(msg.contains("columns"), "{msg}"),
             e => panic!("expected ItemWriter, got {e:?}"),
@@ -241,22 +204,12 @@ mod tests {
     }
 
     #[test]
-    fn should_return_error_when_pool_not_configured_and_items_given() {
-        use crate::{BatchError, item::rdbc::DatabaseItemBinder};
-        use sqlx::query_builder::Separated;
-
-        struct DummyBinder;
-        impl DatabaseItemBinder<String, Sqlite> for DummyBinder {
-            fn bind(&self, _: &String, _: Separated<Sqlite, &str>) {}
-        }
-        let binder = DummyBinder;
+    fn should_return_error_when_pool_not_configured() {
+        use crate::BatchError;
         let writer = SqliteItemWriter::<String>::new()
             .table("t")
-            .add_column("v")
-            .item_binder(&binder); // no pool
-
+            .add_column_binding("v".to_string(), Box::new(|s: &String| s.as_str().into()));
         let result = writer.write(&["x".to_string()]);
-        assert!(result.is_err(), "expected error for missing pool");
         match result.err().unwrap() {
             BatchError::ItemWriter(msg) => assert!(msg.contains("pool"), "{msg}"),
             e => panic!("expected ItemWriter, got {e:?}"),
@@ -265,31 +218,20 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn should_write_items_to_in_memory_sqlite() {
-        use crate::item::rdbc::DatabaseItemBinder;
-        use sqlx::{SqlitePool, query_builder::Separated};
-
-        struct StringBinder;
-        impl DatabaseItemBinder<String, Sqlite> for StringBinder {
-            fn bind(&self, item: &String, mut q: Separated<Sqlite, &str>) {
-                q.push_bind(item.clone());
-            }
-        }
-
-        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
         sqlx::query("CREATE TABLE t (v TEXT NOT NULL)")
             .execute(&pool)
             .await
             .unwrap();
 
-        let binder = StringBinder;
         let writer = SqliteItemWriter::<String>::new()
             .pool(&pool)
             .table("t")
-            .add_column("v")
-            .item_binder(&binder);
+            .add_column_binding("v".to_string(), Box::new(|s: &String| s.as_str().into()));
 
-        let items = vec!["hello".to_string(), "world".to_string()];
-        writer.write(&items).unwrap();
+        writer
+            .write(&["hello".to_string(), "world".to_string()])
+            .unwrap();
 
         let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM t")
             .fetch_one(&pool)
@@ -299,35 +241,50 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn should_return_error_when_sqlite_query_fails() {
-        use crate::{BatchError, item::rdbc::DatabaseItemBinder};
-        use sqlx::{SqlitePool, query_builder::Separated};
-
-        struct StringBinder;
-        impl DatabaseItemBinder<String, Sqlite> for StringBinder {
-            fn bind(&self, item: &String, mut q: Separated<Sqlite, &str>) {
-                q.push_bind(item.clone());
-            }
-        }
-
-        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
-        // Table is NOT created → INSERT will fail
-        let binder = StringBinder;
+    async fn should_return_error_when_query_fails() {
+        use crate::BatchError;
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
         let writer = SqliteItemWriter::<String>::new()
             .pool(&pool)
             .table("nonexistent_table")
-            .add_column("v")
-            .item_binder(&binder);
+            .add_column_binding("v".to_string(), Box::new(|s: &String| s.as_str().into()));
 
         let result = writer.write(&["x".to_string()]);
         match result.err().unwrap() {
-            BatchError::ItemWriter(msg) => {
-                assert!(
-                    msg.contains("SQLite"),
-                    "error should mention SQLite, got: {msg}"
-                )
-            }
-            e => panic!("expected ItemWriter error, got {e:?}"),
+            BatchError::ItemWriter(msg) => assert!(msg.contains("SQLite"), "{msg}"),
+            e => panic!("expected ItemWriter, got {e:?}"),
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn should_write_null_for_none_optional_column() {
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::query("CREATE TABLE t (id INTEGER NOT NULL, note TEXT)")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        #[derive(Clone, serde::Serialize)]
+        struct Row {
+            id: i32,
+            note: Option<String>,
+        }
+
+        let writer = SqliteItemWriter::<Row>::new()
+            .pool(&pool)
+            .table("t")
+            .add_column_binding("id".to_string(), Box::new(|r: &Row| r.id.into()))
+            .add_column_binding(
+                "note".to_string(),
+                Box::new(|r: &Row| r.note.clone().into()),
+            );
+
+        writer.write(&[Row { id: 1, note: None }]).unwrap();
+
+        let (note,): (Option<String>,) = sqlx::query_as("SELECT note FROM t WHERE id = 1")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert!(note.is_none(), "note should be NULL in the database");
     }
 }

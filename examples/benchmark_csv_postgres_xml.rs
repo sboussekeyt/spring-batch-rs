@@ -34,11 +34,11 @@ use spring_batch_rs::{
     },
     item::{
         csv::csv_reader::CsvItemReaderBuilder,
-        rdbc::{DatabaseItemBinder, RdbcItemReaderBuilder, RdbcItemWriterBuilder},
+        rdbc::{RdbcItemReaderBuilder, RdbcItemWriterBuilder},
         xml::{xml_reader::XmlItemReaderBuilder, xml_writer::XmlItemWriterBuilder},
     },
 };
-use sqlx::{FromRow, PgPool, Postgres, query_builder::Separated};
+use sqlx::{FromRow, PgPool};
 use std::{
     env,
     fs::File,
@@ -102,42 +102,6 @@ impl ItemProcessor<Transaction, Transaction> for TransactionProcessor {
             status,
             amount_eur: (item.amount * rate * 100.0).round() / 100.0,
         }))
-    }
-}
-
-// =============================================================================
-// PostgreSQL Binder
-// =============================================================================
-
-/// Binds `Transaction` fields to a PostgreSQL bulk-insert query.
-struct TransactionBinder;
-
-impl DatabaseItemBinder<Transaction, Postgres> for TransactionBinder {
-    fn bind(&self, item: &Transaction, mut q: Separated<Postgres, &str>) {
-        q.push_bind(item.transaction_id.clone());
-        q.push_bind(item.amount);
-        q.push_bind(item.currency.clone());
-        q.push_bind(item.timestamp.clone());
-        q.push_bind(item.account_from.clone());
-        q.push_bind(item.account_to.clone());
-        q.push_bind(item.status.clone());
-        q.push_bind(item.amount_eur);
-    }
-}
-
-/// Binds `Transaction` fields to a PostgreSQL bulk-insert for `transactions_import`.
-struct TransactionImportBinder;
-
-impl DatabaseItemBinder<Transaction, Postgres> for TransactionImportBinder {
-    fn bind(&self, item: &Transaction, mut q: Separated<Postgres, &str>) {
-        q.push_bind(item.transaction_id.clone());
-        q.push_bind(item.amount);
-        q.push_bind(item.currency.clone());
-        q.push_bind(item.timestamp.clone());
-        q.push_bind(item.account_from.clone());
-        q.push_bind(item.account_to.clone());
-        q.push_bind(item.status.clone());
-        q.push_bind(item.amount_eur);
     }
 }
 
@@ -344,19 +308,21 @@ fn run_step1(pool: &PgPool, csv_path: &str) -> Result<u64, BatchError> {
         .has_headers(true)
         .from_reader(buffered);
 
-    let binder = TransactionBinder;
     let writer = RdbcItemWriterBuilder::<Transaction>::new()
         .postgres(pool)
         .table("transactions")
-        .add_column("transaction_id")
-        .add_column("amount")
-        .add_column("currency")
-        .add_column("timestamp")
-        .add_column("account_from")
-        .add_column("account_to")
-        .add_column("status")
-        .add_column("amount_eur")
-        .postgres_binder(&binder)
+        .column("transaction_id", |t: &Transaction| {
+            t.transaction_id.clone().into()
+        })
+        .column("amount", |t: &Transaction| t.amount.into())
+        .column("currency", |t: &Transaction| t.currency.clone().into())
+        .column("timestamp", |t: &Transaction| t.timestamp.clone().into())
+        .column("account_from", |t: &Transaction| {
+            t.account_from.clone().into()
+        })
+        .column("account_to", |t: &Transaction| t.account_to.clone().into())
+        .column("status", |t: &Transaction| t.status.clone().into())
+        .column("amount_eur", |t: &Transaction| t.amount_eur.into())
         .build_postgres();
 
     let processor = TransactionProcessor;
@@ -467,19 +433,21 @@ fn run_step3(pool: &PgPool, xml_path: &str) -> Result<u64, BatchError> {
         .from_path(xml_path)
         .map_err(|e| BatchError::ItemReader(e.to_string()))?;
 
-    let binder = TransactionImportBinder;
     let writer = RdbcItemWriterBuilder::<Transaction>::new()
         .postgres(pool)
         .table("transactions_import")
-        .add_column("transaction_id")
-        .add_column("amount")
-        .add_column("currency")
-        .add_column("timestamp")
-        .add_column("account_from")
-        .add_column("account_to")
-        .add_column("status")
-        .add_column("amount_eur")
-        .postgres_binder(&binder)
+        .column("transaction_id", |t: &Transaction| {
+            t.transaction_id.clone().into()
+        })
+        .column("amount", |t: &Transaction| t.amount.into())
+        .column("currency", |t: &Transaction| t.currency.clone().into())
+        .column("timestamp", |t: &Transaction| t.timestamp.clone().into())
+        .column("account_from", |t: &Transaction| {
+            t.account_from.clone().into()
+        })
+        .column("account_to", |t: &Transaction| t.account_to.clone().into())
+        .column("status", |t: &Transaction| t.status.clone().into())
+        .column("amount_eur", |t: &Transaction| t.amount_eur.into())
         .build_postgres();
 
     let processor = PassThroughProcessor::<Transaction>::new();

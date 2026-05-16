@@ -1,23 +1,5 @@
 use serde::{Deserialize, Serialize};
-use spring_batch_rs::item::rdbc::DatabaseItemBinder;
-use sqlx::{FromRow, MySql, query_builder::Separated};
-
-/// MySQL-specific item binder for Car items.
-///
-/// This binder handles the conversion of Car domain objects to MySQL-compatible
-/// query parameters. It binds values in the order matching the table schema:
-/// year (SMALLINT), make (VARCHAR), model (VARCHAR), description (VARCHAR).
-#[allow(dead_code)]
-pub struct MySqlCarItemBinder;
-
-impl DatabaseItemBinder<Car, MySql> for MySqlCarItemBinder {
-    fn bind(&self, item: &Car, mut query_builder: Separated<MySql, &str>) {
-        query_builder.push_bind(item.year);
-        query_builder.push_bind(item.make.clone());
-        query_builder.push_bind(item.model.clone());
-        query_builder.push_bind(item.description.clone());
-    }
-}
+use sqlx::FromRow;
 
 /// Car domain model for database operations.
 #[derive(Deserialize, Serialize, Debug, Clone, FromRow, PartialEq)]

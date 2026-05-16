@@ -1,42 +1,28 @@
 //! Common functionality for database item writers.
 //!
-//! This module provides shared utilities and constants used across all database-specific
-//! item writers (PostgreSQL, MySQL, SQLite) to reduce code duplication and ensure
-//! consistent behavior.
+//! Provides shared utilities used across PostgreSQL, MySQL, and SQLite writers.
 
 use crate::BatchError;
 use sqlx::{Database, Pool};
 
-/// The maximum number of parameters that can be bound in a single SQL statement.
+/// The maximum number of parameters bound in a single SQL statement.
 /// This is the most conservative limit across major databases (MySQL's limit).
 pub const BIND_LIMIT: usize = 65535;
 
-/// Type alias for the validated configuration tuple returned by `validate_config`.
-type ValidatedConfig<'a, O, DB> = (
-    &'a Pool<DB>,
-    &'a str,
-    &'a dyn super::DatabaseItemBinder<O, DB>,
-);
+/// Type alias for the validated configuration returned by [`validate_config`].
+type ValidatedConfig<'a, DB> = (&'a Pool<DB>, &'a str);
 
 /// Validates that all required writer configuration fields are set.
 ///
-/// # Arguments
+/// # Errors
 ///
-/// * `pool` - The database connection pool
-/// * `table` - The table name
-/// * `columns` - The list of column names
-/// * `item_binder` - The item binder
-///
-/// # Returns
-///
-/// A tuple of validated references, or an error if any required field is missing.
-pub fn validate_config<'a, O, DB: Database>(
+/// Returns [`BatchError::ItemWriter`] if columns is zero, pool is `None`, or table is `None`.
+pub fn validate_config<'a, DB: Database>(
     pool: Option<&'a Pool<DB>>,
     table: Option<&'a str>,
-    columns: &[&'a str],
-    item_binder: Option<&'a dyn super::DatabaseItemBinder<O, DB>>,
-) -> Result<ValidatedConfig<'a, O, DB>, BatchError> {
-    if columns.is_empty() {
+    column_count: usize,
+) -> Result<ValidatedConfig<'a, DB>, BatchError> {
+    if column_count == 0 {
         return Err(BatchError::ItemWriter(
             "No columns specified for database write".to_string(),
         ));
@@ -48,10 +34,7 @@ pub fn validate_config<'a, O, DB: Database>(
     let table =
         table.ok_or_else(|| BatchError::ItemWriter("Table name not configured".to_string()))?;
 
-    let item_binder = item_binder
-        .ok_or_else(|| BatchError::ItemWriter("Item binder not configured".to_string()))?;
-
-    Ok((pool, table, item_binder))
+    Ok((pool, table))
 }
 
 /// Logs a successful write operation.
@@ -81,7 +64,7 @@ pub fn log_write_success(items_count: usize, table: &str, db_name: &str) {
 ///
 /// # Returns
 ///
-/// A `BatchError::ItemWriter` with formatted error message.
+/// A [`BatchError::ItemWriter`] with a formatted error message.
 pub fn create_write_error(table: &str, db_name: &str, error: impl std::fmt::Display) -> BatchError {
     log::error!(
         "Failed to write items to {} table {}: {}",
@@ -92,8 +75,7 @@ pub fn create_write_error(table: &str, db_name: &str, error: impl std::fmt::Disp
     BatchError::ItemWriter(format!("{} write failed: {}", db_name, error))
 }
 
-/// Calculates the maximum number of items that can be written in a single batch
-/// based on the bind limit and number of columns.
+/// Calculates the maximum number of items per batch given the bind limit.
 ///
 /// # Arguments
 ///
@@ -101,7 +83,7 @@ pub fn create_write_error(table: &str, db_name: &str, error: impl std::fmt::Disp
 ///
 /// # Returns
 ///
-/// The maximum number of items per batch.
+/// `BIND_LIMIT / column_count`
 #[inline]
 pub fn max_items_per_batch(column_count: usize) -> usize {
     BIND_LIMIT / column_count
@@ -128,7 +110,7 @@ mod tests {
 
     #[test]
     fn should_return_error_when_columns_is_empty() {
-        let result = validate_config::<String, Sqlite>(None, Some("tbl"), &[], None);
+        let result = validate_config::<Sqlite>(None, Some("tbl"), 0);
         match result.err().unwrap() {
             BatchError::ItemWriter(msg) => assert!(msg.contains("columns"), "unexpected: {msg}"),
             e => panic!("expected ItemWriter, got {e:?}"),
@@ -137,8 +119,7 @@ mod tests {
 
     #[test]
     fn should_return_error_when_pool_is_missing() {
-        // columns non-empty, pool = None → "pool not configured"
-        let result = validate_config::<String, Sqlite>(None, Some("tbl"), &["col"], None);
+        let result = validate_config::<Sqlite>(None, Some("tbl"), 1);
         match result.err().unwrap() {
             BatchError::ItemWriter(msg) => assert!(msg.contains("pool"), "unexpected: {msg}"),
             e => panic!("expected ItemWriter, got {e:?}"),
@@ -148,7 +129,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn should_return_error_when_table_is_missing() {
         let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
-        let result = validate_config::<String, Sqlite>(Some(&pool), None, &["col"], None);
+        let result = validate_config::<Sqlite>(Some(&pool), None, 1);
         match result.err().unwrap() {
             BatchError::ItemWriter(msg) => assert!(msg.contains("Table"), "unexpected: {msg}"),
             e => panic!("expected ItemWriter, got {e:?}"),
@@ -156,33 +137,9 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn should_return_error_when_binder_is_missing() {
-        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
-        let result = validate_config::<String, Sqlite>(Some(&pool), Some("tbl"), &["col"], None);
-        match result.err().unwrap() {
-            BatchError::ItemWriter(msg) => assert!(msg.contains("binder"), "unexpected: {msg}"),
-            e => panic!("expected ItemWriter, got {e:?}"),
-        }
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
     async fn should_return_ok_when_all_config_provided() {
-        use crate::item::rdbc::DatabaseItemBinder;
-        use sqlx::query_builder::Separated;
-
-        struct DummyBinder;
-        impl DatabaseItemBinder<String, Sqlite> for DummyBinder {
-            fn bind(&self, _: &String, _: Separated<Sqlite, &str>) {}
-        }
-
         let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
-        let binder = DummyBinder;
-        let result = validate_config::<String, Sqlite>(
-            Some(&pool),
-            Some("tbl"),
-            &["col"],
-            Some(&binder as &dyn DatabaseItemBinder<String, Sqlite>),
-        );
+        let result = validate_config::<Sqlite>(Some(&pool), Some("tbl"), 1);
         assert!(
             result.is_ok(),
             "should return Ok when all config is provided"

@@ -5,7 +5,7 @@ use std::{io::Read, path::Path};
 use anyhow::Error;
 use helpers::{
     common::{DEFAULT_CHUNK_SIZE, EXPECTED_PERSON_COUNT, EXPECTED_PERSON_CSV, SAMPLE_CARS_CSV},
-    mysql_helpers::{CREATE_CARS_TABLE_SQL, Car, MySqlCarItemBinder, SELECT_ALL_CARS_SQL},
+    mysql_helpers::{CREATE_CARS_TABLE_SQL, Car, SELECT_ALL_CARS_SQL},
 };
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
@@ -151,16 +151,13 @@ async fn write_items_to_database() -> Result<(), Error> {
     // Create table
     sqlx::query(CREATE_CARS_TABLE_SQL).execute(&pool).await?;
 
-    let item_binder = MySqlCarItemBinder;
-
     let writer = RdbcItemWriterBuilder::<Car>::new()
         .mysql(&pool)
         .table("cars")
-        .add_column("year")
-        .add_column("make")
-        .add_column("model")
-        .add_column("description")
-        .mysql_binder(&item_binder)
+        .column("year", |c: &Car| c.year.into())
+        .column("make", |c: &Car| c.make.as_str().into())
+        .column("model", |c: &Car| c.model.as_str().into())
+        .column("description", |c: &Car| c.description.as_str().into())
         .build_mysql();
 
     let processor = PassThroughProcessor::<Car>::new();
@@ -208,7 +205,7 @@ async fn mysql_reader_should_read_all_items_with_keyset_pagination()
 
     let reader: MySqlRdbcItemReader<TestUser> = MySqlRdbcItemReader::new(
         pool,
-        "SELECT id, name, email FROM test_users",
+        "SELECT id, name, email FROM test_users".to_string(),
         Some(3),
         Some("id".to_string()),
         Some(Box::new(|u: &TestUser| u.id.to_string())),
@@ -239,7 +236,7 @@ async fn mysql_reader_should_cross_page_boundary_with_keyset()
     // page_size=4 with 10 rows means 3 pages — exercises cursor update across boundaries
     let reader: MySqlRdbcItemReader<TestUser> = MySqlRdbcItemReader::new(
         pool,
-        "SELECT id, name, email FROM test_users",
+        "SELECT id, name, email FROM test_users".to_string(),
         Some(4),
         Some("id".to_string()),
         Some(Box::new(|u: &TestUser| u.id.to_string())),
@@ -263,7 +260,7 @@ async fn mysql_reader_should_return_none_for_empty_table_with_keyset()
 
     let reader: MySqlRdbcItemReader<TestUser> = MySqlRdbcItemReader::new(
         pool,
-        "SELECT id, name, email FROM test_users WHERE id > 9999",
+        "SELECT id, name, email FROM test_users WHERE id > 9999".to_string(),
         Some(5),
         Some("id".to_string()),
         Some(Box::new(|u: &TestUser| u.id.to_string())),

@@ -12,7 +12,8 @@ use crate::core::item::{ItemReader, ItemReaderResult};
 ///
 /// - **LIMIT/OFFSET** (default): simple but degrades at large offsets — use for small datasets.
 /// - **Keyset pagination** (recommended for large datasets): uses `WHERE col > :last ORDER BY col LIMIT n`,
-///   O(log n) per page regardless of dataset size. Enable with [`RdbcItemReaderBuilder::with_keyset`].
+///   O(log n) per page regardless of dataset size. Enable with
+///   [`RdbcItemReaderBuilder::with_keyset`](crate::item::rdbc::RdbcItemReaderBuilder::with_keyset).
 ///
 /// # Type Parameters
 ///
@@ -20,13 +21,13 @@ use crate::core::item::{ItemReader, ItemReaderResult};
 ///
 /// # Construction
 ///
-/// Use [`RdbcItemReaderBuilder`] — direct construction is not available.
-pub struct PostgresRdbcItemReader<'a, I>
+/// Prefer [`RdbcItemReaderBuilder`](crate::item::rdbc::RdbcItemReaderBuilder) for ergonomic construction.
+pub struct PostgresRdbcItemReader<I>
 where
     for<'r> I: FromRow<'r, PgRow> + Send + Unpin + Clone,
 {
     pub(crate) pool: Pool<Postgres>,
-    pub(crate) query: &'a str,
+    pub(crate) query: String,
     pub(crate) page_size: Option<i32>,
     pub(crate) offset: Cell<i32>,
     pub(crate) buffer: RefCell<Vec<I>>,
@@ -39,20 +40,22 @@ where
     pub(crate) last_cursor: RefCell<Option<String>>,
 }
 
-impl<'a, I> PostgresRdbcItemReader<'a, I>
+impl<I> PostgresRdbcItemReader<I>
 where
     for<'r> I: FromRow<'r, PgRow> + Send + Unpin + Clone,
 {
-    /// Creates a new PostgresRdbcItemReader with the specified parameters
+    /// Creates a new `PostgresRdbcItemReader` with the specified parameters.
     ///
-    /// This constructor is only accessible within the crate to enforce the use
-    /// of `RdbcItemReaderBuilder` for creating reader instances.
+    /// Prefer [`RdbcItemReaderBuilder`](crate::item::rdbc::RdbcItemReaderBuilder) for a more
+    /// ergonomic construction API.
     ///
     /// # Arguments
     ///
     /// * `pool` - PostgreSQL connection pool for database operations
     /// * `query` - SQL query to execute (without LIMIT/OFFSET)
     /// * `page_size` - Optional page size for pagination. None means read all at once.
+    /// * `keyset_column` - Optional column name for keyset pagination.
+    /// * `keyset_key` - Optional closure to extract the cursor value from an item.
     ///
     /// # Returns
     ///
@@ -60,7 +63,7 @@ where
     #[allow(clippy::type_complexity)]
     pub fn new(
         pool: Pool<Postgres>,
-        query: &'a str,
+        query: String,
         page_size: Option<i32>,
         keyset_column: Option<String>,
         keyset_key: Option<Box<dyn Fn(&I) -> String>>,
@@ -79,14 +82,14 @@ where
 
     /// Fetches the next page from the database into the internal buffer.
     ///
-    /// Uses keyset pagination when [`keyset_column`] is set, otherwise falls back
+    /// Uses keyset pagination when `keyset_column` is set, otherwise falls back
     /// to LIMIT/OFFSET.
     ///
     /// # Errors
     ///
     /// Returns [`BatchError::ItemReader`] if the query fails.
     fn read_page(&self) -> Result<(), BatchError> {
-        let mut query_builder = QueryBuilder::<Postgres>::new(self.query);
+        let mut query_builder = QueryBuilder::<Postgres>::new(&self.query);
 
         if let Some(page_size) = self.page_size {
             if let Some(ref col) = self.keyset_column {
@@ -119,15 +122,68 @@ where
     }
 }
 
-/// Implementation of ItemReader trait for PostgresRdbcItemReader.
-///
-/// This implementation provides a way to read items from a PostgreSQL database
-/// with support for pagination. It uses an internal buffer to store the results
-/// of database queries and keeps track of the current offset to determine when
-/// a new page of data needs to be fetched.
-///
-/// The implementation handles both paginated and non-paginated reading modes
-/// transparently, making it suitable for various batch processing scenarios.
+impl<I> ItemReader<I> for PostgresRdbcItemReader<I>
+where
+    for<'r> I: FromRow<'r, PgRow> + Send + Unpin + Clone,
+{
+    /// Reads the next item from the PostgreSQL database.
+    ///
+    /// Manages automatic pagination: loads a new page when the buffer is exhausted,
+    /// handles both LIMIT/OFFSET and keyset pagination transparently.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(item))` if an item was successfully read
+    /// - `Ok(None)` if there are no more items to read (end of result set)
+    /// - `Err(BatchError::ItemReader)` if a database error occurred
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use spring_batch_rs::core::item::ItemReader;
+    /// use spring_batch_rs::item::rdbc::RdbcItemReaderBuilder;
+    /// use sqlx::PgPool;
+    /// # use serde::Deserialize;
+    /// # #[derive(sqlx::FromRow, Clone, Deserialize)]
+    /// # struct User { id: i32, name: String }
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let pool = PgPool::connect("postgresql://user:pass@localhost/db").await?;
+    /// let reader = RdbcItemReaderBuilder::<User>::new()
+    ///     .postgres(pool)
+    ///     .query("SELECT id, name FROM users ORDER BY id")
+    ///     .with_page_size(100)
+    ///     .build_postgres();
+    ///
+    /// // Read items one by one
+    /// let mut count = 0;
+    /// while let Some(user) = reader.read()? {
+    ///     println!("User: {} - {}", user.id, user.name);
+    ///     count += 1;
+    /// }
+    /// println!("Processed {} users", count);
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn read(&self) -> ItemReaderResult<I> {
+        let index = calculate_page_index(self.offset.get(), self.page_size);
+
+        if should_load_page(index) {
+            self.read_page()?;
+        }
+
+        let result = self.buffer.borrow().get(index as usize).cloned();
+
+        if let (Some(item), Some(key_fn)) = (&result, &self.keyset_key) {
+            *self.last_cursor.borrow_mut() = Some(key_fn(item));
+        }
+
+        self.offset.set(self.offset.get() + 1);
+
+        Ok(result)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,7 +198,7 @@ mod tests {
         }
     }
 
-    fn reader_with_keyset(keyset: bool) -> PostgresRdbcItemReader<'static, Dummy> {
+    fn reader_with_keyset(keyset: bool) -> PostgresRdbcItemReader<Dummy> {
         let pool = PgPool::connect_lazy("postgres://postgres:postgres@localhost/test")
             .expect("lazy pool creation should not fail");
         let (col, key): (Option<String>, Option<Box<dyn Fn(&Dummy) -> String>>) = if keyset {
@@ -153,7 +209,7 @@ mod tests {
         } else {
             (None, None)
         };
-        PostgresRdbcItemReader::new(pool, "SELECT 1", Some(10), col, key)
+        PostgresRdbcItemReader::new(pool, "SELECT 1".to_string(), Some(10), col, key)
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -189,84 +245,5 @@ mod tests {
             reader.last_cursor.borrow().is_none(),
             "cursor must start as None before first read"
         );
-    }
-}
-
-impl<I> ItemReader<I> for PostgresRdbcItemReader<'_, I>
-where
-    for<'r> I: FromRow<'r, PgRow> + Send + Unpin + Clone,
-{
-    /// Reads the next item from the PostgreSQL database
-    ///
-    /// This method implements the ItemReader trait and provides the core reading logic
-    /// with automatic pagination management:
-    ///
-    /// 1. **Index Calculation**: Determines the current position within the current page
-    /// 2. **Page Loading**: Loads a new page if we're at the beginning of a page
-    /// 3. **Item Retrieval**: Returns the item at the current position from the buffer
-    /// 4. **Offset Management**: Advances the offset for the next read operation
-    ///
-    /// # Pagination Logic
-    ///
-    /// For paginated reading (when page_size is Some):
-    /// - `index = offset % page_size` gives position within current page
-    /// - When `index == 0`, we're at the start of a new page and need to load data
-    /// - Buffer contains only the current page's items
-    ///
-    /// For non-paginated reading (when page_size is None):
-    /// - `index = offset` gives absolute position in the full result set
-    /// - Data is loaded only once when `index == 0` (first read)
-    /// - Buffer contains all items from the query
-    ///
-    /// # Returns
-    ///
-    /// - `Ok(Some(item))` if an item was successfully read
-    /// - `Ok(None)` if there are no more items to read (end of result set)
-    /// - `Err(BatchError::ItemReader)` if a database error occurred
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use spring_batch_rs::core::item::ItemReader;
-    /// # use spring_batch_rs::item::rdbc::PostgresRdbcItemReader;
-    /// # use sqlx::PgPool;
-    /// # use serde::Deserialize;
-    /// # #[derive(sqlx::FromRow, Clone, Deserialize)]
-    /// # struct User { id: i32, name: String }
-    ///
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let pool = PgPool::connect("postgresql://user:pass@localhost/db").await?;
-    /// let reader = PostgresRdbcItemReader::<User>::new(
-    ///     pool,
-    ///     "SELECT id, name FROM users ORDER BY id",
-    ///     Some(100)
-    /// );
-    ///
-    /// // Read items one by one
-    /// let mut count = 0;
-    /// while let Some(user) = reader.read()? {
-    ///     println!("User: {} - {}", user.id, user.name);
-    ///     count += 1;
-    /// }
-    /// println!("Processed {} users", count);
-    /// # Ok(())
-    /// # }
-    /// ```
-    fn read(&self) -> ItemReaderResult<I> {
-        let index = calculate_page_index(self.offset.get(), self.page_size);
-
-        if should_load_page(index) {
-            self.read_page()?;
-        }
-
-        let result = self.buffer.borrow().get(index as usize).cloned();
-
-        if let (Some(item), Some(key_fn)) = (&result, &self.keyset_key) {
-            *self.last_cursor.borrow_mut() = Some(key_fn(item));
-        }
-
-        self.offset.set(self.offset.get() + 1);
-
-        Ok(result)
     }
 }
