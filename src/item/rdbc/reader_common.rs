@@ -76,6 +76,7 @@ pub fn should_load_page(page_index: i32) -> bool {
 /// # Errors
 ///
 /// Returns [`BatchError::ItemReader`] if `load_page` fails.
+#[allow(clippy::type_complexity)]
 pub fn read_item<I: Clone>(
     offset: &Cell<i32>,
     page_size: Option<i32>,
