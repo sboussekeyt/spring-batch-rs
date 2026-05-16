@@ -33,6 +33,12 @@ pub enum ColumnValue {
     Null,
 }
 
+impl From<i16> for ColumnValue {
+    fn from(v: i16) -> Self {
+        ColumnValue::Int(v as i64)
+    }
+}
+
 impl From<i32> for ColumnValue {
     fn from(v: i32) -> Self {
         ColumnValue::Int(v as i64)
@@ -93,6 +99,11 @@ impl<T: Into<ColumnValue>> From<Option<T>> for ColumnValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_convert_i16_to_int() {
+        assert!(matches!(ColumnValue::from(7i16), ColumnValue::Int(7)));
+    }
 
     #[test]
     fn should_convert_i32_to_int() {

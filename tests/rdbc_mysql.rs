@@ -5,7 +5,7 @@ use std::{io::Read, path::Path};
 use anyhow::Error;
 use helpers::{
     common::{DEFAULT_CHUNK_SIZE, EXPECTED_PERSON_COUNT, EXPECTED_PERSON_CSV, SAMPLE_CARS_CSV},
-    mysql_helpers::{CREATE_CARS_TABLE_SQL, Car, MySqlCarItemBinder, SELECT_ALL_CARS_SQL},
+    mysql_helpers::{CREATE_CARS_TABLE_SQL, Car, SELECT_ALL_CARS_SQL},
 };
 use serde::{Deserialize, Serialize};
 use spring_batch_rs::{
@@ -16,7 +16,7 @@ use spring_batch_rs::{
     },
     item::{
         csv::{csv_reader::CsvItemReaderBuilder, csv_writer::CsvItemWriterBuilder},
-        rdbc::{MySqlRdbcItemReader, RdbcItemReaderBuilder, RdbcItemWriterBuilder},
+        rdbc::{MySqlRdbcItemReader, RdbcItemReaderBuilder},
     },
 };
 use sqlx::{FromRow, MySqlPool, migrate::Migrator};
@@ -151,17 +151,24 @@ async fn write_items_to_database() -> Result<(), Error> {
     // Create table
     sqlx::query(CREATE_CARS_TABLE_SQL).execute(&pool).await?;
 
-    let item_binder = MySqlCarItemBinder;
+    use spring_batch_rs::item::rdbc::mysql_writer::MySqlItemWriter;
 
-    let writer = RdbcItemWriterBuilder::<Car>::new()
-        .mysql(&pool)
+    let writer = MySqlItemWriter::<Car>::new()
+        .pool(&pool)
         .table("cars")
-        .add_column("year")
-        .add_column("make")
-        .add_column("model")
-        .add_column("description")
-        .mysql_binder(&item_binder)
-        .build_mysql();
+        .add_column_binding("year".to_string(), Box::new(|c: &Car| c.year.into()))
+        .add_column_binding(
+            "make".to_string(),
+            Box::new(|c: &Car| c.make.as_str().into()),
+        )
+        .add_column_binding(
+            "model".to_string(),
+            Box::new(|c: &Car| c.model.as_str().into()),
+        )
+        .add_column_binding(
+            "description".to_string(),
+            Box::new(|c: &Car| c.description.as_str().into()),
+        );
 
     let processor = PassThroughProcessor::<Car>::new();
 

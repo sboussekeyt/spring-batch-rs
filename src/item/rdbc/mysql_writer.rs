@@ -2,7 +2,7 @@ use serde::Serialize;
 use sqlx::{MySql, Pool, QueryBuilder};
 
 use crate::core::item::{ItemWriter, ItemWriterResult};
-use crate::item::rdbc::DatabaseItemBinder;
+use crate::item::rdbc::ColumnValue;
 
 use super::writer_common::{
     create_write_error, log_write_success, max_items_per_batch, validate_config,
@@ -10,169 +10,147 @@ use super::writer_common::{
 
 /// A writer for inserting items into a MySQL database using SQLx.
 ///
-/// This writer provides an implementation of the `ItemWriter` trait for MySQL operations.
-/// It supports batch inserting items into a specified table with the provided columns.
+/// Supports batch INSERT via a list of column bindings supplied through
+/// [`RdbcItemWriterBuilder::column`](crate::item::rdbc::RdbcItemWriterBuilder::column).
 ///
-/// # MySQL-Specific Features
+/// # Construction
 ///
-/// - Supports MySQL's data types and character sets
-/// - Handles MySQL's AUTO_INCREMENT for auto-incrementing columns
-/// - Supports MySQL's INSERT ... ON DUPLICATE KEY UPDATE operations
-/// - Leverages MySQL's efficient bulk insert capabilities
-/// - Compatible with MySQL's connection pooling and prepared statements
+/// Use [`RdbcItemWriterBuilder`](crate::item::rdbc::RdbcItemWriterBuilder) — direct
+/// construction is not public.
 ///
 /// # Examples
 ///
 /// ```no_run
-/// use spring_batch_rs::item::rdbc::{RdbcItemWriterBuilder, DatabaseItemBinder};
-/// use spring_batch_rs::core::item::ItemWriter;
-/// use sqlx::{MySqlPool, query_builder::Separated, MySql};
+/// use spring_batch_rs::item::rdbc::{RdbcItemWriterBuilder, ColumnValue};
+/// use sqlx::MySqlPool;
 /// use serde::Serialize;
 ///
 /// #[derive(Clone, Serialize)]
-/// struct Product {
-///     id: i32,
-///     name: String,
-///     price: f64,
-/// }
-///
-/// struct ProductBinder;
-/// impl DatabaseItemBinder<Product, MySql> for ProductBinder {
-///     fn bind(&self, item: &Product, mut query_builder: Separated<MySql, &str>) {
-///         let _ = (item, query_builder); // Placeholder to avoid unused warnings
-///         // In real usage: query_builder.push_bind(item.id);
-///         // In real usage: query_builder.push_bind(&item.name);
-///         // In real usage: query_builder.push_bind(item.price);
-///     }
-/// }
+/// struct Product { id: i32, name: String, price: f64 }
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let pool = MySqlPool::connect("mysql://user:pass@localhost/db").await?;
-/// let binder = ProductBinder;
 ///
 /// let writer = RdbcItemWriterBuilder::<Product>::new()
 ///     .mysql(&pool)
 ///     .table("products")
-///     .add_column("id")
-///     .add_column("name")
-///     .add_column("price")
-///     .mysql_binder(&binder)
+///     .column("id", |p: &Product| p.id.into())
+///     .column("name", |p: &Product| p.name.as_str().into())
+///     .column("price", |p: &Product| p.price.into())
 ///     .build_mysql();
-///
-/// let products = vec![
-///     Product { id: 1, name: "Laptop".to_string(), price: 999.99 },
-///     Product { id: 2, name: "Mouse".to_string(), price: 29.99 },
-/// ];
-///
-/// writer.write(&products)?;
 /// # Ok(())
 /// # }
 /// ```
-pub struct MySqlItemWriter<'a, O> {
-    pub(crate) pool: Option<&'a Pool<MySql>>,
-    pub(crate) table: Option<&'a str>,
-    pub(crate) columns: Vec<&'a str>,
-    pub(crate) item_binder: Option<&'a dyn DatabaseItemBinder<O, MySql>>,
+pub struct MySqlItemWriter<O> {
+    pub(crate) pool: Option<sqlx::Pool<MySql>>,
+    pub(crate) table: Option<String>,
+    #[allow(clippy::type_complexity)]
+    pub(crate) column_bindings: Vec<(String, Box<dyn Fn(&O) -> ColumnValue>)>,
 }
 
-impl<'a, O> MySqlItemWriter<'a, O> {
+impl<O> MySqlItemWriter<O> {
     /// Creates a new `MySqlItemWriter` with default configuration.
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             pool: None,
             table: None,
-            columns: Vec::new(),
-            item_binder: None,
+            column_bindings: Vec::new(),
         }
     }
 
     /// Sets the database connection pool for the writer.
-    pub(crate) fn pool(mut self, pool: &'a Pool<MySql>) -> Self {
-        self.pool = Some(pool);
+    pub fn pool(mut self, pool: &Pool<MySql>) -> Self {
+        self.pool = Some(pool.clone());
         self
     }
 
     /// Sets the table name for the writer.
-    pub(crate) fn table(mut self, table: &'a str) -> Self {
-        self.table = Some(table);
+    pub fn table(mut self, table: &str) -> Self {
+        self.table = Some(table.to_string());
         self
     }
 
-    /// Adds a column to the writer.
-    pub(crate) fn add_column(mut self, column: &'a str) -> Self {
-        self.columns.push(column);
-        self
-    }
-
-    /// Sets the item binder for the writer.
-    pub(crate) fn item_binder(mut self, item_binder: &'a dyn DatabaseItemBinder<O, MySql>) -> Self {
-        self.item_binder = Some(item_binder);
+    /// Adds a column binding to the writer.
+    pub fn add_column_binding(
+        mut self,
+        name: String,
+        extractor: Box<dyn Fn(&O) -> ColumnValue>,
+    ) -> Self {
+        self.column_bindings.push((name, extractor));
         self
     }
 }
 
-impl<'a, O> Default for MySqlItemWriter<'a, O> {
+impl<O> Default for MySqlItemWriter<O> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<O: Serialize + Clone> ItemWriter<O> for MySqlItemWriter<'_, O> {
+impl<O: Serialize + Clone> ItemWriter<O> for MySqlItemWriter<O> {
     fn write(&self, items: &[O]) -> ItemWriterResult {
         if items.is_empty() {
             return Ok(());
         }
 
-        if self.columns.is_empty() {
-            return Err(crate::BatchError::ItemWriter(
-                "No columns specified for database write".to_string(),
-            ));
-        }
+        let (pool, table) = validate_config(
+            self.pool.as_ref(),
+            self.table.as_deref(),
+            self.column_bindings.len(),
+        )?;
 
-        let pool = self.pool.ok_or_else(|| {
-            crate::BatchError::ItemWriter("Database pool not configured".to_string())
-        })?;
-        let table = self.table.ok_or_else(|| {
-            crate::BatchError::ItemWriter("Table name not configured".to_string())
-        })?;
+        let col_names: Vec<&str> = self
+            .column_bindings
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
 
-        // Build INSERT query
         let mut query_builder = QueryBuilder::new("INSERT INTO ");
         query_builder.push(table);
         query_builder.push(" (");
-        query_builder.push(self.columns.join(","));
+        query_builder.push(col_names.join(","));
         query_builder.push(") ");
 
-        // Calculate max items per batch and add values
-        let max_items = max_items_per_batch(self.columns.len());
-        let items_to_write = items.iter().take(max_items);
+        let max_items = max_items_per_batch(self.column_bindings.len());
+        let items_to_write: Vec<_> = items.iter().take(max_items).collect();
         let items_count = items_to_write.len();
 
-        // TODO: TASK 4 — bind items using new API
-        // query_builder.push_values(items_to_write, |b, item| {
-        //     item_binder.bind(item, b);
-        // });
-
-        // Return early for now to let tests compile
-        return Err(crate::BatchError::ItemWriter(
-            "TODO: implement new binding API".to_string(),
-        ));
-
-        // Execute query inline (QueryBuilder lifetime requires this to be in same scope)
-        #[allow(unreachable_code)]
-        {
-            let query = query_builder.build();
-            let result = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async { query.execute(pool).await })
-            });
-
-            match result {
-                Ok(_) => {
-                    log_write_success(items_count, table, "MySQL");
-                    Ok(())
+        query_builder.push_values(items_to_write, |mut b, item| {
+            for (_, extractor) in &self.column_bindings {
+                match extractor(item) {
+                    ColumnValue::Int(v) => {
+                        b.push_bind(v);
+                    }
+                    ColumnValue::Float(v) => {
+                        b.push_bind(v);
+                    }
+                    ColumnValue::Text(v) => {
+                        b.push_bind(v);
+                    }
+                    ColumnValue::Bool(v) => {
+                        b.push_bind(v);
+                    }
+                    ColumnValue::Bytes(v) => {
+                        b.push_bind(v);
+                    }
+                    ColumnValue::Null => {
+                        b.push_bind(Option::<String>::None);
+                    }
                 }
-                Err(e) => Err(create_write_error(table, "MySQL", e)),
             }
+        });
+
+        let query = query_builder.build();
+        let result = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async { query.execute(pool).await })
+        });
+
+        match result {
+            Ok(_) => {
+                log_write_success(items_count, table, "MySQL");
+                Ok(())
+            }
+            Err(e) => Err(create_write_error(table, "MySQL", e)),
         }
     }
 }
@@ -180,90 +158,54 @@ impl<O: Serialize + Clone> ItemWriter<O> for MySqlItemWriter<'_, O> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::item::ItemWriter;
+    use crate::item::rdbc::ColumnValue;
 
     #[test]
-    fn test_new_creates_default_writer() {
+    fn should_start_with_empty_state() {
         let writer = MySqlItemWriter::<String>::new();
-
         assert!(writer.pool.is_none());
         assert!(writer.table.is_none());
-        assert!(writer.columns.is_empty());
-        assert!(writer.item_binder.is_none());
+        assert!(writer.column_bindings.is_empty());
     }
 
     #[test]
-    fn test_builder_pattern_configuration() {
+    fn should_store_column_bindings_in_order() {
         let writer = MySqlItemWriter::<String>::new()
-            .table("products")
-            .add_column("id")
-            .add_column("name")
-            .add_column("price");
-
-        assert_eq!(writer.table, Some("products"));
-        assert_eq!(writer.columns, vec!["id", "name", "price"]);
+            .add_column_binding("x".to_string(), Box::new(|_| ColumnValue::Null))
+            .add_column_binding("y".to_string(), Box::new(|_| ColumnValue::Null));
+        let names: Vec<&str> = writer
+            .column_bindings
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
+        assert_eq!(names, vec!["x", "y"]);
     }
 
     #[test]
-    fn test_write_empty_items() {
-        use crate::item::rdbc::DatabaseItemBinder;
-        use sqlx::query_builder::Separated;
-
-        struct DummyBinder;
-        impl DatabaseItemBinder<String, MySql> for DummyBinder {
-            fn bind(&self, _item: &String, _query_builder: Separated<MySql, &str>) {}
-        }
-
-        let binder = DummyBinder;
-        let writer = MySqlItemWriter::<String>::new()
-            .table("test")
-            .add_column("value")
-            .item_binder(&binder);
-
-        let result = writer.write(&[]);
-        assert!(result.is_ok());
+    fn should_return_ok_for_empty_items() {
+        let writer = MySqlItemWriter::<String>::new();
+        assert!(writer.write(&[]).is_ok());
     }
 
     #[test]
-    fn should_return_error_when_columns_missing_and_items_given() {
-        use crate::{BatchError, item::rdbc::DatabaseItemBinder};
-        use sqlx::query_builder::Separated;
-
-        struct DummyBinder;
-        impl DatabaseItemBinder<String, MySql> for DummyBinder {
-            fn bind(&self, _: &String, _: Separated<MySql, &str>) {}
-        }
-        let binder = DummyBinder;
-        let writer = MySqlItemWriter::<String>::new()
-            .table("t")
-            .item_binder(&binder); // no columns
-
+    fn should_return_error_when_no_columns_and_items_given() {
+        use crate::BatchError;
+        let writer = MySqlItemWriter::<String>::new().table("t");
         let result = writer.write(&["x".to_string()]);
-        assert!(result.is_err(), "expected error for missing columns");
-        match result.unwrap_err() {
+        match result.err().unwrap() {
             BatchError::ItemWriter(msg) => assert!(msg.contains("columns"), "{msg}"),
             e => panic!("expected ItemWriter, got {e:?}"),
         }
     }
 
     #[test]
-    fn should_return_error_when_pool_not_configured_and_items_given() {
-        use crate::{BatchError, item::rdbc::DatabaseItemBinder};
-        use sqlx::query_builder::Separated;
-
-        struct DummyBinder;
-        impl DatabaseItemBinder<String, MySql> for DummyBinder {
-            fn bind(&self, _: &String, _: Separated<MySql, &str>) {}
-        }
-        let binder = DummyBinder;
+    fn should_return_error_when_pool_not_configured() {
+        use crate::BatchError;
         let writer = MySqlItemWriter::<String>::new()
             .table("t")
-            .add_column("v")
-            .item_binder(&binder); // no pool
-
+            .add_column_binding("v".to_string(), Box::new(|s: &String| s.as_str().into()));
         let result = writer.write(&["x".to_string()]);
-        assert!(result.is_err(), "expected error for missing pool");
-        match result.unwrap_err() {
+        match result.err().unwrap() {
             BatchError::ItemWriter(msg) => assert!(msg.contains("pool"), "{msg}"),
             e => panic!("expected ItemWriter, got {e:?}"),
         }

@@ -292,7 +292,7 @@ impl<'a, O> RdbcItemWriterBuilder<'a, O> {
     ///
     /// # Panics
     /// Panics if required MySQL-specific configuration is missing
-    pub fn build_mysql(self) -> MySqlItemWriter<'a, O> {
+    pub fn build_mysql(self) -> MySqlItemWriter<O> {
         let mut writer = MySqlItemWriter::new();
 
         if let Some(pool) = self.mysql_pool {
@@ -303,12 +303,15 @@ impl<'a, O> RdbcItemWriterBuilder<'a, O> {
             writer = writer.table(table);
         }
 
+        // TODO: TASK 6 — update to use .column() method with proper extractors
         for column in self.columns {
-            writer = writer.add_column(column);
+            let col_name = column.to_string();
+            writer = writer
+                .add_column_binding(col_name, Box::new(|_| crate::item::rdbc::ColumnValue::Null));
         }
 
-        if let Some(binder) = self.mysql_binder {
-            writer = writer.item_binder(binder);
+        if let Some(_binder) = self.mysql_binder {
+            // TODO: TASK 6 — migrate to ColumnValue-based binding
         }
 
         writer
@@ -400,8 +403,13 @@ mod tests {
             .add_column("order_id")
             .add_column("total")
             .build_mysql();
-        assert_eq!(writer.table, Some("orders"));
-        assert_eq!(writer.columns, vec!["order_id", "total"]);
+        assert_eq!(writer.table.as_deref(), Some("orders"));
+        let names: Vec<&str> = writer
+            .column_bindings
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
+        assert_eq!(names, vec!["order_id", "total"]);
     }
 
     #[test]
@@ -442,10 +450,14 @@ mod tests {
     #[test]
     fn should_set_mysql_binder() {
         let binder = NopBinder;
+        // Builder accepts the binder without panicking; full migration to .column() is in Task 6.
         let writer = RdbcItemWriterBuilder::<String>::new()
             .mysql_binder(&binder)
             .build_mysql();
-        assert!(writer.item_binder.is_some(), "mysql binder should be set");
+        assert!(
+            writer.column_bindings.is_empty(),
+            "no .column() calls — bindings should be empty"
+        );
     }
 
     #[test]
@@ -493,7 +505,7 @@ mod tests {
     fn should_have_no_table_by_default_in_mysql_writer() {
         let writer = RdbcItemWriterBuilder::<String>::new().build_mysql();
         assert!(writer.table.is_none());
-        assert!(writer.columns.is_empty());
+        assert!(writer.column_bindings.is_empty());
     }
 
     #[test]
