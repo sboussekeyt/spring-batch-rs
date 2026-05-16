@@ -4,6 +4,11 @@
 //! item readers (PostgreSQL, MySQL, SQLite) to reduce code duplication and ensure
 //! consistent behavior.
 
+use std::cell::{Cell, RefCell};
+
+use crate::BatchError;
+use crate::core::item::ItemReaderResult;
+
 /// Calculates the index within the current page based on offset and page size.
 ///
 /// # Arguments
@@ -62,6 +67,33 @@ pub fn calculate_page_index(offset: i32, page_size: Option<i32>) -> i32 {
 #[inline]
 pub fn should_load_page(page_index: i32) -> bool {
     page_index == 0
+}
+
+/// Advances the reader by one item, loading a new page when necessary.
+///
+/// Shared implementation for all three RDBC readers (SQLite, PostgreSQL, MySQL).
+///
+/// # Errors
+///
+/// Returns [`BatchError::ItemReader`] if `load_page` fails.
+pub fn read_item<I: Clone>(
+    offset: &Cell<i32>,
+    page_size: Option<i32>,
+    buffer: &RefCell<Vec<I>>,
+    keyset_key: &Option<Box<dyn Fn(&I) -> String>>,
+    last_cursor: &RefCell<Option<String>>,
+    load_page: impl FnOnce() -> Result<(), BatchError>,
+) -> ItemReaderResult<I> {
+    let index = calculate_page_index(offset.get(), page_size);
+    if should_load_page(index) {
+        load_page()?;
+    }
+    let result = buffer.borrow().get(index as usize).cloned();
+    if let (Some(item), Some(key_fn)) = (&result, keyset_key) {
+        *last_cursor.borrow_mut() = Some(key_fn(item));
+    }
+    offset.set(offset.get() + 1);
+    Ok(result)
 }
 
 #[cfg(test)]
