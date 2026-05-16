@@ -93,13 +93,12 @@ where
 
         if let Some(page_size) = self.page_size {
             if let Some(ref col) = self.keyset_column {
-                {
-                    let last = self.last_cursor.borrow();
-                    if let Some(ref cursor_val) = *last {
-                        query_builder.push(format!(" WHERE {} > ", col));
-                        query_builder.push_bind(cursor_val.clone());
-                    }
+                let last = self.last_cursor.borrow();
+                if let Some(ref cursor_val) = *last {
+                    let escaped = cursor_val.replace('\'', "''");
+                    query_builder.push(format!(" WHERE {} > '{}'", col, escaped));
                 }
+                drop(last);
                 query_builder.push(format!(" ORDER BY {} LIMIT {}", col, page_size));
             } else {
                 query_builder.push(format!(" LIMIT {} OFFSET {}", page_size, self.offset.get()));
