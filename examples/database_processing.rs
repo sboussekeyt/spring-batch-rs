@@ -6,7 +6,7 @@
 //! ## Features Demonstrated
 //! - Reading from database with pagination
 //! - Writing to database with batch inserts
-//! - Custom item binders for type-safe binding
+//! - Fluent column binding API for type-safe binding
 //! - Database to CSV/JSON export
 //! - CSV import to database
 //!
@@ -28,10 +28,10 @@ use spring_batch_rs::{
         csv::csv_writer::CsvItemWriterBuilder,
         json::json_writer::JsonItemWriterBuilder,
         logger::LoggerWriterBuilder,
-        rdbc::{DatabaseItemBinder, RdbcItemReaderBuilder, RdbcItemWriterBuilder},
+        rdbc::{RdbcItemReaderBuilder, RdbcItemWriterBuilder},
     },
 };
-use sqlx::{FromRow, Sqlite, SqlitePool, query_builder::Separated};
+use sqlx::{FromRow, SqlitePool};
 use std::env::temp_dir;
 
 // =============================================================================
@@ -54,30 +54,6 @@ struct Product {
     name: String,
     price: f64,
     stock: i32,
-}
-
-/// Binder for User records to SQLite.
-struct UserBinder;
-
-impl DatabaseItemBinder<User, Sqlite> for UserBinder {
-    fn bind(&self, item: &User, mut query_builder: Separated<Sqlite, &str>) {
-        query_builder.push_bind(item.id);
-        query_builder.push_bind(item.name.clone());
-        query_builder.push_bind(item.email.clone());
-        query_builder.push_bind(item.active);
-    }
-}
-
-/// Binder for Product records to SQLite.
-struct ProductBinder;
-
-impl DatabaseItemBinder<Product, Sqlite> for ProductBinder {
-    fn bind(&self, item: &Product, mut query_builder: Separated<Sqlite, &str>) {
-        query_builder.push_bind(item.id);
-        query_builder.push_bind(item.name.clone());
-        query_builder.push_bind(item.price);
-        query_builder.push_bind(item.stock);
-    }
 }
 
 /// Processor that marks all users as active.
@@ -276,15 +252,13 @@ id,name,price,stock
         .has_headers(true)
         .from_reader(csv_data.as_bytes());
 
-    let binder = ProductBinder;
     let writer = RdbcItemWriterBuilder::<Product>::new()
         .sqlite(pool)
         .table("products")
-        .add_column("id")
-        .add_column("name")
-        .add_column("price")
-        .add_column("stock")
-        .sqlite_binder(&binder)
+        .column("id", |p: &Product| p.id.into())
+        .column("name", |p: &Product| p.name.clone().into())
+        .column("price", |p: &Product| p.price.into())
+        .column("stock", |p: &Product| p.stock.into())
         .build_sqlite();
 
     let processor = PassThroughProcessor::<Product>::new();
@@ -337,15 +311,13 @@ fn example_transform_and_write(pool: &SqlitePool) -> Result<(), BatchError> {
         .query("SELECT id, name, email, active FROM users WHERE active = 0")
         .build_sqlite();
 
-    let binder = UserBinder;
     let writer = RdbcItemWriterBuilder::<User>::new()
         .sqlite(pool)
         .table("activated_users")
-        .add_column("id")
-        .add_column("name")
-        .add_column("email")
-        .add_column("active")
-        .sqlite_binder(&binder)
+        .column("id", |u: &User| u.id.into())
+        .column("name", |u: &User| u.name.clone().into())
+        .column("email", |u: &User| u.email.clone().into())
+        .column("active", |u: &User| u.active.into())
         .build_sqlite();
 
     let processor = ActivateUserProcessor;
