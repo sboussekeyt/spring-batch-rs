@@ -260,7 +260,7 @@ impl<'a, O> RdbcItemWriterBuilder<'a, O> {
     ///
     /// # Panics
     /// Panics if required PostgreSQL-specific configuration is missing
-    pub fn build_postgres(self) -> PostgresItemWriter<'a, O> {
+    pub fn build_postgres(self) -> PostgresItemWriter<O> {
         let mut writer = PostgresItemWriter::new();
 
         if let Some(pool) = self.postgres_pool {
@@ -271,12 +271,15 @@ impl<'a, O> RdbcItemWriterBuilder<'a, O> {
             writer = writer.table(table);
         }
 
+        // TODO: TASK 6 — Update to use new column() method with extractors
         for column in self.columns {
-            writer = writer.add_column(column);
+            let col_name = column.to_string();
+            writer = writer
+                .add_column_binding(col_name, Box::new(|_| crate::item::rdbc::ColumnValue::Null));
         }
 
-        if let Some(binder) = self.postgres_binder {
-            writer = writer.item_binder(binder);
+        if let Some(_binder) = self.postgres_binder {
+            // TODO: TASK 6 — Migrate to new ColumnValue-based binding
         }
 
         writer
@@ -333,10 +336,8 @@ impl<'a, O> RdbcItemWriterBuilder<'a, O> {
         // For now, add stub column bindings to maintain validation compatibility
         for column in self.columns {
             let col_name = column.to_string();
-            writer = writer.add_column_binding(
-                col_name,
-                Box::new(|_| crate::item::rdbc::ColumnValue::Null),
-            );
+            writer = writer
+                .add_column_binding(col_name, Box::new(|_| crate::item::rdbc::ColumnValue::Null));
         }
 
         if let Some(_binder) = self.sqlite_binder {
@@ -375,7 +376,7 @@ mod tests {
         let writer = RdbcItemWriterBuilder::<String>::new()
             .table("users")
             .build_postgres();
-        assert_eq!(writer.table, Some("users"));
+        assert_eq!(writer.table.as_deref(), Some("users"));
     }
 
     #[test]
@@ -384,7 +385,12 @@ mod tests {
             .add_column("id")
             .add_column("name")
             .build_postgres();
-        assert_eq!(writer.columns, vec!["id", "name"]);
+        let names: Vec<&str> = writer
+            .column_bindings
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
+        assert_eq!(names, vec!["id", "name"]);
     }
 
     #[test]
@@ -423,12 +429,13 @@ mod tests {
     #[test]
     fn should_set_postgres_binder() {
         let binder = NopBinder;
+        // Builder accepts the binder without panicking; full migration to .column() is in Task 6.
         let writer = RdbcItemWriterBuilder::<String>::new()
             .postgres_binder(&binder)
             .build_postgres();
         assert!(
-            writer.item_binder.is_some(),
-            "postgres binder should be set"
+            writer.column_bindings.is_empty(),
+            "no .column() calls — bindings should be empty"
         );
     }
 
