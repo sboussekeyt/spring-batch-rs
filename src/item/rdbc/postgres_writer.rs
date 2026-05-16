@@ -5,7 +5,7 @@ use crate::core::item::{ItemWriter, ItemWriterResult};
 use crate::item::rdbc::ColumnValue;
 
 use super::writer_common::{
-    create_write_error, log_write_success, max_items_per_batch, validate_config,
+    bind_column_value, create_write_error, log_write_success, max_items_per_batch, validate_config,
 };
 
 /// A writer for inserting items into a PostgreSQL database using SQLx.
@@ -116,26 +116,7 @@ impl<O: Serialize + Clone> ItemWriter<O> for PostgresItemWriter<O> {
 
             query_builder.push_values(chunk.iter(), |mut b, item| {
                 for (_, extractor) in &self.column_bindings {
-                    match extractor(item) {
-                        ColumnValue::Int(v) => {
-                            b.push_bind(v);
-                        }
-                        ColumnValue::Float(v) => {
-                            b.push_bind(v);
-                        }
-                        ColumnValue::Text(v) => {
-                            b.push_bind(v);
-                        }
-                        ColumnValue::Bool(v) => {
-                            b.push_bind(v);
-                        }
-                        ColumnValue::Bytes(v) => {
-                            b.push_bind(v);
-                        }
-                        ColumnValue::Null => {
-                            b.push_bind(Option::<String>::None);
-                        }
-                    }
+                    bind_column_value!(b, extractor(item));
                 }
             });
 
