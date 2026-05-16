@@ -1,6 +1,6 @@
 use std::cell::{Cell, RefCell};
 
-use sqlx::{Execute, FromRow, MySql, Pool, QueryBuilder, mysql::MySqlRow};
+use sqlx::{FromRow, MySql, Pool, QueryBuilder, mysql::MySqlRow};
 
 use super::reader_common::{calculate_page_index, should_load_page};
 use crate::BatchError;
@@ -72,25 +72,24 @@ where
                     let escaped = cursor_val.replace('\'', "''");
                     query_builder.push(format!(" WHERE {} > '{}'", col, escaped));
                 }
+                drop(last);
                 query_builder.push(format!(" ORDER BY {} LIMIT {}", col, page_size));
             } else {
                 query_builder.push(format!(" LIMIT {} OFFSET {}", page_size, self.offset.get()));
             }
         }
 
-        let query = query_builder.build();
-
+        let query = query_builder.build_query_as::<I>();
         let items = tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
-                sqlx::query_as::<_, I>(query.sql())
+                query
                     .fetch_all(&self.pool)
                     .await
                     .map_err(|e| BatchError::ItemReader(e.to_string()))
             })
         })?;
 
-        self.buffer.borrow_mut().clear();
-        self.buffer.borrow_mut().extend(items);
+        *self.buffer.borrow_mut() = items;
         Ok(())
     }
 }
