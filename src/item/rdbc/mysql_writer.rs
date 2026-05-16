@@ -105,53 +105,53 @@ impl<O: Serialize + Clone> ItemWriter<O> for MySqlItemWriter<O> {
             .map(|(n, _)| n.as_str())
             .collect();
 
-        let mut query_builder = QueryBuilder::new("INSERT INTO ");
-        query_builder.push(table);
-        query_builder.push(" (");
-        query_builder.push(col_names.join(","));
-        query_builder.push(") ");
-
+        let col_list = col_names.join(",");
         let max_items = max_items_per_batch(self.column_bindings.len());
-        let items_to_write: Vec<_> = items.iter().take(max_items).collect();
-        let items_count = items_to_write.len();
 
-        query_builder.push_values(items_to_write, |mut b, item| {
-            for (_, extractor) in &self.column_bindings {
-                match extractor(item) {
-                    ColumnValue::Int(v) => {
-                        b.push_bind(v);
-                    }
-                    ColumnValue::Float(v) => {
-                        b.push_bind(v);
-                    }
-                    ColumnValue::Text(v) => {
-                        b.push_bind(v);
-                    }
-                    ColumnValue::Bool(v) => {
-                        b.push_bind(v);
-                    }
-                    ColumnValue::Bytes(v) => {
-                        b.push_bind(v);
-                    }
-                    ColumnValue::Null => {
-                        b.push_bind(Option::<String>::None);
+        for chunk in items.chunks(max_items) {
+            let mut query_builder = QueryBuilder::new("INSERT INTO ");
+            query_builder.push(table);
+            query_builder.push(" (");
+            query_builder.push(&col_list);
+            query_builder.push(") ");
+
+            query_builder.push_values(chunk.iter(), |mut b, item| {
+                for (_, extractor) in &self.column_bindings {
+                    match extractor(item) {
+                        ColumnValue::Int(v) => {
+                            b.push_bind(v);
+                        }
+                        ColumnValue::Float(v) => {
+                            b.push_bind(v);
+                        }
+                        ColumnValue::Text(v) => {
+                            b.push_bind(v);
+                        }
+                        ColumnValue::Bool(v) => {
+                            b.push_bind(v);
+                        }
+                        ColumnValue::Bytes(v) => {
+                            b.push_bind(v);
+                        }
+                        ColumnValue::Null => {
+                            b.push_bind(Option::<String>::None);
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        let query = query_builder.build();
-        let result = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async { query.execute(pool).await })
-        });
+            let query = query_builder.build();
+            let result = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async { query.execute(pool).await })
+            });
 
-        match result {
-            Ok(_) => {
-                log_write_success(items_count, table, "MySQL");
-                Ok(())
+            if let Err(e) = result {
+                return Err(create_write_error(table, "MySQL", e));
             }
-            Err(e) => Err(create_write_error(table, "MySQL", e)),
         }
+
+        log_write_success(items.len(), table, "MySQL");
+        Ok(())
     }
 }
 
