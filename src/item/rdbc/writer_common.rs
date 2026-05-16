@@ -140,7 +140,10 @@ mod tests {
     async fn should_return_ok_when_all_config_provided() {
         let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
         let result = validate_config::<Sqlite>(Some(&pool), Some("tbl"), 1);
-        assert!(result.is_ok(), "should return Ok when all config is provided");
+        assert!(
+            result.is_ok(),
+            "should return Ok when all config is provided"
+        );
     }
 
     #[test]

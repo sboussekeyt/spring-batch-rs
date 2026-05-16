@@ -98,7 +98,11 @@ impl<O: Serialize + Clone> ItemWriter<O> for SqliteItemWriter<O> {
             self.column_bindings.len(),
         )?;
 
-        let col_names: Vec<&str> = self.column_bindings.iter().map(|(n, _)| n.as_str()).collect();
+        let col_names: Vec<&str> = self
+            .column_bindings
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
 
         let mut query_builder = QueryBuilder::new("INSERT INTO ");
         query_builder.push(table);
@@ -175,7 +179,11 @@ mod tests {
             .iter()
             .map(|(n, _)| n.as_str())
             .collect();
-        assert_eq!(names, vec!["a", "b"], "bindings should preserve insertion order");
+        assert_eq!(
+            names,
+            vec!["a", "b"],
+            "bindings should preserve insertion order"
+        );
     }
 
     #[test]
@@ -271,9 +279,7 @@ mod tests {
                 Box::new(|r: &Row| r.note.clone().into()),
             );
 
-        writer
-            .write(&[Row { id: 1, note: None }])
-            .unwrap();
+        writer.write(&[Row { id: 1, note: None }]).unwrap();
 
         let (note,): (Option<String>,) = sqlx::query_as("SELECT note FROM t WHERE id = 1")
             .fetch_one(&pool)
