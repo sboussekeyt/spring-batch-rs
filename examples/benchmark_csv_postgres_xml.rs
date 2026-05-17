@@ -38,7 +38,7 @@ use spring_batch_rs::{
         xml::{xml_reader::XmlItemReaderBuilder, xml_writer::XmlItemWriterBuilder},
     },
 };
-use sqlx::{FromRow, PgPool};
+use sqlx::FromRow;
 use std::{
     env,
     fs::File,
@@ -207,7 +207,7 @@ mod tests {
     fn should_convert_usd_to_eur() {
         let processor = TransactionProcessor;
         let input = make_transaction("USD", 1000.0, "COMPLETED");
-        let result = processor.process(input).unwrap(); // unwrap: process() always returns Ok
+        let result = processor.process(input).unwrap().unwrap(); // process() always returns Ok(Some(_))
         assert_eq!(result.amount_eur, 920.0, "USD 1000 * 0.92 = EUR 920");
         assert_eq!(result.currency, "USD", "currency field must not change");
     }
@@ -216,7 +216,7 @@ mod tests {
     fn should_convert_gbp_to_eur() {
         let processor = TransactionProcessor;
         let input = make_transaction("GBP", 100.0, "COMPLETED");
-        let result = processor.process(input).unwrap(); // unwrap: process() always returns Ok
+        let result = processor.process(input).unwrap().unwrap();
         assert_eq!(result.amount_eur, 117.0, "GBP 100 * 1.17 = EUR 117");
     }
 
@@ -224,7 +224,7 @@ mod tests {
     fn should_keep_eur_unchanged() {
         let processor = TransactionProcessor;
         let input = make_transaction("EUR", 500.0, "PENDING");
-        let result = processor.process(input).unwrap(); // unwrap: process() always returns Ok
+        let result = processor.process(input).unwrap().unwrap();
         assert_eq!(result.amount_eur, 500.0, "EUR passthrough: rate = 1.0");
     }
 
@@ -232,7 +232,7 @@ mod tests {
     fn should_normalise_cancelled_to_failed() {
         let processor = TransactionProcessor;
         let input = make_transaction("EUR", 100.0, "CANCELLED");
-        let result = processor.process(input).unwrap(); // unwrap: process() always returns Ok
+        let result = processor.process(input).unwrap().unwrap();
         assert_eq!(
             result.status, "FAILED",
             "CANCELLED must be mapped to FAILED"
@@ -244,7 +244,7 @@ mod tests {
         let processor = TransactionProcessor;
         for status in &["PENDING", "COMPLETED", "FAILED"] {
             let input = make_transaction("EUR", 100.0, status);
-            let result = processor.process(input).unwrap(); // unwrap: process() always returns Ok
+            let result = processor.process(input).unwrap().unwrap();
             assert_eq!(
                 &result.status, status,
                 "status '{}' must not be changed",
@@ -258,7 +258,7 @@ mod tests {
         let processor = TransactionProcessor;
         // 333.33 * 0.92 = 306.6636 → rounds to 306.66
         let input = make_transaction("USD", 333.33, "COMPLETED");
-        let result = processor.process(input).unwrap(); // unwrap: process() always returns Ok
+        let result = processor.process(input).unwrap().unwrap();
         assert!(
             (result.amount_eur - 306.66_f64).abs() < 1e-9,
             "amount_eur must be rounded to 2 decimals, got {}",
@@ -290,198 +290,6 @@ mod tests {
             lines.len()
         );
     }
-}
-
-// =============================================================================
-// Step 1 — CSV → PostgreSQL
-// =============================================================================
-
-fn run_step1(pool: &PgPool, csv_path: &str) -> Result<u64, BatchError> {
-    log::info!("[Step 1] CSV → PostgreSQL …");
-    let t0 = Instant::now();
-
-    let file = File::open(csv_path)
-        .map_err(|e| BatchError::ItemReader(format!("Cannot open CSV: {}", e)))?;
-    let buffered = BufReader::with_capacity(64 * 1024, file);
-
-    let reader = CsvItemReaderBuilder::<Transaction>::new()
-        .has_headers(true)
-        .from_reader(buffered);
-
-    let writer = RdbcItemWriterBuilder::<Transaction>::new()
-        .postgres(pool)
-        .table("transactions")
-        .column("transaction_id", |t: &Transaction| {
-            t.transaction_id.clone().into()
-        })
-        .column("amount", |t: &Transaction| t.amount.into())
-        .column("currency", |t: &Transaction| t.currency.clone().into())
-        .column("timestamp", |t: &Transaction| t.timestamp.clone().into())
-        .column("account_from", |t: &Transaction| {
-            t.account_from.clone().into()
-        })
-        .column("account_to", |t: &Transaction| t.account_to.clone().into())
-        .column("status", |t: &Transaction| t.status.clone().into())
-        .column("amount_eur", |t: &Transaction| t.amount_eur.into())
-        .build_postgres();
-
-    let processor = TransactionProcessor;
-
-    let step = StepBuilder::new("csv-to-postgres")
-        .chunk::<Transaction, Transaction>(1_000)
-        .reader(&reader)
-        .processor(&processor)
-        .writer(&writer)
-        .build();
-
-    let job = JobBuilder::new().start(&step).build();
-    job.run()?;
-
-    // SAFETY: step "csv-to-postgres" is always registered after job.run() succeeds
-    let exec = job
-        .get_step_execution("csv-to-postgres")
-        .expect("step 'csv-to-postgres' must exist after job.run()");
-    let duration = t0.elapsed();
-    let throughput = exec.write_count as f64 / duration.as_secs_f64();
-
-    eprintln!(
-        "[Step 1] Done — {} records written in {:.1}s ({:.0} rec/s)",
-        exec.write_count,
-        duration.as_secs_f64(),
-        throughput
-    );
-    if exec.read_error_count > 0 || exec.write_error_count > 0 {
-        eprintln!(
-            "[Step 1] WARNING: {} read errors, {} write errors skipped — throughput may be understated",
-            exec.read_error_count, exec.write_error_count
-        );
-    }
-
-    Ok(exec.write_count as u64)
-}
-
-// =============================================================================
-// Step 2 — PostgreSQL → XML
-// =============================================================================
-
-fn run_step2(pool: &PgPool, xml_path: &str) -> Result<u64, BatchError> {
-    log::info!("[Step 2] PostgreSQL → XML …");
-    let t0 = Instant::now();
-
-    let reader = RdbcItemReaderBuilder::<Transaction>::new()
-        .postgres(pool.clone())
-        .query(
-            "SELECT transaction_id, amount, currency, timestamp, \
-             account_from, account_to, status, amount_eur \
-             FROM transactions",
-        )
-        .with_page_size(1_000)
-        .with_keyset("transaction_id", |t: &Transaction| t.transaction_id.clone())
-        .build_postgres();
-
-    let writer = XmlItemWriterBuilder::<Transaction>::new()
-        .root_tag("transactions")
-        .item_tag("transaction")
-        .from_path(xml_path)
-        .map_err(|e| BatchError::ItemWriter(e.to_string()))?;
-
-    let processor = PassThroughProcessor::<Transaction>::new();
-
-    let step = StepBuilder::new("postgres-to-xml")
-        .chunk::<Transaction, Transaction>(1_000)
-        .reader(&reader)
-        .processor(&processor)
-        .writer(&writer)
-        .build();
-
-    let job = JobBuilder::new().start(&step).build();
-    job.run()?;
-
-    // SAFETY: step "postgres-to-xml" is always registered after job.run() succeeds
-    let exec = job
-        .get_step_execution("postgres-to-xml")
-        .expect("step 'postgres-to-xml' must exist after job.run()");
-    let duration = t0.elapsed();
-    let throughput = exec.write_count as f64 / duration.as_secs_f64();
-
-    eprintln!(
-        "[Step 2] Done — {} records written in {:.1}s ({:.0} rec/s)",
-        exec.write_count,
-        duration.as_secs_f64(),
-        throughput
-    );
-    if exec.read_error_count > 0 || exec.write_error_count > 0 {
-        eprintln!(
-            "[Step 2] WARNING: {} read errors, {} write errors skipped — throughput may be understated",
-            exec.read_error_count, exec.write_error_count
-        );
-    }
-
-    Ok(exec.write_count as u64)
-}
-
-// =============================================================================
-// Step 3 — XML → PostgreSQL (transactions_import)
-// =============================================================================
-
-fn run_step3(pool: &PgPool, xml_path: &str) -> Result<u64, BatchError> {
-    log::info!("[Step 3] XML → PostgreSQL (transactions_import) …");
-    let t0 = Instant::now();
-
-    let reader = XmlItemReaderBuilder::<Transaction>::new()
-        .tag("transaction")
-        .from_path(xml_path)
-        .map_err(|e| BatchError::ItemReader(e.to_string()))?;
-
-    let writer = RdbcItemWriterBuilder::<Transaction>::new()
-        .postgres(pool)
-        .table("transactions_import")
-        .column("transaction_id", |t: &Transaction| {
-            t.transaction_id.clone().into()
-        })
-        .column("amount", |t: &Transaction| t.amount.into())
-        .column("currency", |t: &Transaction| t.currency.clone().into())
-        .column("timestamp", |t: &Transaction| t.timestamp.clone().into())
-        .column("account_from", |t: &Transaction| {
-            t.account_from.clone().into()
-        })
-        .column("account_to", |t: &Transaction| t.account_to.clone().into())
-        .column("status", |t: &Transaction| t.status.clone().into())
-        .column("amount_eur", |t: &Transaction| t.amount_eur.into())
-        .build_postgres();
-
-    let processor = PassThroughProcessor::<Transaction>::new();
-
-    let step = StepBuilder::new("xml-to-postgres-import")
-        .chunk::<Transaction, Transaction>(1_000)
-        .reader(&reader)
-        .processor(&processor)
-        .writer(&writer)
-        .build();
-
-    let job = JobBuilder::new().start(&step).build();
-    job.run()?;
-
-    let exec = job
-        .get_step_execution("xml-to-postgres-import")
-        .expect("step 'xml-to-postgres-import' must exist after job.run()");
-    let duration = t0.elapsed();
-    let throughput = exec.write_count as f64 / duration.as_secs_f64();
-
-    eprintln!(
-        "[Step 3] Done — {} records written in {:.1}s ({:.0} rec/s)",
-        exec.write_count,
-        duration.as_secs_f64(),
-        throughput
-    );
-    if exec.read_error_count > 0 || exec.write_error_count > 0 {
-        eprintln!(
-            "[Step 3] WARNING: {} read errors, {} write errors skipped",
-            exec.read_error_count, exec.write_error_count
-        );
-    }
-
-    Ok(exec.write_count as u64)
 }
 
 // =============================================================================
@@ -582,19 +390,128 @@ async fn main() -> Result<(), BatchError> {
     eprintln!("[Generate] Done in {:.1}s", t_gen.elapsed().as_secs_f64());
     eprintln!();
 
-    // 6. Run Step 1
-    run_step1(&pool, &csv_path)?;
-    eprintln!();
+    // ── Step 1: CSV → PostgreSQL ──────────────────────────────────────────────
+    let file = File::open(&csv_path)
+        .map_err(|e| BatchError::ItemReader(format!("Cannot open CSV: {}", e)))?;
+    let csv_reader = CsvItemReaderBuilder::<Transaction>::new()
+        .has_headers(true)
+        .from_reader(BufReader::with_capacity(64 * 1024, file));
+    let pg_writer1 = RdbcItemWriterBuilder::<Transaction>::new()
+        .postgres(&pool)
+        .table("transactions")
+        .column("transaction_id", |t: &Transaction| {
+            t.transaction_id.clone().into()
+        })
+        .column("amount", |t: &Transaction| t.amount.into())
+        .column("currency", |t: &Transaction| t.currency.clone().into())
+        .column("timestamp", |t: &Transaction| t.timestamp.clone().into())
+        .column("account_from", |t: &Transaction| {
+            t.account_from.clone().into()
+        })
+        .column("account_to", |t: &Transaction| t.account_to.clone().into())
+        .column("status", |t: &Transaction| t.status.clone().into())
+        .column("amount_eur", |t: &Transaction| t.amount_eur.into())
+        .build_postgres();
+    let processor1 = TransactionProcessor;
+    let step1 = StepBuilder::new("csv-to-postgres")
+        .chunk::<Transaction, Transaction>(1_000)
+        .reader(&csv_reader)
+        .processor(&processor1)
+        .writer(&pg_writer1)
+        .build();
 
-    // 7. Run Step 2
-    run_step2(&pool, &xml_path)?;
-    eprintln!();
+    // ── Step 2: PostgreSQL → XML ──────────────────────────────────────────────
+    let pg_reader = RdbcItemReaderBuilder::<Transaction>::new()
+        .postgres(pool.clone())
+        .query(
+            "SELECT transaction_id, amount, currency, timestamp, \
+             account_from, account_to, status, amount_eur \
+             FROM transactions",
+        )
+        .with_page_size(1_000)
+        .with_keyset("transaction_id", |t: &Transaction| t.transaction_id.clone())
+        .build_postgres();
+    // xml_writer creates the file immediately — must be built before xml_reader (step 3)
+    let xml_writer = XmlItemWriterBuilder::<Transaction>::new()
+        .root_tag("transactions")
+        .item_tag("transaction")
+        .from_path(&xml_path)
+        .map_err(|e| BatchError::ItemWriter(e.to_string()))?;
+    let processor2 = PassThroughProcessor::<Transaction>::new();
+    let step2 = StepBuilder::new("postgres-to-xml")
+        .chunk::<Transaction, Transaction>(1_000)
+        .reader(&pg_reader)
+        .processor(&processor2)
+        .writer(&xml_writer)
+        .build();
 
-    // 8. Run Step 3
-    run_step3(&pool, &xml_path)?;
-    eprintln!();
+    // ── Step 3: XML → PostgreSQL (transactions_import) ───────────────────────
+    // xml_reader opens the file created above; content written by step 2 at runtime
+    let xml_reader = XmlItemReaderBuilder::<Transaction>::new()
+        .tag("transaction")
+        .from_path(&xml_path)
+        .map_err(|e| BatchError::ItemReader(e.to_string()))?;
+    let pg_writer2 = RdbcItemWriterBuilder::<Transaction>::new()
+        .postgres(&pool)
+        .table("transactions_import")
+        .column("transaction_id", |t: &Transaction| {
+            t.transaction_id.clone().into()
+        })
+        .column("amount", |t: &Transaction| t.amount.into())
+        .column("currency", |t: &Transaction| t.currency.clone().into())
+        .column("timestamp", |t: &Transaction| t.timestamp.clone().into())
+        .column("account_from", |t: &Transaction| {
+            t.account_from.clone().into()
+        })
+        .column("account_to", |t: &Transaction| t.account_to.clone().into())
+        .column("status", |t: &Transaction| t.status.clone().into())
+        .column("amount_eur", |t: &Transaction| t.amount_eur.into())
+        .build_postgres();
+    let processor3 = PassThroughProcessor::<Transaction>::new();
+    let step3 = StepBuilder::new("xml-to-postgres-import")
+        .chunk::<Transaction, Transaction>(1_000)
+        .reader(&xml_reader)
+        .processor(&processor3)
+        .writer(&pg_writer2)
+        .build();
 
-    // 9. Summary
+    // ── Single job with 3 steps ───────────────────────────────────────────────
+    let job = JobBuilder::new()
+        .start(&step1)
+        .next(&step2)
+        .next(&step3)
+        .build();
+
+    job.run()?;
+
+    // ── Per-step metrics ──────────────────────────────────────────────────────
+    let step_names = [
+        ("csv-to-postgres", 1usize),
+        ("postgres-to-xml", 2),
+        ("xml-to-postgres-import", 3),
+    ];
+    for (name, idx) in &step_names {
+        let exec = job
+            .get_step_execution(name)
+            .expect("step must exist after job.run()");
+        let secs = exec.duration.unwrap_or_default().as_secs_f64();
+        eprintln!(
+            "[Step {}] Done — {} records in {:.1}s ({:.0} rec/s)",
+            idx,
+            exec.write_count,
+            secs,
+            exec.write_count as f64 / secs
+        );
+        if exec.read_error_count > 0 || exec.write_error_count > 0 {
+            eprintln!(
+                "[Step {}] WARNING: {} read errors, {} write errors skipped",
+                idx, exec.read_error_count, exec.write_error_count
+            );
+        }
+        eprintln!();
+    }
+
+    // ── Summary ───────────────────────────────────────────────────────────────
     let total_secs = t_total.elapsed().as_secs_f64();
     eprintln!("╔══════════════════════════════════════════════════════════╗");
     eprintln!("║  BENCHMARK SUMMARY                                       ║");
